@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CatalogStatus {
+  DRAFT      // Aguardando pagamento ou prévia de demonstração
+  ACTIVE     // Pago e público (válido por 90 dias)
+  EXPIRED    // Expirado
+}
+
+model Catalog {
+  id            String        @id @default(uuid())
+  slug          String        @unique
+  editToken     String        @unique @default(uuid())
+  status        CatalogStatus @default(DRAFT)
+
+  storeName     String
+  logoUrl       String?       // Caminho relativo da foto/logo, ex: /uploads/logo-uuid.webp
+  themeColor    String        @default("rose") // Identificador do tema de cor escolhido
+  whatsapp      String        // Apenas números com DDI, ex: 5575999999999
+  pixKey        String?       // Chave Pix do lojista para receber o sinal dos clientes
+  depositPct    Int           @default(50) // Porcentagem de sinal (0, 50 ou 100)
+  deliveryDates String[]      // Ex: ["24/12 (Qui) • Manhã", "24/12 (Qui) • Tarde"]
+  notes         String?       // Regras gerais da loja
+
+  paymentId     String?
+  expiresAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  products      Product[]
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  catalogId   String
+  catalog     Catalog  @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  priceCents  Int      // Sempre em centavos
+  imageUrl    String?  // Caminho relativo, ex: /uploads/123.webp
+  orderIndex  Int      @default(0)
+  available   Boolean  @default(true)
+}
