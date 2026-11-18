@@ -1,0 +1,25 @@
+# Dependências
+node_modules/
+
+# Variáveis de ambiente (mantém apenas .env.example)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Builds e caches
+dist/
+build/
+*.tsbuildinfo
+
+# Uploads locais do back-end (mantém apenas a pasta via .gitkeep)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs e arquivos de sistema
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
