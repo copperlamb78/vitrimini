@@ -18,7 +18,14 @@ declare global {
 }
 
 function getJwtSecret(): string {
-  return process.env.JWT_SECRET?.trim() || 'vitrimini-default-jwt-secret-2026';
+  const secret = process.env.JWT_SECRET?.trim();
+  if (secret && secret.length >= 16) {
+    return secret;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET não configurado ou muito curto em produção.');
+  }
+  return secret || 'vitrimini-default-jwt-secret-2026';
 }
 
 export function signAuthToken(user: AuthUserPayload): string {
@@ -62,5 +69,21 @@ export function requireAuth(
     next();
   } catch {
     next(new AppError(401, 'Sessão inválida ou expirada. Faça login novamente.'));
+  }
+}
+
+export function getOptionalAuthUserId(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  const token = authHeader.slice(7).trim();
+  if (!token) return null;
+
+  try {
+    const decoded = jwt.verify(token, getJwtSecret()) as AuthUserPayload;
+    return decoded.id || null;
+  } catch {
+    return null;
   }
 }
