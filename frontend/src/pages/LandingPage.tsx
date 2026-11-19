@@ -23,6 +23,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { DemoStoreModal } from '../components/DemoStoreModal';
 import { Footer } from '../components/Footer';
+import { applyPageSeo } from '../utils/seo';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
 interface RevealProps {
@@ -98,17 +99,41 @@ export function LandingPage() {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   useEffect(() => {
-    document.title = 'VitriMini — Sua vitrine de encomendas em 2 minutos';
+    applyPageSeo({
+      title: 'VitriMini — Crie sua vitrine digital online e venda pelo WhatsApp',
+      description:
+        'Crie sua vitrine digital de encomendas em 2 minutos com fotos, datas de entrega e sinal no Pix. Sem mensalidade: pague R$ 24,90 uma vez e use por 90 dias.',
+      canonicalPath: '/',
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: 'VitriMini',
+          url: 'https://vitrimini.com.br/',
+          inLanguage: 'pt-BR',
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'SoftwareApplication',
+          name: 'VitriMini',
+          applicationCategory: 'BusinessApplication',
+          operatingSystem: 'Web',
+          inLanguage: 'pt-BR',
+          url: 'https://vitrimini.com.br/',
+          description:
+            'Criador de vitrines digitais de encomendas com cálculo automático de sinal e pedidos organizados no WhatsApp.',
+          offers: {
+            '@type': 'Offer',
+            price: '24.90',
+            priceCurrency: 'BRL',
+            availability: 'https://schema.org/InStock',
+          },
+        },
+      ],
+    });
   }, []);
 
   const firstName = user?.name.split(' ')[0] || '';
-
-  function scrollToSection(id: string) {
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
-  }
 
   return (
     <div className="min-h-screen bg-white text-zinc-900 scroll-smooth">
@@ -120,40 +145,41 @@ export function LandingPage() {
             <img
               src={logoVitriMini}
               alt="VitriMini"
+              decoding="async"
+              fetchPriority="high"
               className="h-8 w-auto object-contain sm:h-9"
             />
           </Link>
 
           {/* Centro: Links de navegação (Desktop) */}
-          <nav className="hidden items-center gap-7 text-xs font-semibold text-zinc-600 md:flex">
-            <button
-              type="button"
-              onClick={() => scrollToSection('como-funciona')}
+          <nav
+            aria-label="Navegação principal"
+            className="hidden items-center gap-7 text-xs font-semibold text-zinc-600 md:flex"
+          >
+            <a
+              href="#como-funciona"
               className="transition hover:text-rose-600"
             >
               Como funciona
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection('recursos')}
+            </a>
+            <a
+              href="#recursos"
               className="transition hover:text-rose-600"
             >
               Recursos
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection('valor')}
+            </a>
+            <a
+              href="#valor"
               className="transition hover:text-rose-600"
             >
               Valor
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection('duvidas')}
+            </a>
+            <a
+              href="#duvidas"
               className="transition hover:text-rose-600"
             >
               Dúvidas
-            </button>
+            </a>
           </nav>
 
           {/* Direita: Autenticação / Minhas Vitrines / CTA */}
