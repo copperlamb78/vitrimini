@@ -814,7 +814,7 @@ export function CreatorPage() {
                 className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 py-2.5 text-xs font-bold text-stone-600 hover:border-stone-500 hover:bg-stone-50"
               >
                 <Plus className="h-4 w-4" />
-                Adicionar mais um produto (sem limite)
+                Adicionar produto
               </button>
             </section>
 
@@ -833,12 +833,12 @@ export function CreatorPage() {
                 {submitting ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Gerando sua vitrine e Pix...
+                    Gerando vitrine e Pix...
                   </>
                 ) : (
                   <>
                     <Sparkles className="h-5 w-5" />
-                    Publicar Vitrine (R$ 24,90 único)
+                    Publicar vitrine (R$ 24,90)
                   </>
                 )}
               </button>
