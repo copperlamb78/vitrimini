@@ -13,19 +13,29 @@
     "prisma:push": "prisma db push"
   },
   "dependencies": {
+    "@ngrok/ngrok": "^1.8.0",
     "@prisma/client": "^6.1.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.7.5",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^1.4.5-lts.1",
+    "nodemailer": "^10.6.0",
     "qrcode": "^1.5.4",
-    "uuid": "^11.0.5"
+    "uuid": "^11.0.5",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.10.2",
+    "@types/nodemailer": "^8.0.2",
     "@types/qrcode": "^1.5.5",
     "prisma": "^6.1.0",
     "tsx": "^4.19.2",
