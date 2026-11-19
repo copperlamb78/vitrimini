@@ -22,13 +22,17 @@ export function centsToPriceInput(cents: number): string {
 export function resolveImageUrl(imageUrl: string | null | undefined): string | null {
   if (!imageUrl) return null;
   if (
-    imageUrl.startsWith('http') ||
-    imageUrl.startsWith('data:') ||
+    imageUrl.startsWith('https://') ||
+    imageUrl.startsWith('http://') ||
+    imageUrl.startsWith('data:image/') ||
     imageUrl.startsWith('blob:')
   ) {
     return imageUrl;
   }
-  return `${API_BASE_URL}${imageUrl}`;
+  if (imageUrl.startsWith('/')) {
+    return `${API_BASE_URL}${imageUrl}`;
+  }
+  return null;
 }
 
 /**
