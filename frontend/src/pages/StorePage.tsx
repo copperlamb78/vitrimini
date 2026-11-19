@@ -18,6 +18,7 @@ import type { Catalog } from '../types/catalog';
 import { getStoreInitials, getTheme } from '../constants/themes';
 import { getPublicStore, getSafeErrorMessage } from '../services/api';
 import { formatCurrency, resolveImageUrl } from '../utils/format';
+import { applyPageSeo } from '../utils/seo';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 import logoIcon from '../assets/logo-icon.png';
 
@@ -53,7 +54,46 @@ export function StorePage() {
     getPublicStore(slug, isPreview)
       .then((data) => {
         setCatalog(data);
-        document.title = `${data.storeName} — VitriMini`;
+
+        const storeDescription =
+          data.notes?.trim().slice(0, 155) ||
+          `Confira os produtos de ${data.storeName} e faça sua encomenda online direto pelo WhatsApp.`;
+        const firstProductImg = data.products.find((p) => p.imageUrl)?.imageUrl;
+        const ogImage =
+          resolveImageUrl(data.logoUrl) ||
+          resolveImageUrl(firstProductImg) ||
+          'https://vitrimini.com.br/og-cover.png';
+
+        applyPageSeo({
+          title: `${data.storeName} — Vitrine de Encomendas | VitriMini`,
+          description: storeDescription,
+          canonicalPath: `/c/${data.slug}`,
+          ogImage,
+          noindex: isPreview && data.status !== 'ACTIVE',
+          jsonLd: {
+            '@context': 'https://schema.org',
+            '@type': 'Store',
+            name: data.storeName,
+            description: storeDescription,
+            url: `https://vitrimini.com.br/c/${data.slug}`,
+            image: ogImage,
+            makesOffer: data.products.slice(0, 20).map((p) => ({
+              '@type': 'Offer',
+              priceCurrency: 'BRL',
+              price: (p.priceCents / 100).toFixed(2),
+              availability: p.available
+                ? 'https://schema.org/InStock'
+                : 'https://schema.org/OutOfStock',
+              itemOffered: {
+                '@type': 'Product',
+                name: p.name,
+                ...(p.description ? { description: p.description } : {}),
+                ...(p.imageUrl ? { image: p.imageUrl } : {}),
+              },
+            })),
+          },
+        });
+
         if (data.deliveryDates.length > 0) {
           setSelectedDate(data.deliveryDates[0]);
         }
@@ -258,7 +298,9 @@ export function StorePage() {
             {logoSrc ? (
               <img
                 src={logoSrc}
-                alt={catalog.storeName}
+                alt={`Logo de ${catalog.storeName}`}
+                decoding="async"
+                fetchPriority="high"
                 className="h-16 w-16 shrink-0 rounded-full border-2 border-white/90 bg-white object-cover shadow-lg"
               />
             ) : (
@@ -326,6 +368,7 @@ export function StorePage() {
             <button
               type="button"
               onClick={() => setStockAlert(null)}
+              aria-label="Fechar aviso"
               className="rounded-full p-0.5 text-red-500 hover:bg-red-100"
             >
               <X className="h-4 w-4" />
@@ -357,6 +400,8 @@ export function StorePage() {
                     <img
                       src={imgSrc}
                       alt={product.name}
+                      loading="lazy"
+                      decoding="async"
                       className={`h-full w-full object-cover ${
                         product.available ? '' : 'grayscale'
                       }`}
