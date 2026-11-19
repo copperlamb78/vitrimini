@@ -124,12 +124,12 @@ export function Footer() {
               </h3>
               <p className="text-xs text-zinc-500">Suporte e dúvidas</p>
               <a
-                href="mailto:nascimentogabriel.2004@gmail.com"
+                href="mailto:suporte@vitrimini.com.br"
                 className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-xs font-semibold text-zinc-800 transition hover:border-rose-300 hover:bg-rose-50/50 hover:text-[#E11D48]"
               >
                 <Mail className="h-4 w-4 shrink-0 text-[#E11D48]" />
                 <span className="truncate">
-                  nascimentogabriel.2004@gmail.com
+                  suporte@vitrimini.com.br
                 </span>
               </a>
             </div>
@@ -217,10 +217,10 @@ export function Footer() {
               <span className="text-xs text-zinc-500">
                 Dúvidas:{' '}
                 <a
-                  href="mailto:nascimentogabriel.2004@gmail.com"
+                  href="mailto:suporte@vitrimini.com.br"
                   className="font-semibold text-[#E11D48] hover:underline"
                 >
-                  nascimentogabriel.2004@gmail.com
+                  suporte@vitrimini.com.br
                 </a>
               </span>
               <button
