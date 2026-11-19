@@ -13,6 +13,7 @@ import {
   getSafeErrorMessage,
   resetPasswordWithToken,
 } from '../services/api';
+import { applyPageSeo } from '../utils/seo';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
 export function ResetPasswordPage() {
@@ -28,7 +29,12 @@ export function ResetPasswordPage() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    document.title = 'Redefinir Senha — VitriMini';
+    applyPageSeo({
+      title: 'Redefinir Senha — VitriMini',
+      description: 'Crie uma nova senha para sua conta VitriMini.',
+      canonicalPath: '/redefinir-senha',
+      noindex: true,
+    });
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
