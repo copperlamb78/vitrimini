@@ -2,6 +2,23 @@ import type { ThemeId } from '../constants/themes';
 
 export type CatalogStatus = 'DRAFT' | 'ACTIVE' | 'EXPIRED';
 
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  createdAt?: string;
+  _count?: {
+    catalogs: number;
+    payments: number;
+  };
+}
+
+export interface AuthResponse {
+  token: string;
+  user: AuthUser;
+}
+
 export interface Product {
   id: string;
   catalogId?: string;
@@ -18,6 +35,8 @@ export interface Catalog {
   slug: string;
   editToken?: string;
   status: CatalogStatus;
+  userId?: string;
+  renewalCount?: number;
   storeName: string;
   logoUrl: string | null;
   themeColor: ThemeId | string;
@@ -34,6 +53,7 @@ export interface Catalog {
 
 export interface CreateCatalogResponse {
   catalogId: string;
+  paymentRecordId?: string;
   slug: string;
   editToken: string;
   qrCodeBase64: string;
@@ -45,31 +65,31 @@ export interface CatalogStatusResponse {
   status: CatalogStatus;
   slug: string;
   editToken: string;
+  expiresAt?: string | null;
+  renewalCount?: number;
+  paymentPaid?: boolean;
 }
 
-export interface RecoveredCatalogItem {
-  catalogId: string;
+export interface MyCatalogItem {
+  id: string;
   storeName: string;
   slug: string;
   editToken: string;
+  status: CatalogStatus;
+  isExpired?: boolean;
+  daysLeftToDelete?: number | null;
   expiresAt: string | null;
+  renewalCount: number;
+  logoUrl: string | null;
+  themeColor: ThemeId | string;
+  createdAt: string;
+  _count: {
+    products: number;
+  };
 }
 
-export interface RecoverCatalogsResponse {
-  catalogs: RecoveredCatalogItem[];
-}
-
-export interface SavedCatalogEntry {
-  catalogId: string;
-  storeName: string;
-  slug: string;
-  editToken: string;
-  qrCodeBase64: string;
-  pixCopyPaste: string;
-  mockMode: boolean;
-  status: 'DRAFT' | 'ACTIVE';
-  createdAt: number;
-  dismissed?: boolean;
+export interface MyCatalogsResponse {
+  catalogs: MyCatalogItem[];
 }
 
 export interface DraftProductItem {
