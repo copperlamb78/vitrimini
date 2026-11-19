@@ -62,7 +62,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
         number: '5',
         title: 'Direito de Arrependimento e Reembolso',
         paragraphs: [
-          'Em conformidade com o art. 49 do Código de Defesa do Consumidor, o Lojista poderá solicitar o cancelamento e reembolso integral no prazo de até 7 (sete) dias corridos após a confirmação do pagamento. A solicitação deve ser feita exclusivamente por e-mail para nascimentogabriel.2004@gmail.com, com prazo de resposta da equipe de suporte de até 3 (três) dias úteis. Confirmado o estorno, a vitrine será imediatamente desativada.',
+          'Em conformidade com o art. 49 do Código de Defesa do Consumidor, o Lojista poderá solicitar o cancelamento e reembolso integral no prazo de até 7 (sete) dias corridos após a confirmação do pagamento. A solicitação deve ser feita exclusivamente por e-mail para suporte@vitrimini.com.br, com prazo de resposta da equipe de suporte de até 3 (três) dias úteis. Confirmado o estorno, a vitrine será imediatamente desativada.',
         ],
       },
       {
@@ -81,7 +81,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
         number: '7',
         title: 'Foro e Contato',
         paragraphs: [
-          'Para dirimir quaisquer controvérsias oriundas destes Termos, fica eleito o foro da Comarca de Feira de Santana – BA. Canal oficial de suporte: nascimentogabriel.2004@gmail.com.',
+          'Para dirimir quaisquer controvérsias oriundas destes Termos, fica eleito o foro da Comarca de Feira de Santana – BA. Canal oficial de suporte: suporte@vitrimini.com.br.',
         ],
       },
     ],
@@ -95,7 +95,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
         number: '1',
         title: 'Controlador dos Dados',
         paragraphs: [
-          'Em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 – LGPD), o controlador dos dados pessoais tratados nesta plataforma é Antonio Gabriel Gomes Falcão do Nascimento (NeoDevZone), contato: nascimentogabriel.2004@gmail.com.',
+          'Em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 – LGPD), o controlador dos dados pessoais tratados nesta plataforma é Antonio Gabriel Gomes Falcão do Nascimento (NeoDevZone), contato: suporte@vitrimini.com.br.',
         ],
       },
       {
@@ -134,7 +134,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
         number: '5',
         title: 'Direitos do Titular e Contato (DPO)',
         paragraphs: [
-          'O Lojista pode solicitar a confirmação, correção, portabilidade ou exclusão de sua conta e dados pessoais a qualquer momento pelo e-mail nascimentogabriel.2004@gmail.com.',
+          'O Lojista pode solicitar a confirmação, correção, portabilidade ou exclusão de sua conta e dados pessoais a qualquer momento pelo e-mail suporte@vitrimini.com.br.',
         ],
       },
     ],
