@@ -39,15 +39,24 @@ function getS3Client(): S3Client {
   return cachedS3Client;
 }
 
+const ALLOWED_SHARP_FORMATS = new Set(['jpeg', 'png', 'webp', 'avif', 'heif']);
+const MAX_INPUT_PIXELS = 25_000_000; // Proteção contra decompression bomb / pixel flood
+
 /**
- * Otimiza a imagem em memória via sharp (corrige EXIF, redimensiona até 900x900
- * sem ampliar, converte para WebP qualidade 75 / esforço 6) e sobe ao Cloudflare R2
- * com cache imutável de 1 ano para zerar leituras repetidas (Class B).
+ * Valida a assinatura binária real da imagem, otimiza em memória via sharp
+ * (corrige EXIF, redimensiona até 900x900 sem ampliar, converte para WebP)
+ * e sobe ao Cloudflare R2 com cache imutável de 1 ano.
  */
 export async function uploadImageToR2(buffer: Buffer): Promise<string> {
   const { bucketName, publicUrl } = getR2Config();
 
-  const optimizedBuffer = await sharp(buffer)
+  const image = sharp(buffer, { limitInputPixels: MAX_INPUT_PIXELS });
+  const metadata = await image.metadata();
+  if (!metadata.format || !ALLOWED_SHARP_FORMATS.has(metadata.format)) {
+    throw new Error('Formato de arquivo inválido na verificação binária.');
+  }
+
+  const optimizedBuffer = await image
     .rotate()
     .resize({
       width: 900,
