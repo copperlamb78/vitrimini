@@ -164,11 +164,20 @@ export async function verifyMercadoPagoOrder(
     status?: string;
     status_detail?: string;
     external_reference?: string;
+    total_amount?: string | number;
   };
 
+  const expectedCents = getCatalogPriceCents();
+  const paidCents =
+    data.total_amount !== undefined
+      ? Math.round(Number(data.total_amount) * 100)
+      : expectedCents;
+
+  const isAmountValid = Number.isFinite(paidCents) && paidCents >= expectedCents;
   const isProcessed =
     data.status === 'processed' &&
-    (!data.status_detail || data.status_detail === 'accredited');
+    (!data.status_detail || data.status_detail === 'accredited') &&
+    isAmountValid;
 
   return {
     approved: isProcessed,
@@ -177,6 +186,8 @@ export async function verifyMercadoPagoOrder(
   };
 }
 
+const WEBHOOK_MAX_AGE_SECONDS = 5 * 60; // 5 minutos contra replay attack
+
 export function validateMercadoPagoWebhookSignature(params: {
   xSignature?: string;
   xRequestId?: string;
@@ -184,7 +195,8 @@ export function validateMercadoPagoWebhookSignature(params: {
 }): boolean {
   const secret = process.env.MP_WEBHOOK_SECRET?.trim();
   if (!secret) {
-    return true;
+    // Em modo real (não-mock), nunca aceita webhook sem MP_WEBHOOK_SECRET configurado
+    return isMockPixEnabled();
   }
 
   const { xSignature, xRequestId, dataId } = params;
@@ -204,6 +216,17 @@ export function validateMercadoPagoWebhookSignature(params: {
   }
 
   if (!ts || !v1) {
+    return false;
+  }
+
+  // Proteção contra replay attack: aceita ts em segundos ou milissegundos dentro de +-5 min
+  const numericTs = Number(ts);
+  if (!Number.isFinite(numericTs) || numericTs <= 0) {
+    return false;
+  }
+  const tsSeconds = numericTs > 1e12 ? Math.floor(numericTs / 1000) : numericTs;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (Math.abs(nowSeconds - tsSeconds) > WEBHOOK_MAX_AGE_SECONDS) {
     return false;
   }
 
