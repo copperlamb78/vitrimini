@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Plus,
   Trash2,
@@ -9,42 +10,32 @@ import {
   Loader2,
   Infinity as InfinityIcon,
   Store,
-  KeyRound,
+  LogIn,
+  LogOut,
+  ArrowLeft,
 } from 'lucide-react';
-import type {
-  CreateCatalogResponse,
-  DraftProductItem,
-  RecoveredCatalogItem,
-  SavedCatalogEntry,
-} from '../types/catalog';
+import type { CreateCatalogResponse, DraftProductItem } from '../types/catalog';
 import { getTheme, THEMES, type ThemeId } from '../constants/themes';
 import {
   blobToDataUrl,
   compressImage,
   dataUrlToBlob,
 } from '../utils/compressImage';
-import { parsePriceToCents } from '../utils/format';
 import {
-  createCatalog,
-  getCatalogStatus,
-  getSafeErrorMessage,
-} from '../services/api';
-import {
-  dismissDraftCatalog,
-  getRecentDraftsToCheck,
-  getResumableDraftCatalog,
-  getSavedCatalogs,
-  markCatalogActive,
-  mergeRecoveredCatalogs,
-  saveDraftCatalog,
-} from '../utils/savedCatalogs';
+  formatPhoneMask,
+  isValidBrazilianPhone,
+  parsePriceToCents,
+  phoneToDDI,
+} from '../utils/format';
+import { createCatalog, getSafeErrorMessage } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { PhoneMockupPreview } from '../components/PhoneMockupPreview';
 import { PixPaymentModal } from '../components/PixPaymentModal';
-import { MyCatalogsModal } from '../components/MyCatalogsModal';
-import { RecoverLinksModal } from '../components/RecoverLinksModal';
+import { AuthModal } from '../components/AuthModal';
 import { LogoUploader } from '../components/LogoUploader';
 import { ThemeSelector } from '../components/ThemeSelector';
 import { DeliveryDateBuilder } from '../components/DeliveryDateBuilder';
+import { Footer } from '../components/Footer';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
 const DRAFT_STORAGE_KEY = 'vitrimini_draft_v1';
@@ -79,6 +70,7 @@ function createEmptyProduct(): DraftProductItem {
 }
 
 export function CreatorPage() {
+  const { user, logout } = useAuth();
   const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit');
 
   const [storeName, setStoreName] = useState('');
@@ -99,27 +91,31 @@ export function CreatorPage() {
   const [products, setProducts] = useState<DraftProductItem[]>([
     createEmptyProduct(),
   ]);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const [hydrated, setHydrated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [savedCatalogs, setSavedCatalogs] = useState<SavedCatalogEntry[]>([]);
+  const [authModalConfig, setAuthModalConfig] = useState<{
+    open: boolean;
+    initialTab: 'register' | 'login';
+    publishOnSuccess: boolean;
+  }>({
+    open: false,
+    initialTab: 'register',
+    publishOnSuccess: false,
+  });
+
   const [paymentModalData, setPaymentModalData] =
     useState<CreateCatalogResponse | null>(null);
-  const [paymentModalInitialPaid, setPaymentModalInitialPaid] = useState(false);
-  const [myCatalogsOpen, setMyCatalogsOpen] = useState(false);
-  const [recoverOpen, setRecoverOpen] = useState(false);
 
   const activeTheme = getTheme(themeColor);
+  const firstName = user?.name.split(' ')[0] || '';
 
-  const activeCatalogs = useMemo(
-    () => savedCatalogs.filter((item) => item.status === 'ACTIVE'),
-    [savedCatalogs]
-  );
-
-  // 1. Carrega rascunho de formulário + vitrines salvas e retoma cobrança pendente (< 2h)
+  // 1. Carrega rascunho de formulário do localStorage
   useEffect(() => {
+    document.title = 'Criar Vitrine — VitriMini';
     try {
       const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
       if (raw) {
@@ -131,7 +127,7 @@ export function CreatorPage() {
         if (parsed.themeColor && parsed.themeColor in THEMES) {
           setThemeColor(parsed.themeColor);
         }
-        if (parsed.whatsapp) setWhatsapp(parsed.whatsapp);
+        if (parsed.whatsapp) setWhatsapp(formatPhoneMask(parsed.whatsapp));
         if (parsed.pixKey) setPixKey(parsed.pixKey);
         if (parsed.depositPct !== undefined) setDepositPct(parsed.depositPct);
         if (Array.isArray(parsed.deliveryDates)) {
@@ -147,54 +143,16 @@ export function CreatorPage() {
     } finally {
       setHydrated(true);
     }
-
-    const storedCatalogs = getSavedCatalogs();
-    setSavedCatalogs(storedCatalogs);
-
-    // Se existir cobrança Pix DRAFT nas últimas 2h não cancelada, reabre o modal automaticamente
-    const resumable = getResumableDraftCatalog(storedCatalogs);
-    if (resumable) {
-      setPaymentModalInitialPaid(false);
-      setPaymentModalData({
-        catalogId: resumable.catalogId,
-        slug: resumable.slug,
-        editToken: resumable.editToken,
-        qrCodeBase64: resumable.qrCodeBase64,
-        pixCopyPaste: resumable.pixCopyPaste,
-        mockMode: resumable.mockMode,
-      });
-      return;
-    }
-
-    // Mesmo para rascunhos fechados manualmente nas últimas 2h, verifica em background se foram pagos
-    const recentDrafts = getRecentDraftsToCheck(storedCatalogs);
-    for (const draft of recentDrafts) {
-      void getCatalogStatus(draft.catalogId)
-        .then((res) => {
-          if (res.status === 'ACTIVE') {
-            const updated = markCatalogActive(draft.catalogId, {
-              slug: res.slug,
-              editToken: res.editToken,
-            });
-            setSavedCatalogs(updated);
-            setPaymentModalInitialPaid(true);
-            setPaymentModalData({
-              catalogId: draft.catalogId,
-              slug: res.slug,
-              editToken: res.editToken,
-              qrCodeBase64: draft.qrCodeBase64,
-              pixCopyPaste: draft.pixCopyPaste,
-              mockMode: draft.mockMode,
-            });
-          }
-        })
-        .catch(() => {
-          // Ignora falha silenciosa de rede
-        });
-    }
   }, []);
 
-  // 2. Salva rascunho do formulário automaticamente no localStorage
+  // 2. Auto-preenchimento editável do WhatsApp quando o lojista está logado
+  useEffect(() => {
+    if (hydrated && user?.phone && !whatsapp.trim()) {
+      setWhatsapp(formatPhoneMask(user.phone));
+    }
+  }, [hydrated, user?.phone, whatsapp]);
+
+  // 3. Salva rascunho do formulário automaticamente no localStorage
   useEffect(() => {
     if (!hydrated) return;
     const draft: SavedDraft = {
@@ -313,6 +271,84 @@ export function CreatorPage() {
     }
   }
 
+  const executeCreateCatalog = useCallback(
+    async (tokenOverride?: string) => {
+      const digits = phoneToDDI(whatsapp);
+      const validProducts = products.filter((p) => p.name.trim());
+
+      setSubmitting(true);
+      setError(null);
+      try {
+        const formData = new FormData();
+        formData.append('storeName', storeName.trim());
+        formData.append('themeColor', themeColor);
+        formData.append('whatsapp', digits);
+        formData.append('pixKey', pixKey.trim());
+        formData.append('depositPct', String(depositPct));
+        formData.append('deliveryDates', JSON.stringify(deliveryDates));
+        formData.append('notes', notes.trim());
+
+        let finalLogoBlob = logoBlob;
+        if (!finalLogoBlob && logoPreviewDataUrl) {
+          finalLogoBlob = await dataUrlToBlob(logoPreviewDataUrl);
+        }
+        if (finalLogoBlob) {
+          formData.append('logo', finalLogoBlob, 'logo.webp');
+        }
+
+        const serializedProducts = [];
+        for (let i = 0; i < validProducts.length; i++) {
+          const p = validProducts[i];
+          const fieldName = `image_${i}`;
+          let imageBlob = p.blob;
+
+          if (!imageBlob && p.previewDataUrl) {
+            imageBlob = await dataUrlToBlob(p.previewDataUrl);
+          }
+
+          if (imageBlob) {
+            formData.append(fieldName, imageBlob, `product_${i}.webp`);
+          }
+
+          serializedProducts.push({
+            name: p.name.trim(),
+            description: p.description.trim() || null,
+            priceCents: parsePriceToCents(p.priceInput),
+            orderIndex: i,
+            available: p.available,
+            imageField: imageBlob ? fieldName : undefined,
+          });
+        }
+
+        formData.append('products', JSON.stringify(serializedProducts));
+
+        const response = await createCatalog(formData, tokenOverride);
+        setPaymentModalData(response);
+      } catch (err) {
+        setError(
+          getSafeErrorMessage(
+            err,
+            'Não foi possível publicar sua vitrine agora. Verifique sua conexão e tente novamente.'
+          )
+        );
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [
+      whatsapp,
+      products,
+      storeName,
+      themeColor,
+      pixKey,
+      depositPct,
+      deliveryDates,
+      notes,
+      logoBlob,
+      logoPreviewDataUrl,
+    ]
+  );
+
   async function handlePublish(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -322,9 +358,8 @@ export function CreatorPage() {
       return;
     }
 
-    const digits = whatsapp.replace(/\D/g, '');
-    if (digits.length < 10) {
-      setError('Informe um número de WhatsApp válido (ex: 5575999999999).');
+    if (!isValidBrazilianPhone(whatsapp)) {
+      setError('Informe um WhatsApp válido com DDD: (99) 99999-9999.');
       return;
     }
 
@@ -334,143 +369,90 @@ export function CreatorPage() {
       return;
     }
 
-    setSubmitting(true);
-    try {
-      const formData = new FormData();
-      formData.append('storeName', storeName.trim());
-      formData.append('themeColor', themeColor);
-      formData.append('whatsapp', digits);
-      formData.append('pixKey', pixKey.trim());
-      formData.append('depositPct', String(depositPct));
-      formData.append('deliveryDates', JSON.stringify(deliveryDates));
-      formData.append('notes', notes.trim());
-
-      let finalLogoBlob = logoBlob;
-      if (!finalLogoBlob && logoPreviewDataUrl) {
-        finalLogoBlob = await dataUrlToBlob(logoPreviewDataUrl);
-      }
-      if (finalLogoBlob) {
-        formData.append('logo', finalLogoBlob, 'logo.webp');
-      }
-
-      const serializedProducts = [];
-      for (let i = 0; i < validProducts.length; i++) {
-        const p = validProducts[i];
-        const fieldName = `image_${i}`;
-        let imageBlob = p.blob;
-
-        if (!imageBlob && p.previewDataUrl) {
-          imageBlob = await dataUrlToBlob(p.previewDataUrl);
-        }
-
-        if (imageBlob) {
-          formData.append(fieldName, imageBlob, `product_${i}.webp`);
-        }
-
-        serializedProducts.push({
-          name: p.name.trim(),
-          description: p.description.trim() || null,
-          priceCents: parsePriceToCents(p.priceInput),
-          orderIndex: i,
-          available: p.available,
-          imageField: imageBlob ? fieldName : undefined,
-        });
-      }
-
-      formData.append('products', JSON.stringify(serializedProducts));
-
-      const response = await createCatalog(formData);
-
-      // Persiste imediatamente como DRAFT no localStorage antes mesmo de abrir o modal
-      const updatedList = saveDraftCatalog({
-        catalogId: response.catalogId,
-        storeName: storeName.trim(),
-        slug: response.slug,
-        editToken: response.editToken,
-        qrCodeBase64: response.qrCodeBase64,
-        pixCopyPaste: response.pixCopyPaste,
-        mockMode: response.mockMode,
+    if (!user) {
+      setAuthModalConfig({
+        open: true,
+        initialTab: 'register',
+        publishOnSuccess: true,
       });
-      setSavedCatalogs(updatedList);
-
-      setPaymentModalInitialPaid(false);
-      setPaymentModalData(response);
-    } catch (err) {
-      setError(
-        getSafeErrorMessage(
-          err,
-          'Não foi possível publicar sua vitrine agora. Verifique sua conexão e tente novamente.'
-        )
-      );
-    } finally {
-      setSubmitting(false);
+      return;
     }
+
+    await executeCreateCatalog();
   }
 
-  const handlePaymentConfirmed = useCallback(
-    (info: { catalogId: string; slug: string; editToken: string }) => {
-      const updated = markCatalogActive(info.catalogId, {
-        slug: info.slug,
-        editToken: info.editToken,
-      });
-      setSavedCatalogs(updated);
-      localStorage.removeItem(DRAFT_STORAGE_KEY);
-    },
-    []
-  );
-
-  function handleCancelDraft(catalogId: string) {
-    const updated = dismissDraftCatalog(catalogId);
-    setSavedCatalogs(updated);
-    setPaymentModalData(null);
-  }
-
-  function handleRecoveredCatalogs(items: RecoveredCatalogItem[]) {
-    const updated = mergeRecoveredCatalogs(items);
-    setSavedCatalogs(updated);
-  }
+  const handlePaymentConfirmed = useCallback(() => {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-16">
+    <div className="flex min-h-screen flex-col bg-stone-50">
       {/* Top Navbar */}
       <header className="border-b border-stone-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3.5">
           <div className="flex items-center gap-3">
-            <img
-              src={logoVitriMini}
-              alt="VitriMini"
-              className="h-9 w-auto object-contain sm:h-10"
-            />
-            <span className="hidden border-l border-stone-200 pl-3 text-xs text-stone-500 sm:inline">
-              Sua vitrine de encomendas em 2 minutos
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1 rounded-xl border border-stone-200 bg-stone-50 px-2.5 py-1.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Voltar ao início</span>
+            </Link>
+            <Link to="/" className="shrink-0">
+              <img
+                src={logoVitriMini}
+                alt="VitriMini"
+                className="h-8 w-auto object-contain sm:h-9"
+              />
+            </Link>
+            <span className="hidden border-l border-stone-200 pl-3 text-xs text-stone-500 md:inline">
+              Criador de Vitrine
             </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="hidden items-center gap-1 mr-2 text-xs font-semibold text-stone-700 xl:flex">
+            <span className="mr-2 hidden items-center gap-1 text-xs font-semibold text-stone-700 xl:flex">
               <InfinityIcon className="h-4 w-4 text-emerald-600" />
               Produtos ilimitados • Pagamento único de R$ 24,90
             </span>
 
-            {activeCatalogs.length > 0 && (
+            {user ? (
+              <>
+                <span className="hidden text-xs font-semibold text-stone-600 sm:inline">
+                  Olá, <strong className="text-stone-900">{firstName}</strong>
+                </span>
+                <Link
+                  to="/minhas-vitrines"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-bold text-stone-800 transition hover:bg-stone-100"
+                >
+                  <Store className="h-3.5 w-3.5 text-rose-600" />
+                  Minhas Vitrines
+                </Link>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="inline-flex items-center gap-1 rounded-xl border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Sair</span>
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
-                onClick={() => setMyCatalogsOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100"
+                onClick={() =>
+                  setAuthModalConfig({
+                    open: true,
+                    initialTab: 'login',
+                    publishOnSuccess: false,
+                  })
+                }
+                className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-semibold text-stone-700 transition hover:bg-stone-100"
               >
-                <Store className="h-3.5 w-3.5" />
-                Minhas Vitrines ({activeCatalogs.length})
+                <LogIn className="h-3.5 w-3.5 text-stone-500" />
+                Entrar
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => setRecoverOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-semibold text-stone-700 transition hover:bg-stone-100"
-            >
-              <KeyRound className="h-3.5 w-3.5 text-stone-500" />
-              Já paguei / Recuperar meus links
-            </button>
           </div>
         </div>
       </header>
@@ -511,7 +493,7 @@ export function CreatorPage() {
       </div>
 
       {/* Main Content */}
-      <main className="mx-auto mt-6 max-w-6xl px-4">
+      <main className="mx-auto mt-6 max-w-6xl flex-1 px-4">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
           {/* Left Column: Form */}
           <form
@@ -567,14 +549,16 @@ export function CreatorPage() {
                   </label>
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    maxLength={15}
                     required
                     value={whatsapp}
-                    onChange={(e) => setWhatsapp(e.target.value)}
-                    placeholder="5575999999999"
+                    onChange={(e) => setWhatsapp(formatPhoneMask(e.target.value))}
+                    placeholder="(75) 99999-9999"
                     className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm outline-none focus:border-stone-900"
                   />
                   <p className="mt-1 text-[11px] text-stone-400">
-                    DDI + DDD + número (somente números)
+                    DDD + número (editável para esta vitrine)
                   </p>
                 </div>
 
@@ -668,22 +652,89 @@ export function CreatorPage() {
                 {products.map((product, index) => (
                   <div
                     key={product.localId}
-                    className="rounded-xl border border-stone-200 bg-stone-50/70 p-4"
+                    className={`rounded-xl border p-4 transition ${
+                      product.available
+                        ? 'border-stone-200 bg-stone-50/70'
+                        : 'border-amber-200 bg-stone-100/80 opacity-75'
+                    }`}
                   >
-                    <div className="mb-3 flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wide text-stone-400">
-                        Produto #{index + 1}
-                      </span>
-                      {products.length > 1 && (
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold uppercase tracking-wide text-stone-400">
+                          Produto #{index + 1}
+                        </span>
                         <button
                           type="button"
-                          onClick={() => handleRemoveProduct(product.localId)}
-                          className="flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
+                          role="switch"
+                          aria-checked={product.available}
+                          onClick={() =>
+                            handleUpdateProduct(product.localId, {
+                              available: !product.available,
+                            })
+                          }
+                          className="inline-flex cursor-pointer items-center gap-2"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Remover
+                          <span
+                            className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
+                              product.available ? 'bg-emerald-600' : 'bg-red-500'
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 translate-y-0.5 rounded-full bg-white shadow-xs transition-transform ${
+                                product.available
+                                  ? 'translate-x-4.5'
+                                  : 'translate-x-0.5'
+                              }`}
+                            />
+                          </span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                              product.available
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-red-100 text-red-700'
+                            }`}
+                          >
+                            {product.available
+                              ? 'Disponível'
+                              : 'Esgotado (Inativo)'}
+                          </span>
                         </button>
-                      )}
+                      </div>
+
+                      {products.length > 1 &&
+                        (confirmDeleteId === product.localId ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-semibold text-red-700">
+                              Excluir?
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleRemoveProduct(product.localId);
+                                setConfirmDeleteId(null);
+                              }}
+                              className="rounded-lg bg-red-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-red-700"
+                            >
+                              Sim
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="rounded-lg border border-stone-300 bg-white px-2 py-1 text-[11px] font-semibold text-stone-600"
+                            >
+                              Não
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(product.localId)}
+                            className="flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Excluir
+                          </button>
+                        ))}
                     </div>
 
                     <div className="flex flex-col gap-3 sm:flex-row">
@@ -819,46 +870,33 @@ export function CreatorPage() {
             </div>
           </div>
         </div>
-
-        {/* Rodapé com marca e atalho discreto para recuperação */}
-        <footer className="mt-12 flex flex-col items-center gap-3 border-t border-stone-200 pt-6 text-center">
-          <img
-            src={logoVitriMini}
-            alt="VitriMini"
-            className="h-6 w-auto object-contain opacity-75"
-          />
-          <button
-            type="button"
-            onClick={() => setRecoverOpen(true)}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 underline-offset-4 hover:text-stone-800 hover:underline"
-          >
-            <KeyRound className="h-3.5 w-3.5" />
-            Já paguei / Recuperar meus links da VitriMini
-          </button>
-        </footer>
       </main>
+
+      <Footer />
+
+      {authModalConfig.open && (
+        <AuthModal
+          initialTab={authModalConfig.initialTab}
+          defaultPhone={whatsapp}
+          onClose={() =>
+            setAuthModalConfig((prev) => ({ ...prev, open: false }))
+          }
+          onSuccess={(auth) => {
+            const shouldPublish = authModalConfig.publishOnSuccess;
+            setAuthModalConfig((prev) => ({ ...prev, open: false }));
+            if (shouldPublish) {
+              void executeCreateCatalog(auth.token);
+            }
+          }}
+        />
+      )}
 
       {paymentModalData && (
         <PixPaymentModal
           paymentData={paymentModalData}
-          initialPaid={paymentModalInitialPaid}
-          onCancelDraft={handleCancelDraft}
+          onCancelDraft={() => setPaymentModalData(null)}
           onCloseAfterPaid={() => setPaymentModalData(null)}
           onConfirmed={handlePaymentConfirmed}
-        />
-      )}
-
-      {myCatalogsOpen && (
-        <MyCatalogsModal
-          catalogs={activeCatalogs}
-          onClose={() => setMyCatalogsOpen(false)}
-        />
-      )}
-
-      {recoverOpen && (
-        <RecoverLinksModal
-          onClose={() => setRecoverOpen(false)}
-          onRecovered={handleRecoveredCatalogs}
         />
       )}
     </div>
