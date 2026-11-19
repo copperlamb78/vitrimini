@@ -18,8 +18,8 @@ export function ThemeSelector({ value, onChange }: ThemeSelectorProps) {
             onClick={() => onChange(palette.id)}
             className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition ${
               selected
-                ? 'border-stone-900 bg-stone-900/5 ring-1 ring-stone-900'
-                : 'border-stone-200 bg-white hover:bg-stone-50'
+                ? `${palette.softBorder} ${palette.softBg} ${palette.softText}`
+                : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
             }`}
           >
             <span
@@ -28,7 +28,11 @@ export function ThemeSelector({ value, onChange }: ThemeSelectorProps) {
             >
               {selected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
             </span>
-            <span className="truncate text-xs font-semibold text-stone-800">
+            <span
+              className={`truncate text-xs font-semibold ${
+                selected ? palette.softText : 'text-stone-800'
+              }`}
+            >
               {palette.name}
             </span>
           </button>
