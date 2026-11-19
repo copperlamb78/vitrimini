@@ -72,7 +72,7 @@ export function Footer() {
                     className="inline-flex items-center gap-1.5 transition hover:text-[#E11D48]"
                   >
                     <ArrowUp className="h-3.5 w-3.5 text-zinc-400" />
-                    Criar minha vitrine
+                    Criar vitrine
                   </button>
                 </li>
                 <li>
@@ -90,7 +90,7 @@ export function Footer() {
                       className="inline-flex items-center gap-1.5 transition hover:text-[#E11D48]"
                     >
                       <LogIn className="h-3.5 w-3.5 text-zinc-400" />
-                      Entrar / Acessar minhas vitrines
+                      Entrar
                     </Link>
                   )}
                 </li>
@@ -228,7 +228,7 @@ export function Footer() {
                 onClick={() => setLegalDoc(null)}
                 className="rounded-xl bg-zinc-900 px-5 py-2 text-xs font-bold text-white transition hover:bg-zinc-800"
               >
-                Fechar documento
+                Fechar
               </button>
             </div>
           </div>
