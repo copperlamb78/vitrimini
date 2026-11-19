@@ -141,7 +141,7 @@ export function MyCatalogsPage() {
               className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-rose-700"
             >
               <Plus className="h-3.5 w-3.5" />
-              + Nova Vitrine
+              Nova vitrine
             </Link>
 
             <button
@@ -190,7 +190,7 @@ export function MyCatalogsPage() {
               className="mt-5 inline-flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-3 text-xs font-bold text-white shadow-md shadow-rose-600/20 transition hover:bg-rose-700"
             >
               <Plus className="h-4 w-4" />
-              Criar minha primeira vitrine
+              Criar primeira vitrine
             </Link>
           </div>
         ) : (
@@ -333,7 +333,7 @@ export function MyCatalogsPage() {
                         className="flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-zinc-300 bg-white px-3 text-xs font-bold text-zinc-800 transition hover:bg-zinc-50"
                       >
                         <PenLine className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
-                        Editar Vitrine
+                        Editar
                       </Link>
                     </div>
 
@@ -354,7 +354,7 @@ export function MyCatalogsPage() {
                         <RefreshCw className="h-3.5 w-3.5" />
                       )}
                       {cat.status === 'DRAFT'
-                        ? 'Ativar Vitrine com Pix (R$ 24,90)'
+                        ? 'Ativar com Pix (R$ 24,90)'
                         : 'Renovar (+90 dias — R$ 24,90)'}
                     </button>
                   </div>
