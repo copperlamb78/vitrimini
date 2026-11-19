@@ -233,7 +233,7 @@ export function StorePage() {
           to="/"
           className="mt-5 rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-stone-800"
         >
-          Criar minha VitriMini
+          Criar vitrine
         </Link>
       </div>
     );
