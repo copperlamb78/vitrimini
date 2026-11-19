@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
+import { ZodError } from 'zod';
 
 export class AppError extends Error {
   public readonly statusCode: number;
@@ -46,19 +47,35 @@ export function errorHandler(
     return;
   }
 
-  // 2. Erros de upload de imagem (Multer tamanho/formato)
+  // 2. Erros de validação do Zod (garante mensagens 100% em português)
+  if (err instanceof ZodError) {
+    const rawMsg = err.issues[0]?.message || '';
+    const isTechnicalZodMsg =
+      !rawMsg || /^invalid/i.test(rawMsg) || /expected/i.test(rawMsg);
+    const safeMsg = isTechnicalZodMsg ? FRIENDLY_ERRORS.VALIDATION : rawMsg;
+    res.status(400).json({ error: safeMsg });
+    return;
+  }
+
+  // 3. Erros de upload de imagem (Multer tamanho/formato)
   if (err instanceof multer.MulterError || err instanceof UploadValidationError) {
     res.status(400).json({ error: FRIENDLY_ERRORS.UPLOAD });
     return;
   }
 
-  // 3. Payload JSON malformado (body-parser ou JSON.parse)
-  if (err instanceof SyntaxError) {
+  // 4. Payload JSON malformado ou muito grande (body-parser)
+  if (
+    err instanceof SyntaxError ||
+    (typeof err === 'object' &&
+      err !== null &&
+      'type' in err &&
+      (err as { type?: unknown }).type === 'entity.too.large')
+  ) {
     res.status(400).json({ error: FRIENDLY_ERRORS.VALIDATION });
     return;
   }
 
-  // 4. Registro não encontrado no Prisma (código P2025)
+  // 5. Registro não encontrado no Prisma (código P2025)
   if (
     typeof err === 'object' &&
     err !== null &&
@@ -69,6 +86,6 @@ export function errorHandler(
     return;
   }
 
-  // 5. Qualquer erro do Prisma, banco de dados, gateway ou exceção inesperada -> 500 genérico
+  // 6. Qualquer erro do Prisma, banco de dados, gateway ou exceção inesperada -> 500 genérico
   res.status(500).json({ error: FRIENDLY_ERRORS.INTERNAL });
 }
