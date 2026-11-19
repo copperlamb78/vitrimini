@@ -17,6 +17,14 @@ import {
   GRACE_PERIOD_MS,
 } from '../services/cleanup.service.js';
 import {
+  sendCatalogPublishedEmail,
+  sendCatalogRenewedEmail,
+} from '../services/email.service.js';
+import {
+  deleteImagesFromR2,
+  uploadImageToR2,
+} from '../services/r2.service.js';
+import {
   brazilianPhoneSchema,
   catalogMetadataSchema,
   productInputSchema,
@@ -77,18 +85,32 @@ function normalizeThemeColor(raw: unknown): 'rose' | 'red' | 'amber' | 'emerald'
 }
 
 async function confirmCatalogPayment(paymentRecordId: string) {
-  return prisma.$transaction(async (tx) => {
+  const txResult = await prisma.$transaction(async (tx) => {
     const paymentRecord = await tx.catalogPayment.findUnique({
       where: { id: paymentRecordId },
-      include: { catalog: true },
+      include: {
+        catalog: true,
+        user: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
     });
 
     if (!paymentRecord) {
       throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
     }
 
+    // Se já estava PAID, retorna sem disparar e-mails duplicados
     if (paymentRecord.status === 'PAID') {
-      return paymentRecord.catalog;
+      return {
+        catalog: paymentRecord.catalog,
+        justConfirmed: false,
+        type: paymentRecord.type,
+        user: paymentRecord.user,
+      };
     }
 
     await tx.catalogPayment.update({
@@ -108,24 +130,71 @@ async function confirmCatalogPayment(paymentRecordId: string) {
           ? currentExpires.getTime()
           : now;
 
-      return tx.catalog.update({
+      const updatedCatalog = await tx.catalog.update({
         where: { id: paymentRecord.catalogId },
         data: {
           status: 'ACTIVE',
           renewalCount: { increment: 1 },
           expiresAt: new Date(baseTime + NINETY_DAYS_MS),
+          notified7DaysBefore: false,
+          notifiedExpiration: false,
         },
       });
+
+      return {
+        catalog: updatedCatalog,
+        justConfirmed: true,
+        type: paymentRecord.type,
+        user: paymentRecord.user,
+      };
     }
 
-    return tx.catalog.update({
+    const updatedCatalog = await tx.catalog.update({
       where: { id: paymentRecord.catalogId },
       data: {
         status: 'ACTIVE',
         expiresAt: new Date(now + NINETY_DAYS_MS),
+        notified7DaysBefore: false,
+        notifiedExpiration: false,
       },
     });
+
+    return {
+      catalog: updatedCatalog,
+      justConfirmed: true,
+      type: paymentRecord.type,
+      user: paymentRecord.user,
+    };
   });
+
+  // Dispara e-mail em background apenas na transição efetiva de PENDING -> PAID
+  if (txResult.justConfirmed && txResult.catalog.expiresAt) {
+    if (txResult.type === 'CREATION') {
+      void sendCatalogPublishedEmail({
+        to: txResult.user.email,
+        name: txResult.user.name,
+        storeName: txResult.catalog.storeName,
+        slug: txResult.catalog.slug,
+        editToken: txResult.catalog.editToken,
+        expiresAt: txResult.catalog.expiresAt,
+      }).catch((mailErr) => {
+        console.error('[Catalog Published Email Error]:', mailErr);
+      });
+    } else if (txResult.type === 'RENEWAL') {
+      void sendCatalogRenewedEmail({
+        to: txResult.user.email,
+        name: txResult.user.name,
+        storeName: txResult.catalog.storeName,
+        slug: txResult.catalog.slug,
+        editToken: txResult.catalog.editToken,
+        expiresAt: txResult.catalog.expiresAt,
+      }).catch((mailErr) => {
+        console.error('[Catalog Renewed Email Error]:', mailErr);
+      });
+    }
+  }
+
+  return txResult.catalog;
 }
 
 // POST /api/catalogs (Protegida com requireAuth)
@@ -159,87 +228,105 @@ router.post(
 
       const validatedProducts = productsArraySchema.parse(rawProducts);
 
+      // Todas as validações passaram — agora subimos as imagens otimizadas ao Cloudflare R2
       const files = (req.files as Express.Multer.File[]) || [];
       const fileByField = new Map<string, Express.Multer.File>();
       for (const file of files) {
         fileByField.set(file.fieldname, file);
       }
 
-      const logoFile = fileByField.get('logo');
-      const logoUrl = logoFile ? `/uploads/${logoFile.filename}` : null;
+      const uploadedUrls: string[] = [];
+      try {
+        const logoFile = fileByField.get('logo');
+        let logoUrl: string | null = null;
+        if (logoFile?.buffer) {
+          logoUrl = await uploadImageToR2(logoFile.buffer);
+          uploadedUrls.push(logoUrl);
+        }
 
-      const productsData = validatedProducts.map((p, index) => {
-        const uploadedFile = p.imageField
-          ? fileByField.get(p.imageField)
-          : undefined;
-        const imageUrl = uploadedFile
-          ? `/uploads/${uploadedFile.filename}`
-          : p.imageUrl || null;
+        const productsData = await Promise.all(
+          validatedProducts.map(async (p, index) => {
+            const uploadedFile = p.imageField
+              ? fileByField.get(p.imageField)
+              : undefined;
 
-        return {
-          name: p.name,
-          description: p.description,
-          priceCents: p.priceCents,
-          imageUrl,
-          orderIndex: p.orderIndex ?? index,
-          available: parseBoolean(p.available, true),
-        };
-      });
+            let imageUrl: string | null = p.imageUrl || null;
+            if (uploadedFile?.buffer) {
+              imageUrl = await uploadImageToR2(uploadedFile.buffer);
+              uploadedUrls.push(imageUrl);
+            }
 
-      const slug = await generateUniqueSlug(meta.storeName);
-      const amountCents = getCatalogPriceCents();
+            return {
+              name: p.name,
+              description: p.description,
+              priceCents: p.priceCents,
+              imageUrl,
+              orderIndex: p.orderIndex ?? index,
+              available: parseBoolean(p.available, true),
+            };
+          })
+        );
 
-      const catalog = await prisma.catalog.create({
-        data: {
-          slug,
-          status: 'DRAFT',
-          userId,
-          storeName: meta.storeName,
-          logoUrl,
-          themeColor: meta.themeColor,
-          whatsapp: meta.whatsapp,
-          pixKey: meta.pixKey,
-          depositPct: meta.depositPct,
-          deliveryDates: meta.deliveryDates.filter(Boolean),
-          notes: meta.notes,
-          products: {
-            create: productsData,
+        const slug = await generateUniqueSlug(meta.storeName);
+        const amountCents = getCatalogPriceCents();
+
+        const catalog = await prisma.catalog.create({
+          data: {
+            slug,
+            status: 'DRAFT',
+            userId,
+            storeName: meta.storeName,
+            logoUrl,
+            themeColor: meta.themeColor,
+            whatsapp: meta.whatsapp,
+            pixKey: meta.pixKey,
+            depositPct: meta.depositPct,
+            deliveryDates: meta.deliveryDates.filter(Boolean),
+            notes: meta.notes,
+            products: {
+              create: productsData,
+            },
           },
-        },
-      });
+        });
 
-      const payment = await createPixPayment({
-        catalogId: catalog.id,
-        storeName: catalog.storeName,
-        amountCents,
-        payerEmail: req.user!.email,
-      });
-
-      const paymentRecord = await prisma.catalogPayment.create({
-        data: {
-          userId,
+        const payment = await createPixPayment({
           catalogId: catalog.id,
-          type: 'CREATION',
-          status: 'PENDING',
+          storeName: catalog.storeName,
           amountCents,
-          gatewayId: payment.paymentId,
-        },
-      });
+          payerEmail: req.user!.email,
+        });
 
-      await prisma.catalog.update({
-        where: { id: catalog.id },
-        data: { paymentId: payment.paymentId },
-      });
+        const paymentRecord = await prisma.catalogPayment.create({
+          data: {
+            userId,
+            catalogId: catalog.id,
+            type: 'CREATION',
+            status: 'PENDING',
+            amountCents,
+            gatewayId: payment.paymentId,
+          },
+        });
 
-      res.status(201).json({
-        catalogId: catalog.id,
-        paymentRecordId: paymentRecord.id,
-        slug: catalog.slug,
-        editToken: catalog.editToken,
-        qrCodeBase64: payment.qrCodeBase64,
-        pixCopyPaste: payment.pixCopyPaste,
-        mockMode: payment.mockMode,
-      });
+        await prisma.catalog.update({
+          where: { id: catalog.id },
+          data: { paymentId: payment.paymentId },
+        });
+
+        res.status(201).json({
+          catalogId: catalog.id,
+          paymentRecordId: paymentRecord.id,
+          slug: catalog.slug,
+          editToken: catalog.editToken,
+          qrCodeBase64: payment.qrCodeBase64,
+          pixCopyPaste: payment.pixCopyPaste,
+          mockMode: payment.mockMode,
+        });
+      } catch (innerErr) {
+        if (uploadedUrls.length > 0) {
+          void deleteImagesFromR2(uploadedUrls);
+        }
+        throw innerErr;
+      }
     } catch (error) {
       next(error);
     }
@@ -789,6 +876,14 @@ router.put(
             : null
           : existing.notes;
 
+      const incomingProducts =
+        req.body.products !== undefined
+          ? productsArraySchema.parse(
+              parseJsonField<unknown>(req.body.products, [])
+            )
+          : undefined;
+
+      // Todas as validações passaram — agora processamos uploads ao R2 e mapeamos fotos antigas para exclusão em lote
       const files = (req.files as Express.Multer.File[]) || [];
       const fileByField = new Map<string, Express.Multer.File>();
       for (const file of files) {
@@ -799,122 +894,165 @@ router.put(
       const removeLogo =
         req.body.removeLogo === 'true' || req.body.removeLogo === true;
 
-      let nextLogoUrl = existing.logoUrl;
-      if (logoFile) {
-        nextLogoUrl = `/uploads/${logoFile.filename}`;
-      } else if (removeLogo) {
-        nextLogoUrl = null;
-      }
+      const newlyUploadedUrls: string[] = [];
+      const oldUrlsToDelete: string[] = [];
 
-      const incomingProducts =
-        req.body.products !== undefined
-          ? productsArraySchema.parse(
-              parseJsonField<unknown>(req.body.products, [])
+      try {
+        let nextLogoUrl = existing.logoUrl;
+        if (logoFile?.buffer) {
+          nextLogoUrl = await uploadImageToR2(logoFile.buffer);
+          newlyUploadedUrls.push(nextLogoUrl);
+          if (existing.logoUrl) {
+            oldUrlsToDelete.push(existing.logoUrl);
+          }
+        } else if (removeLogo) {
+          nextLogoUrl = null;
+          if (existing.logoUrl) {
+            oldUrlsToDelete.push(existing.logoUrl);
+          }
+        }
+
+        const preparedProducts = incomingProducts
+          ? await Promise.all(
+              incomingProducts.map(async (p, index) => {
+                const existingProduct = p.id
+                  ? existing.products.find((ep) => ep.id === p.id)
+                  : undefined;
+                const uploadedFile = p.imageField
+                  ? fileByField.get(p.imageField)
+                  : undefined;
+
+                let imageUrl: string | null =
+                  p.imageUrl !== undefined
+                    ? p.imageUrl
+                    : existingProduct?.imageUrl ?? null;
+
+                if (uploadedFile?.buffer) {
+                  imageUrl = await uploadImageToR2(uploadedFile.buffer);
+                  newlyUploadedUrls.push(imageUrl);
+                  if (existingProduct?.imageUrl) {
+                    oldUrlsToDelete.push(existingProduct.imageUrl);
+                  }
+                } else if (
+                  existingProduct?.imageUrl &&
+                  imageUrl !== existingProduct.imageUrl
+                ) {
+                  oldUrlsToDelete.push(existingProduct.imageUrl);
+                }
+
+                return {
+                  id: p.id,
+                  payload: {
+                    name: p.name,
+                    description: p.description,
+                    priceCents: p.priceCents,
+                    imageUrl,
+                    orderIndex: p.orderIndex ?? index,
+                    available: parseBoolean(p.available, true),
+                  },
+                };
+              })
             )
           : undefined;
 
-      const updatedCatalog = await prisma.$transaction(async (tx) => {
-        await tx.catalog.update({
-          where: { id: existing.id },
-          data: {
-            storeName: cleanStoreName,
-            logoUrl: nextLogoUrl,
-            themeColor,
-            whatsapp: cleanWhatsapp,
-            pixKey: cleanPixKey,
-            depositPct,
-            deliveryDates,
-            notes: cleanNotes,
-          },
-        });
+        const updatedCatalog = await prisma.$transaction(async (tx) => {
+          await tx.catalog.update({
+            where: { id: existing.id },
+            data: {
+              storeName: cleanStoreName,
+              logoUrl: nextLogoUrl,
+              themeColor,
+              whatsapp: cleanWhatsapp,
+              pixKey: cleanPixKey,
+              depositPct,
+              deliveryDates,
+              notes: cleanNotes,
+            },
+          });
 
-        if (incomingProducts && Array.isArray(incomingProducts)) {
-          const existingIds = new Set(existing.products.map((p) => p.id));
-          const keptIds = new Set(
-            incomingProducts
-              .map((p) => p.id)
-              .filter((id): id is string => Boolean(id && existingIds.has(id)))
-          );
+          if (preparedProducts) {
+            const existingIds = new Set(existing.products.map((p) => p.id));
+            const keptIds = new Set(
+              preparedProducts
+                .map((p) => p.id)
+                .filter((id): id is string => Boolean(id && existingIds.has(id)))
+            );
 
-          const toDeleteIds = existing.products
-            .filter((p) => !keptIds.has(p.id))
-            .map((p) => p.id);
+            const deletedProducts = existing.products.filter(
+              (p) => !keptIds.has(p.id)
+            );
+            const toDeleteIds = deletedProducts.map((p) => p.id);
 
-          if (toDeleteIds.length > 0) {
-            await tx.product.deleteMany({
-              where: {
-                id: { in: toDeleteIds },
-                catalogId: existing.id,
-              },
-            });
-          }
+            for (const delProd of deletedProducts) {
+              if (delProd.imageUrl) {
+                oldUrlsToDelete.push(delProd.imageUrl);
+              }
+            }
 
-          for (let index = 0; index < incomingProducts.length; index++) {
-            const p = incomingProducts[index];
-            const existingProduct = p.id
-              ? existing.products.find((ep) => ep.id === p.id)
-              : undefined;
-            const uploadedFile = p.imageField
-              ? fileByField.get(p.imageField)
-              : undefined;
-            const imageUrl = uploadedFile
-              ? `/uploads/${uploadedFile.filename}`
-              : p.imageUrl !== undefined
-                ? p.imageUrl
-                : existingProduct?.imageUrl ?? null;
-
-            const payload = {
-              name: p.name,
-              description: p.description,
-              priceCents: p.priceCents,
-              imageUrl,
-              orderIndex: p.orderIndex ?? index,
-              available: parseBoolean(p.available, true),
-            };
-
-            if (p.id && existingIds.has(p.id)) {
-              await tx.product.update({
-                where: { id: p.id },
-                data: payload,
-              });
-            } else {
-              await tx.product.create({
-                data: {
-                  ...payload,
+            if (toDeleteIds.length > 0) {
+              await tx.product.deleteMany({
+                where: {
+                  id: { in: toDeleteIds },
                   catalogId: existing.id,
                 },
               });
             }
+
+            for (const item of preparedProducts) {
+              if (item.id && existingIds.has(item.id)) {
+                await tx.product.update({
+                  where: { id: item.id },
+                  data: item.payload,
+                });
+              } else {
+                await tx.product.create({
+                  data: {
+                    ...item.payload,
+                    catalogId: existing.id,
+                  },
+                });
+              }
+            }
           }
+
+          return tx.catalog.findUnique({
+            where: { id: existing.id },
+            select: {
+              id: true,
+              slug: true,
+              editToken: true,
+              status: true,
+              renewalCount: true,
+              storeName: true,
+              logoUrl: true,
+              themeColor: true,
+              whatsapp: true,
+              pixKey: true,
+              depositPct: true,
+              deliveryDates: true,
+              notes: true,
+              expiresAt: true,
+              createdAt: true,
+              updatedAt: true,
+              products: {
+                orderBy: { orderIndex: 'asc' },
+              },
+            },
+          });
+        });
+
+        // Remove imagens substituídas ou de produtos excluídos em um único lote no R2
+        if (oldUrlsToDelete.length > 0) {
+          void deleteImagesFromR2(oldUrlsToDelete);
         }
 
-        return tx.catalog.findUnique({
-          where: { id: existing.id },
-          select: {
-            id: true,
-            slug: true,
-            editToken: true,
-            status: true,
-            renewalCount: true,
-            storeName: true,
-            logoUrl: true,
-            themeColor: true,
-            whatsapp: true,
-            pixKey: true,
-            depositPct: true,
-            deliveryDates: true,
-            notes: true,
-            expiresAt: true,
-            createdAt: true,
-            updatedAt: true,
-            products: {
-              orderBy: { orderIndex: 'asc' },
-            },
-          },
-        });
-      });
-
-      res.json(updatedCatalog);
+        res.json(updatedCatalog);
+      } catch (innerErr) {
+        if (newlyUploadedUrls.length > 0) {
+          void deleteImagesFromR2(newlyUploadedUrls);
+        }
+        throw innerErr;
+      }
     } catch (error) {
       next(error);
     }
