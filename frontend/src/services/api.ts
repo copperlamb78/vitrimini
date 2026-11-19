@@ -232,7 +232,7 @@ export async function getPublicStore(
   const query = preview ? '?preview=true' : '';
   return safeRequest<Catalog>(
     `${API_BASE_URL}/api/store/${encodeURIComponent(slug)}${query}`,
-    undefined,
+    preview ? { headers: getAuthHeaders() } : undefined,
     'Vitrine não encontrada ou indisponível no momento.'
   );
 }
