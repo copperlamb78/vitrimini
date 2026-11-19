@@ -276,7 +276,7 @@ export function PixPaymentModal({
                 ) : (
                   <>
                     <Copy className="h-4 w-4" />
-                    Copiar código Pix (Copia e Cola)
+                    Copiar código Pix
                   </>
                 )}
               </button>
@@ -292,7 +292,7 @@ export function PixPaymentModal({
                 />
                 {checkingManual
                   ? 'Verificando pagamento...'
-                  : 'Já fiz o Pix, verificar agora'}
+                  : 'Já paguei, verificar'}
               </button>
 
               {manualFeedback && (
@@ -359,7 +359,7 @@ export function PixPaymentModal({
                     ) : (
                       <Copy className="h-3.5 w-3.5" />
                     )}
-                    {copiedStore ? 'Copiado!' : 'Copiar Link da Vitrine'}
+                    {copiedStore ? 'Copiado!' : 'Copiar link'}
                   </button>
                   <a
                     href={`/c/${slug}`}
@@ -390,7 +390,7 @@ export function PixPaymentModal({
                     ) : (
                       <Copy className="h-3.5 w-3.5" />
                     )}
-                    {copiedEdit ? 'Copiado!' : 'Copiar Link de Edição'}
+                    {copiedEdit ? 'Copiado!' : 'Copiar link de edição'}
                   </button>
                   <a
                     href={`/editar/${editToken}`}
@@ -411,7 +411,7 @@ export function PixPaymentModal({
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-stone-900 py-2.5 text-xs font-bold text-white transition hover:bg-stone-800"
               >
                 <Store className="h-3.5 w-3.5" />
-                Ir para Minhas Vitrines
+                Minhas Vitrines
               </Link>
               <button
                 type="button"
