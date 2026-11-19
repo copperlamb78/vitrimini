@@ -6,6 +6,8 @@ import authRoutes from './routes/auth.routes.js';
 import catalogRoutes from './routes/catalog.routes.js';
 import { errorHandler, FRIENDLY_ERRORS } from './middlewares/errorHandler.js';
 import { startCleanupScheduler } from './services/cleanup.service.js';
+import { prisma } from './lib/prisma.js';
+import { getFrontendBaseUrl } from './services/email.service.js';
 
 export const app = express();
 const PORT = Number(process.env.PORT) || 3333;
@@ -70,6 +72,70 @@ app.get('/api/health', (_req: Request, res: Response) => {
     service: 'VitriMini API',
     timestamp: new Date().toISOString(),
   });
+});
+
+function escapeXml(raw: string): string {
+  return raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+// Sitemap XML dinâmico para indexação no Google (página inicial + vitrines ativas)
+app.get('/sitemap.xml', async (_req: Request, res: Response, next) => {
+  try {
+    const baseUrl = getFrontendBaseUrl();
+    const now = new Date();
+
+    const activeCatalogs = await prisma.catalog.findMany({
+      where: {
+        status: 'ACTIVE',
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      select: {
+        slug: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 5000,
+    });
+
+    const staticEntries = [
+      { loc: `${baseUrl}/`, changefreq: 'weekly', priority: '1.0' },
+      { loc: `${baseUrl}/criar`, changefreq: 'monthly', priority: '0.8' },
+    ];
+
+    const urlNodes = [
+      ...staticEntries.map(
+        (entry) => `  <url>
+    <loc>${escapeXml(entry.loc)}</loc>
+    <changefreq>${entry.changefreq}</changefreq>
+    <priority>${entry.priority}</priority>
+  </url>`
+      ),
+      ...activeCatalogs.map(
+        (cat) => `  <url>
+    <loc>${escapeXml(`${baseUrl}/c/${cat.slug}`)}</loc>
+    <lastmod>${cat.updatedAt.toISOString()}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>`
+      ),
+    ];
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urlNodes.join('\n')}
+</urlset>`;
+
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.status(200).send(xml);
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use('/api/auth', authRoutes);
