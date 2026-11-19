@@ -112,27 +112,46 @@ export function PhoneMockupPreview({
             ) : (
               products.map((product) => {
                 const cents = parsePriceToCents(product.priceInput);
+                const isAvailable = product.available !== false;
                 return (
                   <div
                     key={product.localId}
-                    className="flex gap-2.5 rounded-xl border border-stone-200 bg-white p-2.5 shadow-2xs"
+                    className={`flex gap-2.5 rounded-xl border border-stone-200 bg-white p-2.5 shadow-2xs ${
+                      isAvailable ? '' : 'opacity-75'
+                    }`}
                   >
-                    {product.previewDataUrl ? (
-                      <img
-                        src={product.previewDataUrl}
-                        alt={product.name}
-                        className="h-16 w-16 shrink-0 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-[10px] text-stone-400">
-                        Sem foto
-                      </div>
-                    )}
+                    <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-stone-100">
+                      {product.previewDataUrl ? (
+                        <img
+                          src={product.previewDataUrl}
+                          alt={product.name}
+                          className={`h-full w-full object-cover ${
+                            isAvailable ? '' : 'grayscale'
+                          }`}
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[10px] text-stone-400">
+                          Sem foto
+                        </div>
+                      )}
+                      {!isAvailable && (
+                        <span className="absolute inset-x-0 bottom-0 bg-stone-900/85 py-0.5 text-center text-[9px] font-extrabold uppercase tracking-wide text-white">
+                          Esgotado
+                        </span>
+                      )}
+                    </div>
                     <div className="flex min-w-0 flex-1 flex-col justify-between">
                       <div>
-                        <p className="truncate text-xs font-bold text-stone-900">
-                          {product.name.trim() || 'Nome do produto'}
-                        </p>
+                        <div className="flex items-start justify-between gap-1">
+                          <p className="truncate text-xs font-bold text-stone-900">
+                            {product.name.trim() || 'Nome do produto'}
+                          </p>
+                          {!isAvailable && (
+                            <span className="shrink-0 rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-red-700">
+                              Esgotado
+                            </span>
+                          )}
+                        </div>
                         {product.description.trim() && (
                           <p className="line-clamp-2 text-[10px] text-stone-500">
                             {product.description}
@@ -143,12 +162,18 @@ export function PhoneMockupPreview({
                         <span className="text-xs font-extrabold text-stone-900">
                           {formatCurrency(cents)}
                         </span>
-                        <span
-                          className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold ${theme.primaryBg} ${theme.buttonText}`}
-                        >
-                          <Plus className="h-3 w-3" />
-                          Adicionar
-                        </span>
+                        {isAvailable ? (
+                          <span
+                            className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold ${theme.primaryBg} ${theme.buttonText}`}
+                          >
+                            <Plus className="h-3 w-3" />
+                            Adicionar
+                          </span>
+                        ) : (
+                          <span className="inline-flex cursor-not-allowed items-center rounded-full bg-stone-200 px-2 py-0.5 text-[10px] font-bold text-stone-500">
+                            Indisponível
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
