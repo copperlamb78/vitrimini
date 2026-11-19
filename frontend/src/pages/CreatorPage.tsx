@@ -28,6 +28,7 @@ import {
   phoneToDDI,
 } from '../utils/format';
 import { createCatalog, getSafeErrorMessage } from '../services/api';
+import { applyPageSeo } from '../utils/seo';
 import { useAuth } from '../contexts/AuthContext';
 import { PhoneMockupPreview } from '../components/PhoneMockupPreview';
 import { PixPaymentModal } from '../components/PixPaymentModal';
@@ -115,7 +116,12 @@ export function CreatorPage() {
 
   // 1. Carrega rascunho de formulário do localStorage
   useEffect(() => {
-    document.title = 'Criar Vitrine — VitriMini';
+    applyPageSeo({
+      title: 'Criar Vitrine Digital — VitriMini',
+      description:
+        'Monte sua vitrine digital de encomendas gratuitamente em 2 minutos. Adicione fotos, datas de entrega e receba pedidos organizados no WhatsApp.',
+      canonicalPath: '/criar',
+    });
     try {
       const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
       if (raw) {
