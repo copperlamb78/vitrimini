@@ -25,6 +25,7 @@ import type {
 } from '../types/catalog';
 import { getStoreInitials, getTheme } from '../constants/themes';
 import { resolveImageUrl } from '../utils/format';
+import { applyPageSeo } from '../utils/seo';
 import { PixPaymentModal } from '../components/PixPaymentModal';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
@@ -65,7 +66,12 @@ export function MyCatalogsPage() {
   }, []);
 
   useEffect(() => {
-    document.title = 'Minhas Vitrines — VitriMini';
+    applyPageSeo({
+      title: 'Minhas Vitrines — VitriMini',
+      description: 'Painel de gerenciamento das suas vitrines na VitriMini.',
+      canonicalPath: '/minhas-vitrines',
+      noindex: true,
+    });
   }, []);
 
   useEffect(() => {
