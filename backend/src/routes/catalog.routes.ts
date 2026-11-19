@@ -1,36 +1,31 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { upload } from '../config/upload.js';
 import { generateUniqueSlug } from '../utils/slug.js';
 import {
   createPixPayment,
+  getCatalogPriceCents,
   isMockPixEnabled,
-  verifyMercadoPagoPayment,
+  validateMercadoPagoWebhookSignature,
+  verifyMercadoPagoOrder,
 } from '../services/payment.service.js';
 import { AppError, FRIENDLY_ERRORS } from '../middlewares/errorHandler.js';
+import { requireAuth } from '../middlewares/auth.js';
+import {
+  cleanupExpiredCatalogs,
+  GRACE_PERIOD_MS,
+} from '../services/cleanup.service.js';
+import {
+  brazilianPhoneSchema,
+  catalogMetadataSchema,
+  productInputSchema,
+  sanitizePlainText,
+} from '../utils/validation.js';
 
 const router = Router();
 
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
-const RECOVER_WINDOW_MS = 5 * 60 * 1000;
-const RECOVER_MAX_ATTEMPTS = 10;
-const recoverAttemptsByIp = new Map<string, { count: number; resetAt: number }>();
-
-function checkRecoverRateLimit(ip: string): void {
-  const now = Date.now();
-  const record = recoverAttemptsByIp.get(ip);
-  if (!record || now > record.resetAt) {
-    recoverAttemptsByIp.set(ip, { count: 1, resetAt: now + RECOVER_WINDOW_MS });
-    return;
-  }
-  if (record.count >= RECOVER_MAX_ATTEMPTS) {
-    throw new AppError(
-      429,
-      'Muitas tentativas de recuperação. Aguarde alguns minutos e tente novamente.'
-    );
-  }
-  record.count += 1;
-}
 const ALLOWED_THEMES = new Set([
   'rose',
   'red',
@@ -40,20 +35,19 @@ const ALLOWED_THEMES = new Set([
   'zinc',
 ]);
 
-interface IncomingProduct {
-  id?: string;
-  name: string;
-  description?: string | null;
-  priceCents: number;
-  imageUrl?: string | null;
-  imageField?: string;
-  orderIndex?: number;
-  available?: boolean;
-}
+const productsArraySchema = z
+  .array(productInputSchema)
+  .min(1, 'Adicione pelo menos um produto válido.')
+  .max(300, 'Limite máximo de produtos por requisição excedido.');
+
+const uuidParamSchema = z.string().uuid('Identificador inválido.');
 
 function parseJsonField<T>(value: unknown, fallback: T): T {
   if (value === undefined || value === null || value === '') return fallback;
   if (typeof value === 'string') {
+    if (value.length > 500_000) {
+      throw new AppError(400, FRIENDLY_ERRORS.VALIDATION);
+    }
     try {
       return JSON.parse(value) as T;
     } catch {
@@ -63,49 +57,107 @@ function parseJsonField<T>(value: unknown, fallback: T): T {
   return value as T;
 }
 
-function sanitizeWhatsapp(raw: string): string {
-  return raw.replace(/\D/g, '');
+function parseBoolean(value: unknown, defaultValue = true): boolean {
+  if (value === undefined || value === null || value === '') return defaultValue;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1') return true;
+    if (normalized === 'false' || normalized === '0') return false;
+  }
+  if (typeof value === 'number') return value !== 0;
+  return defaultValue;
 }
 
-function normalizeThemeColor(raw: unknown): string {
+function normalizeThemeColor(raw: unknown): 'rose' | 'red' | 'amber' | 'emerald' | 'purple' | 'zinc' {
   if (typeof raw === 'string' && ALLOWED_THEMES.has(raw.trim())) {
-    return raw.trim();
+    return raw.trim() as 'rose' | 'red' | 'amber' | 'emerald' | 'purple' | 'zinc';
   }
   return 'rose';
 }
 
-// POST /api/catalogs
+async function confirmCatalogPayment(paymentRecordId: string) {
+  return prisma.$transaction(async (tx) => {
+    const paymentRecord = await tx.catalogPayment.findUnique({
+      where: { id: paymentRecordId },
+      include: { catalog: true },
+    });
+
+    if (!paymentRecord) {
+      throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
+    }
+
+    if (paymentRecord.status === 'PAID') {
+      return paymentRecord.catalog;
+    }
+
+    await tx.catalogPayment.update({
+      where: { id: paymentRecord.id },
+      data: {
+        status: 'PAID',
+        paidAt: new Date(),
+      },
+    });
+
+    const now = Date.now();
+    const currentExpires = paymentRecord.catalog.expiresAt;
+
+    if (paymentRecord.type === 'RENEWAL') {
+      const baseTime =
+        currentExpires && currentExpires.getTime() > now
+          ? currentExpires.getTime()
+          : now;
+
+      return tx.catalog.update({
+        where: { id: paymentRecord.catalogId },
+        data: {
+          status: 'ACTIVE',
+          renewalCount: { increment: 1 },
+          expiresAt: new Date(baseTime + NINETY_DAYS_MS),
+        },
+      });
+    }
+
+    return tx.catalog.update({
+      where: { id: paymentRecord.catalogId },
+      data: {
+        status: 'ACTIVE',
+        expiresAt: new Date(now + NINETY_DAYS_MS),
+      },
+    });
+  });
+}
+
+// POST /api/catalogs (Protegida com requireAuth)
 router.post(
   '/catalogs',
+  requireAuth,
   upload.any(),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { storeName, whatsapp, pixKey, notes } = req.body;
-      const depositPctRaw = req.body.depositPct;
-      const depositPct = depositPctRaw !== undefined ? Number(depositPctRaw) : 50;
-      const themeColor = normalizeThemeColor(req.body.themeColor);
+      const userId = req.user!.id;
 
-      if (!storeName || typeof storeName !== 'string' || !storeName.trim()) {
-        throw new AppError(400, 'Informe o nome do estabelecimento e tente novamente.');
-      }
+      const rawDeliveryDates = parseJsonField<unknown>(
+        req.body.deliveryDates,
+        []
+      );
+      const rawProducts = parseJsonField<unknown>(req.body.products, []);
 
-      const cleanWhatsapp = sanitizeWhatsapp(String(whatsapp || ''));
-      if (cleanWhatsapp.length < 10) {
-        throw new AppError(400, 'Informe um WhatsApp válido com DDD e tente novamente.');
-      }
-
-      if (![0, 50, 100].includes(depositPct)) {
+      if (!Array.isArray(rawDeliveryDates) || !Array.isArray(rawProducts)) {
         throw new AppError(400, FRIENDLY_ERRORS.VALIDATION);
       }
 
-      const deliveryDates = parseJsonField<string[]>(req.body.deliveryDates, [])
-        .map((d) => String(d).trim())
-        .filter(Boolean);
+      const meta = catalogMetadataSchema.parse({
+        storeName: req.body.storeName,
+        whatsapp: req.body.whatsapp,
+        pixKey: req.body.pixKey,
+        depositPct: req.body.depositPct,
+        themeColor: normalizeThemeColor(req.body.themeColor),
+        notes: req.body.notes,
+        deliveryDates: rawDeliveryDates,
+      });
 
-      const incomingProducts = parseJsonField<IncomingProduct[]>(req.body.products, []);
-      if (!Array.isArray(incomingProducts) || incomingProducts.length === 0) {
-        throw new AppError(400, 'Adicione pelo menos um produto válido e tente novamente.');
-      }
+      const validatedProducts = productsArraySchema.parse(rawProducts);
 
       const files = (req.files as Express.Multer.File[]) || [];
       const fileByField = new Map<string, Express.Multer.File>();
@@ -116,40 +168,40 @@ router.post(
       const logoFile = fileByField.get('logo');
       const logoUrl = logoFile ? `/uploads/${logoFile.filename}` : null;
 
-      const productsData = incomingProducts.map((p, index) => {
-        const uploadedFile = p.imageField ? fileByField.get(p.imageField) : undefined;
+      const productsData = validatedProducts.map((p, index) => {
+        const uploadedFile = p.imageField
+          ? fileByField.get(p.imageField)
+          : undefined;
         const imageUrl = uploadedFile
           ? `/uploads/${uploadedFile.filename}`
           : p.imageUrl || null;
 
         return {
-          name: String(p.name || '').trim(),
-          description: p.description ? String(p.description).trim() : null,
-          priceCents: Math.max(0, Math.round(Number(p.priceCents) || 0)),
+          name: p.name,
+          description: p.description,
+          priceCents: p.priceCents,
           imageUrl,
           orderIndex: p.orderIndex ?? index,
-          available: p.available !== undefined ? Boolean(p.available) : true,
+          available: parseBoolean(p.available, true),
         };
       });
 
-      if (productsData.some((p) => !p.name)) {
-        throw new AppError(400, 'Todos os produtos precisam ter um nome preenchido.');
-      }
-
-      const slug = await generateUniqueSlug(storeName.trim());
+      const slug = await generateUniqueSlug(meta.storeName);
+      const amountCents = getCatalogPriceCents();
 
       const catalog = await prisma.catalog.create({
         data: {
           slug,
           status: 'DRAFT',
-          storeName: storeName.trim(),
+          userId,
+          storeName: meta.storeName,
           logoUrl,
-          themeColor,
-          whatsapp: cleanWhatsapp,
-          pixKey: pixKey ? String(pixKey).trim() : null,
-          depositPct,
-          deliveryDates,
-          notes: notes ? String(notes).trim() : null,
+          themeColor: meta.themeColor,
+          whatsapp: meta.whatsapp,
+          pixKey: meta.pixKey,
+          depositPct: meta.depositPct,
+          deliveryDates: meta.deliveryDates.filter(Boolean),
+          notes: meta.notes,
           products: {
             create: productsData,
           },
@@ -159,6 +211,19 @@ router.post(
       const payment = await createPixPayment({
         catalogId: catalog.id,
         storeName: catalog.storeName,
+        amountCents,
+        payerEmail: req.user!.email,
+      });
+
+      const paymentRecord = await prisma.catalogPayment.create({
+        data: {
+          userId,
+          catalogId: catalog.id,
+          type: 'CREATION',
+          status: 'PENDING',
+          amountCents,
+          gatewayId: payment.paymentId,
+        },
       });
 
       await prisma.catalog.update({
@@ -168,6 +233,7 @@ router.post(
 
       res.status(201).json({
         catalogId: catalog.id,
+        paymentRecordId: paymentRecord.id,
         slug: catalog.slug,
         editToken: catalog.editToken,
         qrCodeBase64: payment.qrCodeBase64,
@@ -180,88 +246,67 @@ router.post(
   }
 );
 
-// POST /api/catalogs/recover
+// POST /api/catalogs/:id/renew (Protegida com requireAuth + anti-IDOR)
 router.post(
-  '/catalogs/recover',
+  '/catalogs/:id/renew',
+  requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const clientIp = String(req.ip || req.socket.remoteAddress || 'unknown');
-      checkRecoverRateLimit(clientIp);
+      const userId = req.user!.id;
+      const catalogId = uuidParamSchema.parse(req.params.id);
 
-      const rawWhatsapp = String(req.body?.whatsapp || '');
-      const rawVerifier = String(
-        req.body?.verifier ?? req.body?.pixKey ?? req.body?.storeName ?? ''
-      ).trim();
+      const catalog = await prisma.catalog.findUnique({
+        where: { id: catalogId },
+      });
 
-      const cleanWhatsapp = sanitizeWhatsapp(rawWhatsapp);
-      if (cleanWhatsapp.length < 10 || rawVerifier.length < 2) {
-        throw new AppError(
-          400,
-          'Informe o WhatsApp e a Chave Pix (ou nome exato da loja) para recuperar seus links.'
-        );
+      if (!catalog) {
+        throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
       }
 
-      const whatsappCandidates = Array.from(
-        new Set([
-          cleanWhatsapp,
-          cleanWhatsapp.startsWith('55')
-            ? cleanWhatsapp.slice(2)
-            : `55${cleanWhatsapp}`,
-        ])
-      );
+      if (catalog.userId !== userId) {
+        throw new AppError(403, 'Você não tem permissão para alterar esta vitrine.');
+      }
 
-      const activeCatalogs = await prisma.catalog.findMany({
-        where: {
-          status: 'ACTIVE',
-          whatsapp: { in: whatsappCandidates },
-          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-        },
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          storeName: true,
-          slug: true,
-          editToken: true,
-          pixKey: true,
-          expiresAt: true,
+      const amountCents = getCatalogPriceCents();
+      const paymentType =
+        catalog.status === 'DRAFT' &&
+        catalog.renewalCount === 0 &&
+        !catalog.expiresAt
+          ? 'CREATION'
+          : 'RENEWAL';
+
+      const payment = await createPixPayment({
+        catalogId: catalog.id,
+        storeName: catalog.storeName,
+        amountCents,
+        payerEmail: req.user!.email,
+        idempotencyKey: `vitrimini-renew-${catalog.id}-${Date.now()}`,
+      });
+
+      const paymentRecord = await prisma.catalogPayment.create({
+        data: {
+          userId,
+          catalogId: catalog.id,
+          type: paymentType,
+          status: 'PENDING',
+          amountCents,
+          gatewayId: payment.paymentId,
         },
       });
 
-      const verifierLower = rawVerifier.toLowerCase();
-      const verifierDigits = sanitizeWhatsapp(rawVerifier);
-
-      const matched = activeCatalogs.filter((cat) => {
-        const storeMatch = cat.storeName.trim().toLowerCase() === verifierLower;
-        if (storeMatch) return true;
-
-        if (cat.pixKey) {
-          const pixLower = cat.pixKey.trim().toLowerCase();
-          if (pixLower === verifierLower) return true;
-
-          const pixDigits = sanitizeWhatsapp(cat.pixKey);
-          if (verifierDigits.length >= 9 && pixDigits === verifierDigits) {
-            return true;
-          }
-        }
-
-        return false;
+      await prisma.catalog.update({
+        where: { id: catalog.id },
+        data: { paymentId: payment.paymentId },
       });
-
-      if (matched.length === 0) {
-        throw new AppError(
-          404,
-          'Nenhuma vitrine ativa encontrada com esses dados. Confira o WhatsApp e a Chave Pix (ou nome exato da loja).'
-        );
-      }
 
       res.json({
-        catalogs: matched.map((c) => ({
-          catalogId: c.id,
-          storeName: c.storeName,
-          slug: c.slug,
-          editToken: c.editToken,
-          expiresAt: c.expiresAt,
-        })),
+        catalogId: catalog.id,
+        paymentRecordId: paymentRecord.id,
+        slug: catalog.slug,
+        editToken: catalog.editToken,
+        qrCodeBase64: payment.qrCodeBase64,
+        pixCopyPaste: payment.pixCopyPaste,
+        mockMode: payment.mockMode,
       });
     } catch (error) {
       next(error);
@@ -269,18 +314,92 @@ router.post(
   }
 );
 
-// GET /api/catalogs/:id/status
+// GET /api/my-catalogs (Protegida com requireAuth)
 router.get(
-  '/catalogs/:id/status',
+  '/my-catalogs',
+  requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = String(req.params.id);
+      const userId = req.user!.id;
+      await cleanupExpiredCatalogs();
+
+      const nowMs = Date.now();
+      const DAY_MS = 24 * 60 * 60 * 1000;
+
+      const catalogs = await prisma.catalog.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          storeName: true,
+          slug: true,
+          editToken: true,
+          status: true,
+          expiresAt: true,
+          renewalCount: true,
+          logoUrl: true,
+          themeColor: true,
+          createdAt: true,
+          _count: {
+            select: {
+              products: true,
+            },
+          },
+        },
+      });
+
+      const enriched = catalogs.map((cat) => {
+        const expiresMs = cat.expiresAt ? cat.expiresAt.getTime() : null;
+        const isExpired =
+          cat.status === 'EXPIRED' ||
+          (expiresMs !== null && expiresMs < nowMs);
+
+        let daysLeftToDelete: number | null = null;
+        if (isExpired && expiresMs !== null) {
+          const deleteDeadlineMs = expiresMs + GRACE_PERIOD_MS;
+          daysLeftToDelete = Math.max(
+            1,
+            Math.ceil((deleteDeadlineMs - nowMs) / DAY_MS)
+          );
+        }
+
+        return {
+          ...cat,
+          status: isExpired ? ('EXPIRED' as const) : cat.status,
+          isExpired,
+          daysLeftToDelete,
+        };
+      });
+
+      res.json({ catalogs: enriched });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/catalogs/:id/status (Protegida com requireAuth + anti-IDOR)
+router.get(
+  '/catalogs/:id/status',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user!.id;
+      const id = uuidParamSchema.parse(req.params.id);
+      const paymentRecordId = req.query.paymentRecordId
+        ? uuidParamSchema.parse(String(req.query.paymentRecordId))
+        : undefined;
+
       const catalog = await prisma.catalog.findUnique({
         where: { id },
         select: {
+          id: true,
+          userId: true,
           status: true,
           slug: true,
           editToken: true,
+          expiresAt: true,
+          renewalCount: true,
         },
       });
 
@@ -288,27 +407,103 @@ router.get(
         throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
       }
 
-      res.json(catalog);
+      if (catalog.userId !== userId) {
+        throw new AppError(403, 'Você não tem permissão para consultar esta vitrine.');
+      }
+
+      const targetPayment = paymentRecordId
+        ? await prisma.catalogPayment.findFirst({
+            where: { id: paymentRecordId, catalogId: id },
+          })
+        : await prisma.catalogPayment.findFirst({
+            where: { catalogId: id },
+            orderBy: { createdAt: 'desc' },
+          });
+
+      if (
+        targetPayment &&
+        targetPayment.status === 'PENDING' &&
+        targetPayment.gatewayId &&
+        !isMockPixEnabled()
+      ) {
+        try {
+          const verification = await verifyMercadoPagoOrder(
+            targetPayment.gatewayId
+          );
+          if (verification.approved) {
+            const updatedCatalog = await confirmCatalogPayment(targetPayment.id);
+            res.json({
+              status: updatedCatalog.status,
+              slug: updatedCatalog.slug,
+              editToken: updatedCatalog.editToken,
+              expiresAt: updatedCatalog.expiresAt,
+              renewalCount: updatedCatalog.renewalCount,
+              paymentPaid: true,
+            });
+            return;
+          }
+        } catch (verifyErr) {
+          console.error('[Polling Fallback Verify Error]:', verifyErr);
+        }
+      }
+
+      res.json({
+        status: catalog.status,
+        slug: catalog.slug,
+        editToken: catalog.editToken,
+        expiresAt: catalog.expiresAt,
+        renewalCount: catalog.renewalCount,
+        paymentPaid: targetPayment
+          ? targetPayment.status === 'PAID'
+          : catalog.status === 'ACTIVE',
+      });
     } catch (error) {
       next(error);
     }
   }
 );
 
-// POST /api/catalogs/:id/mock-pay (apenas quando MOCK_PIX=true)
+// POST /api/catalogs/:id/mock-pay (Protegida com requireAuth + anti-IDOR, apenas quando MOCK_PIX=true)
 router.post(
   '/catalogs/:id/mock-pay',
+  requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!isMockPixEnabled()) {
-        throw new AppError(403, 'Pagamento simulado indisponível neste ambiente.');
+        throw new AppError(
+          403,
+          'Pagamento simulado indisponível neste ambiente.'
+        );
       }
 
-      const id = String(req.params.id);
+      const userId = req.user!.id;
+      const id = uuidParamSchema.parse(req.params.id);
       const existing = await prisma.catalog.findUnique({ where: { id } });
 
       if (!existing) {
         throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
+      }
+
+      if (existing.userId !== userId) {
+        throw new AppError(403, 'Você não tem permissão para alterar esta vitrine.');
+      }
+
+      const pendingPayment = await prisma.catalogPayment.findFirst({
+        where: { catalogId: id, status: 'PENDING' },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (pendingPayment) {
+        const updated = await confirmCatalogPayment(pendingPayment.id);
+        res.json({
+          status: updated.status,
+          slug: updated.slug,
+          editToken: updated.editToken,
+          expiresAt: updated.expiresAt,
+          renewalCount: updated.renewalCount,
+          paymentPaid: true,
+        });
+        return;
       }
 
       const expiresAt = new Date(Date.now() + NINETY_DAYS_MS);
@@ -323,10 +518,11 @@ router.post(
           slug: true,
           editToken: true,
           expiresAt: true,
+          renewalCount: true,
         },
       });
 
-      res.json(updated);
+      res.json({ ...updated, paymentPaid: true });
     } catch (error) {
       next(error);
     }
@@ -339,34 +535,67 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const body = req.body || {};
-      const mpPaymentId = body?.data?.id || req.query['data.id'];
+      const queryDataId = req.query['data.id']
+        ? String(req.query['data.id'])
+        : undefined;
+      const bodyDataId = body?.data?.id ? String(body.data.id) : undefined;
+      const mpOrderId = queryDataId || bodyDataId;
 
-      let targetCatalogId: string | undefined = body.catalogId;
-      let targetPaymentId: string | undefined = body.paymentId;
-      let approved = body.status === 'approved';
+      if (mpOrderId) {
+        const isSignatureValid = validateMercadoPagoWebhookSignature({
+          xSignature: req.headers['x-signature'] as string | undefined,
+          xRequestId: req.headers['x-request-id'] as string | undefined,
+          dataId: mpOrderId,
+        });
 
-      if (mpPaymentId) {
-        const verification = await verifyMercadoPagoPayment(String(mpPaymentId));
+        if (!isSignatureValid) {
+          throw new AppError(401, 'Assinatura de webhook inválida.');
+        }
+      }
+
+      let targetCatalogId: string | undefined =
+        body.catalogId || body?.data?.external_reference;
+      let targetGatewayId: string | undefined = body.paymentId || mpOrderId;
+      let approved =
+        body.status === 'approved' ||
+        body.action === 'order.processed' ||
+        body?.data?.status === 'processed';
+
+      if (mpOrderId) {
+        const verification = await verifyMercadoPagoOrder(mpOrderId);
         approved = verification.approved;
-        targetPaymentId = String(mpPaymentId);
+        targetGatewayId = mpOrderId;
         if (verification.catalogId) {
           targetCatalogId = verification.catalogId;
         }
       }
 
-      if (approved && (targetCatalogId || targetPaymentId)) {
-        const catalog = targetCatalogId
-          ? await prisma.catalog.findUnique({ where: { id: targetCatalogId } })
-          : await prisma.catalog.findFirst({ where: { paymentId: targetPaymentId } });
+      if (approved && (targetGatewayId || targetCatalogId)) {
+        const paymentRecord = targetGatewayId
+          ? await prisma.catalogPayment.findFirst({
+              where: { gatewayId: targetGatewayId },
+              orderBy: { createdAt: 'desc' },
+            })
+          : await prisma.catalogPayment.findFirst({
+              where: { catalogId: targetCatalogId, status: 'PENDING' },
+              orderBy: { createdAt: 'desc' },
+            });
 
-        if (catalog && catalog.status !== 'ACTIVE') {
-          await prisma.catalog.update({
-            where: { id: catalog.id },
-            data: {
-              status: 'ACTIVE',
-              expiresAt: new Date(Date.now() + NINETY_DAYS_MS),
-            },
+        if (paymentRecord) {
+          await confirmCatalogPayment(paymentRecord.id);
+        } else if (targetCatalogId) {
+          const catalog = await prisma.catalog.findUnique({
+            where: { id: targetCatalogId },
           });
+          if (catalog && catalog.status !== 'ACTIVE') {
+            await prisma.catalog.update({
+              where: { id: catalog.id },
+              data: {
+                status: 'ACTIVE',
+                expiresAt: new Date(Date.now() + NINETY_DAYS_MS),
+              },
+            });
+          }
         }
       }
 
@@ -382,7 +611,11 @@ router.get(
   '/store/:slug',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const slug = String(req.params.slug);
+      const slug = String(req.params.slug || '').trim().toLowerCase();
+      if (!slug || slug.length > 120 || !/^[a-z0-9-]+$/.test(slug)) {
+        throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
+      }
+
       const isPreview = req.query.preview === 'true';
 
       const catalog = await prisma.catalog.findUnique({
@@ -399,16 +632,24 @@ router.get(
       }
 
       if (!isPreview) {
-        if (catalog.status !== 'ACTIVE') {
-          throw new AppError(403, 'Esta vitrine ainda não está ativa.');
+        if (
+          catalog.status === 'EXPIRED' ||
+          (catalog.expiresAt && catalog.expiresAt < new Date())
+        ) {
+          if (catalog.status !== 'EXPIRED') {
+            await prisma.catalog.update({
+              where: { id: catalog.id },
+              data: { status: 'EXPIRED' },
+            });
+          }
+          throw new AppError(
+            410,
+            'Esta vitrine encerrou o período de encomendas.'
+          );
         }
 
-        if (catalog.expiresAt && catalog.expiresAt < new Date()) {
-          await prisma.catalog.update({
-            where: { id: catalog.id },
-            data: { status: 'EXPIRED' },
-          });
-          throw new AppError(403, FRIENDLY_ERRORS.NOT_FOUND);
+        if (catalog.status !== 'ACTIVE') {
+          throw new AppError(403, 'Esta vitrine ainda não está ativa.');
         }
       }
 
@@ -438,10 +679,26 @@ router.get(
   '/manage/:editToken',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const editToken = String(req.params.editToken);
+      const editToken = uuidParamSchema.parse(req.params.editToken);
       const catalog = await prisma.catalog.findUnique({
         where: { editToken },
-        include: {
+        select: {
+          id: true,
+          slug: true,
+          editToken: true,
+          status: true,
+          renewalCount: true,
+          storeName: true,
+          logoUrl: true,
+          themeColor: true,
+          whatsapp: true,
+          pixKey: true,
+          depositPct: true,
+          deliveryDates: true,
+          notes: true,
+          expiresAt: true,
+          createdAt: true,
+          updatedAt: true,
           products: {
             orderBy: { orderIndex: 'asc' },
           },
@@ -465,7 +722,7 @@ router.put(
   upload.any(),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const editToken = String(req.params.editToken);
+      const editToken = uuidParamSchema.parse(req.params.editToken);
       const existing = await prisma.catalog.findUnique({
         where: { editToken },
         include: { products: true },
@@ -475,7 +732,23 @@ router.put(
         throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
       }
 
-      const { storeName, whatsapp, pixKey, notes } = req.body;
+      const rawStoreName =
+        req.body.storeName !== undefined
+          ? String(req.body.storeName)
+          : existing.storeName;
+      const cleanStoreName = sanitizePlainText(rawStoreName);
+      if (cleanStoreName.length < 2 || cleanStoreName.length > 100) {
+        throw new AppError(
+          400,
+          'O nome da loja deve ter entre 2 e 100 caracteres.'
+        );
+      }
+
+      const cleanWhatsapp =
+        req.body.whatsapp !== undefined
+          ? brazilianPhoneSchema.parse(req.body.whatsapp)
+          : existing.whatsapp;
+
       const depositPctRaw = req.body.depositPct;
       const depositPct =
         depositPctRaw !== undefined ? Number(depositPctRaw) : existing.depositPct;
@@ -489,12 +762,32 @@ router.put(
           ? normalizeThemeColor(req.body.themeColor)
           : existing.themeColor;
 
-      const deliveryDates =
+      const rawDeliveryDates =
         req.body.deliveryDates !== undefined
-          ? parseJsonField<string[]>(req.body.deliveryDates, existing.deliveryDates)
-              .map((d) => String(d).trim())
-              .filter(Boolean)
+          ? parseJsonField<unknown>(req.body.deliveryDates, existing.deliveryDates)
           : existing.deliveryDates;
+
+      if (!Array.isArray(rawDeliveryDates) || rawDeliveryDates.length > 60) {
+        throw new AppError(400, FRIENDLY_ERRORS.VALIDATION);
+      }
+
+      const deliveryDates = rawDeliveryDates
+        .map((d) => sanitizePlainText(String(d)).slice(0, 80))
+        .filter(Boolean);
+
+      const cleanPixKey =
+        req.body.pixKey !== undefined
+          ? req.body.pixKey
+            ? sanitizePlainText(String(req.body.pixKey)).slice(0, 140)
+            : null
+          : existing.pixKey;
+
+      const cleanNotes =
+        req.body.notes !== undefined
+          ? req.body.notes
+            ? sanitizePlainText(String(req.body.notes)).slice(0, 1000)
+            : null
+          : existing.notes;
 
       const files = (req.files as Express.Multer.File[]) || [];
       const fileByField = new Map<string, Express.Multer.File>();
@@ -515,33 +808,23 @@ router.put(
 
       const incomingProducts =
         req.body.products !== undefined
-          ? parseJsonField<IncomingProduct[]>(req.body.products, [])
+          ? productsArraySchema.parse(
+              parseJsonField<unknown>(req.body.products, [])
+            )
           : undefined;
 
       const updatedCatalog = await prisma.$transaction(async (tx) => {
         await tx.catalog.update({
           where: { id: existing.id },
           data: {
-            storeName: storeName ? String(storeName).trim() : existing.storeName,
+            storeName: cleanStoreName,
             logoUrl: nextLogoUrl,
             themeColor,
-            whatsapp: whatsapp
-              ? sanitizeWhatsapp(String(whatsapp))
-              : existing.whatsapp,
-            pixKey:
-              pixKey !== undefined
-                ? pixKey
-                  ? String(pixKey).trim()
-                  : null
-                : existing.pixKey,
+            whatsapp: cleanWhatsapp,
+            pixKey: cleanPixKey,
             depositPct,
             deliveryDates,
-            notes:
-              notes !== undefined
-                ? notes
-                  ? String(notes).trim()
-                  : null
-                : existing.notes,
+            notes: cleanNotes,
           },
         });
 
@@ -568,18 +851,25 @@ router.put(
 
           for (let index = 0; index < incomingProducts.length; index++) {
             const p = incomingProducts[index];
-            const uploadedFile = p.imageField ? fileByField.get(p.imageField) : undefined;
+            const existingProduct = p.id
+              ? existing.products.find((ep) => ep.id === p.id)
+              : undefined;
+            const uploadedFile = p.imageField
+              ? fileByField.get(p.imageField)
+              : undefined;
             const imageUrl = uploadedFile
               ? `/uploads/${uploadedFile.filename}`
-              : p.imageUrl ?? null;
+              : p.imageUrl !== undefined
+                ? p.imageUrl
+                : existingProduct?.imageUrl ?? null;
 
             const payload = {
-              name: String(p.name || '').trim(),
-              description: p.description ? String(p.description).trim() : null,
-              priceCents: Math.max(0, Math.round(Number(p.priceCents) || 0)),
+              name: p.name,
+              description: p.description,
+              priceCents: p.priceCents,
               imageUrl,
               orderIndex: p.orderIndex ?? index,
-              available: p.available !== undefined ? Boolean(p.available) : true,
+              available: parseBoolean(p.available, true),
             };
 
             if (p.id && existingIds.has(p.id)) {
@@ -600,7 +890,23 @@ router.put(
 
         return tx.catalog.findUnique({
           where: { id: existing.id },
-          include: {
+          select: {
+            id: true,
+            slug: true,
+            editToken: true,
+            status: true,
+            renewalCount: true,
+            storeName: true,
+            logoUrl: true,
+            themeColor: true,
+            whatsapp: true,
+            pixKey: true,
+            depositPct: true,
+            deliveryDates: true,
+            notes: true,
+            expiresAt: true,
+            createdAt: true,
+            updatedAt: true,
             products: {
               orderBy: { orderIndex: 'asc' },
             },
