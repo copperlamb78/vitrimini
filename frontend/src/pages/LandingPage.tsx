@@ -193,7 +193,7 @@ export function LandingPage() {
                   to="/criar"
                   className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-rose-700"
                 >
-                  Criar minha vitrine
+                  Criar vitrine
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </>
@@ -228,7 +228,7 @@ export function LandingPage() {
                   to="/criar"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-600 px-6 py-4 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:-translate-y-0.5 hover:bg-rose-700"
                 >
-                  Montar minha vitrine grátis
+                  Criar vitrine grátis
                   <ArrowRight className="h-4 w-4" />
                 </Link>
 
@@ -238,7 +238,7 @@ export function LandingPage() {
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-300 bg-white px-5 py-4 text-sm font-bold text-zinc-800 transition hover:-translate-y-0.5 hover:bg-zinc-50"
                 >
                   <Eye className="h-4 w-4 text-rose-600" />
-                  Ver vitrine de exemplo
+                  Ver exemplo
                 </button>
               </div>
 
@@ -651,7 +651,7 @@ export function LandingPage() {
               to="/criar"
               className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-rose-600 px-6 py-4 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:-translate-y-0.5 hover:bg-rose-700"
             >
-              Criar minha vitrine agora
+              Criar vitrine
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Reveal>
