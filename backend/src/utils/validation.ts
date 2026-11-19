@@ -121,7 +121,19 @@ export const productInputSchema = z.object({
     .refine((v) => Number.isFinite(v) && v >= 0 && v <= 100_000_000, {
       message: 'Preço do produto inválido.',
     }),
-  imageUrl: z.string().max(300).nullable().optional(),
+  imageUrl: z
+    .string()
+    .max(300)
+    .refine(
+      (val) =>
+        val === '' ||
+        val.startsWith('https://') ||
+        val.startsWith('http://') ||
+        val.startsWith('/'),
+      { message: 'URL de imagem inválida.' }
+    )
+    .nullable()
+    .optional(),
   imageField: z.string().max(50).optional(),
   orderIndex: z.number().int().min(0).max(10000).optional(),
   available: z.union([z.boolean(), z.string(), z.number()]).optional(),
