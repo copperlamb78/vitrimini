@@ -30,6 +30,7 @@ import {
   resolveImageUrl,
 } from '../utils/format';
 import { blobToDataUrl, compressImage } from '../utils/compressImage';
+import { applyPageSeo } from '../utils/seo';
 import { LogoUploader } from '../components/LogoUploader';
 import { ThemeSelector } from '../components/ThemeSelector';
 import { DeliveryDateBuilder } from '../components/DeliveryDateBuilder';
@@ -78,6 +79,15 @@ export function ManagePage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const activeTheme = getTheme(themeColor);
+
+  useEffect(() => {
+    applyPageSeo({
+      title: 'Editar Vitrine — VitriMini',
+      description: 'Painel exclusivo de edição da vitrine na VitriMini.',
+      canonicalPath: '/editar',
+      noindex: true,
+    });
+  }, []);
 
   useEffect(() => {
     if (!editToken) return;
