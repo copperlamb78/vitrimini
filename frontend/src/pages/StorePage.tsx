@@ -32,6 +32,8 @@ export function StorePage() {
 
   const [cart, setCart] = useState<Record<string, number>>({});
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkingStock, setCheckingStock] = useState(false);
+  const [stockAlert, setStockAlert] = useState<string | null>(null);
 
   // Checkout form
   const [customerName, setCustomerName] = useState('');
@@ -106,9 +108,62 @@ export function StorePage() {
     setTimeout(() => setCopiedPix(false), 2000);
   }
 
-  function handleSendWhatsApp(e: React.FormEvent) {
+  async function verifyCartStockBeforeProceed(): Promise<boolean> {
+    if (!slug || !catalog) return false;
+    setCheckingStock(true);
+    setStockAlert(null);
+
+    try {
+      const freshCatalog = await getPublicStore(slug, isPreview);
+      setCatalog(freshCatalog);
+
+      const soldOutNames: string[] = [];
+      const nextCart: Record<string, number> = {};
+
+      for (const [prodId, qty] of Object.entries(cart)) {
+        if (qty <= 0) continue;
+        const freshProd = freshCatalog.products.find((p) => p.id === prodId);
+        if (!freshProd || !freshProd.available) {
+          const oldProd = catalog.products.find((p) => p.id === prodId);
+          soldOutNames.push(freshProd?.name || oldProd?.name || 'Produto');
+        } else {
+          nextCart[prodId] = qty;
+        }
+      }
+
+      if (soldOutNames.length > 0) {
+        setCart(nextCart);
+        setCheckoutOpen(false);
+        setStockAlert(
+          soldOutNames.length === 1
+            ? `Ops! O item "${soldOutNames[0]}" acabou de esgotar e foi removido do seu carrinho.`
+            : `Ops! Os seguintes itens acabaram de esgotar e foram removidos do carrinho: ${soldOutNames.join(', ')}.`
+        );
+        return false;
+      }
+
+      return true;
+    } catch {
+      // Se houver falha momentânea na rede durante a checagem, permite seguir com os itens locais
+      return true;
+    } finally {
+      setCheckingStock(false);
+    }
+  }
+
+  async function handleOpenCheckout() {
+    const ok = await verifyCartStockBeforeProceed();
+    if (ok) {
+      setCheckoutOpen(true);
+    }
+  }
+
+  async function handleSendWhatsApp(e: React.FormEvent) {
     e.preventDefault();
     if (!catalog || cartSummary.items.length === 0) return;
+
+    const ok = await verifyCartStockBeforeProceed();
+    if (!ok) return;
 
     const lines: string[] = [
       `Olá *${catalog.storeName}*! Gostaria de fazer uma encomenda pela sua *VitriMini*:`,
@@ -261,6 +316,23 @@ export function StorePage() {
           </div>
         )}
 
+        {/* Alerta de item esgotado durante a compra */}
+        {stockAlert && (
+          <div className="flex items-start justify-between gap-2.5 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-semibold text-red-800">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+              <span>{stockAlert}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStockAlert(null)}
+              className="rounded-full p-0.5 text-red-500 hover:bg-red-100"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {/* Lista de Produtos */}
         <section className="space-y-3">
           <h2 className="text-xs font-bold uppercase tracking-wider text-stone-400">
@@ -277,20 +349,29 @@ export function StorePage() {
                 className={`flex gap-3 rounded-2xl border bg-white p-3.5 shadow-2xs transition ${
                   product.available
                     ? 'border-stone-200'
-                    : 'border-stone-200/70 opacity-65'
+                    : 'border-stone-200/70 opacity-75'
                 }`}
               >
-                {imgSrc ? (
-                  <img
-                    src={imgSrc}
-                    alt={product.name}
-                    className="h-24 w-24 shrink-0 rounded-xl object-cover"
-                  />
-                ) : (
-                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl bg-stone-100 text-xs text-stone-400">
-                    Sem foto
-                  </div>
-                )}
+                <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-stone-100">
+                  {imgSrc ? (
+                    <img
+                      src={imgSrc}
+                      alt={product.name}
+                      className={`h-full w-full object-cover ${
+                        product.available ? '' : 'grayscale'
+                      }`}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs text-stone-400">
+                      Sem foto
+                    </div>
+                  )}
+                  {!product.available && (
+                    <span className="absolute inset-x-0 bottom-0 bg-stone-900/85 py-1 text-center text-[10px] font-extrabold uppercase tracking-wider text-white">
+                      Esgotado
+                    </span>
+                  )}
+                </div>
 
                 <div className="flex min-w-0 flex-1 flex-col justify-between">
                   <div>
@@ -299,7 +380,7 @@ export function StorePage() {
                         {product.name}
                       </h3>
                       {!product.available && (
-                        <span className="shrink-0 rounded-full bg-stone-200 px-2.5 py-0.5 text-[10px] font-bold uppercase text-stone-600">
+                        <span className="shrink-0 rounded-full bg-red-100 px-2.5 py-0.5 text-[10px] font-bold uppercase text-red-700">
                           Esgotado
                         </span>
                       )}
@@ -312,11 +393,15 @@ export function StorePage() {
                   </div>
 
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-base font-extrabold text-stone-900">
+                    <span
+                      className={`text-base font-extrabold ${
+                        product.available ? 'text-stone-900' : 'text-stone-400'
+                      }`}
+                    >
                       {formatCurrency(product.priceCents)}
                     </span>
 
-                    {product.available && (
+                    {product.available ? (
                       <div className="flex items-center gap-2">
                         {qty > 0 ? (
                           <div className="flex items-center gap-2 rounded-full border border-stone-200 bg-stone-50 px-1.5 py-1">
@@ -351,6 +436,14 @@ export function StorePage() {
                           </button>
                         )}
                       </div>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        className="cursor-not-allowed rounded-full bg-stone-200 px-3.5 py-1.5 text-xs font-bold text-stone-500"
+                      >
+                        Indisponível
+                      </button>
                     )}
                   </div>
                 </div>
@@ -395,9 +488,11 @@ export function StorePage() {
             </div>
             <button
               type="button"
-              onClick={() => setCheckoutOpen(true)}
-              className={`rounded-xl px-6 py-3 text-sm font-bold shadow-lg transition ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText} ${theme.shadowColor}`}
+              onClick={handleOpenCheckout}
+              disabled={checkingStock}
+              className={`inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold shadow-lg transition disabled:opacity-70 ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText} ${theme.shadowColor}`}
             >
+              {checkingStock && <Loader2 className="h-4 w-4 animate-spin" />}
               Finalizar Pedido
             </button>
           </div>
