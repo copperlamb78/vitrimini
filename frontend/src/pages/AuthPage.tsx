@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { applyPageSeo } from '../utils/seo';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -27,6 +28,15 @@ import logoVitriMini from '../assets/logo-vitrimini.png';
 export function AuthPage() {
   const { login, register } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    applyPageSeo({
+      title: 'Entrar — VitriMini',
+      description: 'Acesse sua conta VitriMini para gerenciar suas vitrines.',
+      canonicalPath: '/entrar',
+      noindex: true,
+    });
+  }, []);
   const [searchParams] = useSearchParams();
   const initialTab =
     searchParams.get('tab') === 'register' ? 'register' : 'login';
