@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { upload } from '../config/upload.js';
@@ -11,7 +12,7 @@ import {
   verifyMercadoPagoOrder,
 } from '../services/payment.service.js';
 import { AppError, FRIENDLY_ERRORS } from '../middlewares/errorHandler.js';
-import { requireAuth } from '../middlewares/auth.js';
+import { getOptionalAuthUserId, requireAuth } from '../middlewares/auth.js';
 import {
   cleanupExpiredCatalogs,
   GRACE_PERIOD_MS,
@@ -32,6 +33,17 @@ import {
 } from '../utils/validation.js';
 
 const router = Router();
+
+const catalogWriteRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 25,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error:
+      'Muitas solicitações seguidas. Aguarde alguns minutos e tente novamente.',
+  },
+});
 
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 const ALLOWED_THEMES = new Set([
@@ -103,8 +115,16 @@ async function confirmCatalogPayment(paymentRecordId: string) {
       throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
     }
 
-    // Se já estava PAID, retorna sem disparar e-mails duplicados
-    if (paymentRecord.status === 'PAID') {
+    // Trava atômica anti-race-condition: garante transição única PENDING -> PAID
+    const claimed = await tx.catalogPayment.updateMany({
+      where: { id: paymentRecord.id, status: 'PENDING' },
+      data: {
+        status: 'PAID',
+        paidAt: new Date(),
+      },
+    });
+
+    if (claimed.count === 0) {
       return {
         catalog: paymentRecord.catalog,
         justConfirmed: false,
@@ -112,14 +132,6 @@ async function confirmCatalogPayment(paymentRecordId: string) {
         user: paymentRecord.user,
       };
     }
-
-    await tx.catalogPayment.update({
-      where: { id: paymentRecord.id },
-      data: {
-        status: 'PAID',
-        paidAt: new Date(),
-      },
-    });
 
     const now = Date.now();
     const currentExpires = paymentRecord.catalog.expiresAt;
@@ -201,6 +213,7 @@ async function confirmCatalogPayment(paymentRecordId: string) {
 router.post(
   '/catalogs',
   requireAuth,
+  catalogWriteRateLimiter,
   upload.any(),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -337,6 +350,7 @@ router.post(
 router.post(
   '/catalogs/:id/renew',
   requireAuth,
+  catalogWriteRateLimiter,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = req.user!.id;
@@ -628,7 +642,11 @@ router.post(
       const bodyDataId = body?.data?.id ? String(body.data.id) : undefined;
       const mpOrderId = queryDataId || bodyDataId;
 
-      if (mpOrderId) {
+      if (!isMockPixEnabled()) {
+        if (!mpOrderId) {
+          throw new AppError(401, 'Assinatura de webhook ausente.');
+        }
+
         const isSignatureValid = validateMercadoPagoWebhookSignature({
           xSignature: req.headers['x-signature'] as string | undefined,
           xRequestId: req.headers['x-request-id'] as string | undefined,
@@ -640,13 +658,17 @@ router.post(
         }
       }
 
-      let targetCatalogId: string | undefined =
-        body.catalogId || body?.data?.external_reference;
-      let targetGatewayId: string | undefined = body.paymentId || mpOrderId;
-      let approved =
-        body.status === 'approved' ||
-        body.action === 'order.processed' ||
-        body?.data?.status === 'processed';
+      let targetCatalogId: string | undefined = isMockPixEnabled()
+        ? body.catalogId || body?.data?.external_reference
+        : undefined;
+      let targetGatewayId: string | undefined = isMockPixEnabled()
+        ? body.paymentId || mpOrderId
+        : mpOrderId;
+      let approved = isMockPixEnabled()
+        ? body.status === 'approved' ||
+          body.action === 'order.processed' ||
+          body?.data?.status === 'processed'
+        : false;
 
       if (mpOrderId) {
         const verification = await verifyMercadoPagoOrder(mpOrderId);
@@ -670,7 +692,7 @@ router.post(
 
         if (paymentRecord) {
           await confirmCatalogPayment(paymentRecord.id);
-        } else if (targetCatalogId) {
+        } else if (isMockPixEnabled() && targetCatalogId) {
           const catalog = await prisma.catalog.findUnique({
             where: { id: targetCatalogId },
           });
@@ -718,7 +740,10 @@ router.get(
         throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
       }
 
-      if (!isPreview) {
+      const requesterId = isPreview ? getOptionalAuthUserId(req) : null;
+      const isAuthorizedPreview = isPreview && requesterId === catalog.userId;
+
+      if (!isAuthorizedPreview) {
         if (
           catalog.status === 'EXPIRED' ||
           (catalog.expiresAt && catalog.expiresAt < new Date())
@@ -806,6 +831,7 @@ router.get(
 // PUT /api/manage/:editToken
 router.put(
   '/manage/:editToken',
+  catalogWriteRateLimiter,
   upload.any(),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
