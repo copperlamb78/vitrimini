@@ -13,27 +13,57 @@ enum CatalogStatus {
   EXPIRED    // Expirado
 }
 
+enum PaymentType {
+  CREATION   // Primeira ativação da vitrine
+  RENEWAL    // Renovação de +90 dias
+}
+
+enum PaymentRecordStatus {
+  PENDING
+  PAID
+}
+
+model User {
+  id                     String           @id @default(uuid())
+  name                   String
+  email                  String           @unique
+  phone                  String           // WhatsApp cadastrado (apenas números com DDI, ex: 5575999999999)
+  passwordHash           String
+  passwordResetTokenHash String?
+  passwordResetExpiresAt DateTime?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  catalogs               Catalog[]
+  payments               CatalogPayment[]
+}
+
 model Catalog {
-  id            String        @id @default(uuid())
-  slug          String        @unique
-  editToken     String        @unique @default(uuid())
-  status        CatalogStatus @default(DRAFT)
+  id            String           @id @default(uuid())
+  slug          String           @unique
+  editToken     String           @unique @default(uuid())
+  status        CatalogStatus    @default(DRAFT)
+
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  renewalCount  Int              @default(0) // Quantas vezes esta vitrine foi renovada
 
   storeName     String
-  logoUrl       String?       // Caminho relativo da foto/logo, ex: /uploads/logo-uuid.webp
-  themeColor    String        @default("rose") // Identificador do tema de cor escolhido
-  whatsapp      String        // Apenas números com DDI, ex: 5575999999999
-  pixKey        String?       // Chave Pix do lojista para receber o sinal dos clientes
-  depositPct    Int           @default(50) // Porcentagem de sinal (0, 50 ou 100)
-  deliveryDates String[]      // Ex: ["24/12 (Qui) • Manhã", "24/12 (Qui) • Tarde"]
-  notes         String?       // Regras gerais da loja
+  logoUrl       String?          // Caminho relativo da foto/logo, ex: /uploads/logo-uuid.webp
+  themeColor    String           @default("rose") // Identificador do tema de cor escolhido
+  whatsapp      String           // Apenas números com DDI, ex: 5575999999999
+  pixKey        String?          // Chave Pix do lojista para receber o sinal dos clientes
+  depositPct    Int              @default(50) // Porcentagem de sinal (0, 50 ou 100)
+  deliveryDates String[]         // Ex: ["24/12 (Qui) • Manhã", "24/12 (Qui) • Tarde"]
+  notes         String?          // Regras gerais da loja
 
   paymentId     String?
   expiresAt     DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   products      Product[]
+  payments      CatalogPayment[]
 }
 
 model Product {
@@ -47,4 +77,18 @@ model Product {
   imageUrl    String?  // Caminho relativo, ex: /uploads/123.webp
   orderIndex  Int      @default(0)
   available   Boolean  @default(true)
+}
+
+model CatalogPayment {
+  id          String              @id @default(uuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  catalogId   String
+  catalog     Catalog             @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  type        PaymentType         @default(CREATION)
+  status      PaymentRecordStatus @default(PENDING)
+  amountCents Int                 // Ex: 2490
+  gatewayId   String?             // ID da Order/Payment no Mercado Pago
+  paidAt      DateTime?
+  createdAt   DateTime            @default(now())
 }
