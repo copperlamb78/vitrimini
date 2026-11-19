@@ -64,6 +64,7 @@ interface EmailLayoutOptions {
 const DEFAULT_FROM = 'VitriMini <suporte@vitrimini.com.br>';
 const SUPPORT_EMAIL = 'suporte@vitrimini.com.br';
 const OFFICIAL_SITE_URL = 'https://vitrimini.com.br';
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 
 function isSmtpConfigured(): boolean {
   return Boolean(
@@ -71,6 +72,10 @@ function isSmtpConfigured(): boolean {
       process.env.SMTP_USER?.trim() &&
       process.env.SMTP_PASS?.trim()
   );
+}
+
+function isEmailConfigured(): boolean {
+  return Boolean(process.env.BREVO_API_KEY?.trim() || isSmtpConfigured());
 }
 
 function getTransporter() {
@@ -91,6 +96,74 @@ function getTransporter() {
 
 function getFromAddress(): string {
   return process.env.SMTP_FROM?.trim() || DEFAULT_FROM;
+}
+
+function parseSender(rawFrom: string): { name: string; email: string } {
+  const match = rawFrom.match(/^(?:"?([^"]*)"?\s*)?<([^>]+)>$/);
+  if (match) {
+    return {
+      name: (match[1] || 'VitriMini').trim(),
+      email: match[2].trim(),
+    };
+  }
+  return {
+    name: 'VitriMini',
+    email: rawFrom.trim() || SUPPORT_EMAIL,
+  };
+}
+
+async function sendEmail(params: {
+  to: string;
+  toName?: string;
+  subject: string;
+  text: string;
+  html: string;
+}): Promise<void> {
+  const brevoApiKey = process.env.BREVO_API_KEY?.trim();
+
+  if (brevoApiKey) {
+    const sender = parseSender(getFromAddress());
+    const response = await fetch(BREVO_API_URL, {
+      method: 'POST',
+      headers: {
+        'api-key': brevoApiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender,
+        to: [
+          {
+            email: params.to,
+            ...(params.toName?.trim() ? { name: params.toName.trim() } : {}),
+          },
+        ],
+        subject: params.subject,
+        htmlContent: params.html,
+        textContent: params.text,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(
+        `[Brevo API Error]: HTTP ${response.status} - ${errorBody}`
+      );
+      throw new Error(
+        `Falha ao enviar e-mail via Brevo API (HTTP ${response.status}).`
+      );
+    }
+    return;
+  }
+
+  const transporter = getTransporter();
+  await transporter.sendMail({
+    from: getFromAddress(),
+    to: params.to,
+    subject: params.subject,
+    text: params.text,
+    html: params.html,
+  });
 }
 
 export function getFrontendBaseUrl(): string {
@@ -176,7 +249,7 @@ export async function sendWelcomeEmail({
   const firstName = name.split(' ')[0] || 'Lojista';
   const appUrl = getFrontendBaseUrl();
 
-  if (!isSmtpConfigured()) {
+  if (!isEmailConfigured()) {
     console.log(
       `[Email Dev Fallback] E-mail de boas-vindas para ${to} (${firstName})`
     );
@@ -212,10 +285,9 @@ export async function sendWelcomeEmail({
     'Equipe VitriMini',
   ].join('\n');
 
-  const transporter = getTransporter();
-  await transporter.sendMail({
-    from: getFromAddress(),
+  await sendEmail({
     to,
+    toName: name,
     subject: 'Bem-vindo à VitriMini — Sua vitrine digital está pronta',
     text,
     html,
@@ -232,7 +304,7 @@ export async function sendPasswordResetEmail({
 }: SendPasswordResetEmailInput): Promise<void> {
   const firstName = name.split(' ')[0] || 'Lojista';
 
-  if (!isSmtpConfigured()) {
+  if (!isEmailConfigured()) {
     console.log(
       `[Email Dev Fallback] Link de redefinição de senha para ${to}: ${resetUrl}`
     );
@@ -277,10 +349,9 @@ export async function sendPasswordResetEmail({
     `Site oficial: ${OFFICIAL_SITE_URL}`,
   ].join('\n');
 
-  const transporter = getTransporter();
-  await transporter.sendMail({
-    from: getFromAddress(),
+  await sendEmail({
     to,
+    toName: name,
     subject: 'Redefinição de senha — VitriMini',
     text,
     html,
@@ -299,7 +370,7 @@ export async function sendPasswordChangedEmail({
   const formattedDateTime = formatDateTimeBR(changedAt);
   const loginUrl = `${getFrontendBaseUrl()}/entrar`;
 
-  if (!isSmtpConfigured()) {
+  if (!isEmailConfigured()) {
     console.log(
       `[Email Dev Fallback] Confirmação de senha alterada para ${to} em ${formattedDateTime}`
     );
@@ -341,10 +412,9 @@ export async function sendPasswordChangedEmail({
     `ALERTA DE SEGURANÇA: Caso você não reconheça esta alteração, entre em contato imediatamente com ${SUPPORT_EMAIL}.`,
   ].join('\n');
 
-  const transporter = getTransporter();
-  await transporter.sendMail({
-    from: getFromAddress(),
+  await sendEmail({
     to,
+    toName: name,
     subject: 'Sua senha na VitriMini foi alterada',
     text,
     html,
@@ -368,7 +438,7 @@ export async function sendCatalogPublishedEmail({
   const editUrl = `${baseUrl}/editar/${editToken}`;
   const formattedExpires = formatDateBR(expiresAt);
 
-  if (!isSmtpConfigured()) {
+  if (!isEmailConfigured()) {
     console.log(
       `[Email Dev Fallback] Vitrine publicada (${storeName}) para ${to}: Público=${publicUrl} | Edição=${editUrl}`
     );
@@ -433,10 +503,9 @@ export async function sendCatalogPublishedEmail({
     `Dúvidas ou suporte: ${SUPPORT_EMAIL}`,
   ].join('\n');
 
-  const transporter = getTransporter();
-  await transporter.sendMail({
-    from: getFromAddress(),
+  await sendEmail({
     to,
+    toName: name,
     subject: 'Sua vitrine está no ar! Guarde seus links da VitriMini',
     text,
     html,
@@ -460,7 +529,7 @@ export async function sendCatalogRenewedEmail({
   const editUrl = `${baseUrl}/editar/${editToken}`;
   const formattedExpires = formatDateBR(expiresAt);
 
-  if (!isSmtpConfigured()) {
+  if (!isEmailConfigured()) {
     console.log(
       `[Email Dev Fallback] Vitrine renovada (${storeName}) para ${to} até ${formattedExpires}`
     );
@@ -510,10 +579,9 @@ export async function sendCatalogRenewedEmail({
     `Dúvidas ou suporte: ${SUPPORT_EMAIL}`,
   ].join('\n');
 
-  const transporter = getTransporter();
-  await transporter.sendMail({
-    from: getFromAddress(),
+  await sendEmail({
     to,
+    toName: name,
     subject: 'Renovação confirmada! Sua vitrine ganhou +90 dias',
     text,
     html,
@@ -535,7 +603,7 @@ export async function sendCatalogExpiringSoonEmail({
   const dashboardUrl = `${baseUrl}/minhas-vitrines`;
   const formattedExpires = formatDateBR(expiresAt);
 
-  if (!isSmtpConfigured()) {
+  if (!isEmailConfigured()) {
     console.log(
       `[Email Dev Fallback] Alerta de vencimento em 7 dias (${storeName}) para ${to}`
     );
@@ -569,10 +637,9 @@ export async function sendCatalogExpiringSoonEmail({
     `Dúvidas ou suporte: ${SUPPORT_EMAIL}`,
   ].join('\n');
 
-  const transporter = getTransporter();
-  await transporter.sendMail({
-    from: getFromAddress(),
+  await sendEmail({
     to,
+    toName: name,
     subject: 'Sua vitrine na VitriMini vence em 7 dias',
     text,
     html,
@@ -594,7 +661,7 @@ export async function sendCatalogExpiredEmail({
   const dashboardUrl = `${baseUrl}/minhas-vitrines`;
   const formattedExpires = formatDateBR(expiresAt);
 
-  if (!isSmtpConfigured()) {
+  if (!isEmailConfigured()) {
     console.log(
       `[Email Dev Fallback] Aviso de vitrine expirada (${storeName}) para ${to}`
     );
@@ -630,10 +697,9 @@ export async function sendCatalogExpiredEmail({
     `Dúvidas ou suporte: ${SUPPORT_EMAIL}`,
   ].join('\n');
 
-  const transporter = getTransporter();
-  await transporter.sendMail({
-    from: getFromAddress(),
+  await sendEmail({
     to,
+    toName: name,
     subject: 'Sua vitrine foi pausada — Seus produtos estão salvos por 30 dias',
     text,
     html,
