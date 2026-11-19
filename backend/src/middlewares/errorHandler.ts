@@ -57,9 +57,22 @@ export function errorHandler(
     return;
   }
 
-  // 3. Erros de upload de imagem (Multer tamanho/formato)
-  if (err instanceof multer.MulterError || err instanceof UploadValidationError) {
+  // 3. Erros de upload de imagem (Multer tamanho > 5MB ou formato inválido)
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      res
+        .status(400)
+        .json({ error: 'Imagem muito grande. O tamanho máximo permitido é 5 MB.' });
+      return;
+    }
     res.status(400).json({ error: FRIENDLY_ERRORS.UPLOAD });
+    return;
+  }
+
+  if (err instanceof UploadValidationError) {
+    res.status(400).json({
+      error: 'Formato de imagem inválido. Envie apenas JPG, PNG, WebP ou AVIF.',
+    });
     return;
   }
 
