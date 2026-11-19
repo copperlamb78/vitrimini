@@ -1,47 +1,119 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { prisma } from '../lib/prisma.js';
-import { UPLOADS_DIR } from '../config/upload.js';
+import {
+  sendCatalogExpiredEmail,
+  sendCatalogExpiringSoonEmail,
+} from './email.service.js';
+import { deleteImagesFromR2 } from './r2.service.js';
 
 export const GRACE_PERIOD_DAYS = 30;
 export const GRACE_PERIOD_MS = GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
-async function safeDeleteUploadFile(relativeUrl: string | null | undefined): Promise<void> {
-  if (!relativeUrl) return;
-  const filename = path.basename(relativeUrl);
-  if (!filename || filename === '.gitkeep') return;
-
-  const fullPath = path.join(UPLOADS_DIR, filename);
-  try {
-    await fs.unlink(fullPath);
-  } catch {
-    // Ignora silenciosamente caso o arquivo já não exista no disco
-  }
-}
-
 /**
- * Busca todas as vitrines cujo expiresAt já venceu há mais de 30 dias,
- * apaga fisicamente as imagens (logoUrl e imageUrl dos produtos) da pasta /uploads
- * e remove o registro do banco de dados em cascata.
+ * Executa o ciclo completo de notificações e limpeza de vitrines:
+ * 1. Aviso de 7 dias antes do vencimento (notified7DaysBefore)
+ * 2. Transição ACTIVE -> EXPIRED + aviso de início da carência de 30 dias (notifiedExpiration)
+ * 3. Exclusão definitiva em lote no Cloudflare R2 (1 op Class A) e remoção do banco após 30 dias de carência
  */
 export async function cleanupExpiredCatalogs(): Promise<number> {
   try {
     const now = new Date();
+    const sevenDaysAhead = new Date(now.getTime() + SEVEN_DAYS_MS);
     const cutoffDate = new Date(now.getTime() - GRACE_PERIOD_MS);
 
-    // 1. Garante que vitrines com expiresAt < now estejam marcadas como EXPIRED
-    await prisma.catalog.updateMany({
+    // 1. Aviso de 7 dias antes do vencimento
+    const expiringSoonCatalogs = await prisma.catalog.findMany({
       where: {
         status: 'ACTIVE',
-        expiresAt: { lt: now },
+        notified7DaysBefore: false,
+        expiresAt: {
+          gt: now,
+          lte: sevenDaysAhead,
+        },
       },
-      data: {
-        status: 'EXPIRED',
+      select: {
+        id: true,
+        storeName: true,
+        slug: true,
+        expiresAt: true,
+        user: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
       },
     });
 
-    // 2. Busca vitrines cujo período de carência de 30 dias já encerrou
+    for (const cat of expiringSoonCatalogs) {
+      await prisma.catalog.update({
+        where: { id: cat.id },
+        data: { notified7DaysBefore: true },
+      });
+
+      if (cat.expiresAt) {
+        void sendCatalogExpiringSoonEmail({
+          to: cat.user.email,
+          name: cat.user.name,
+          storeName: cat.storeName,
+          slug: cat.slug,
+          expiresAt: cat.expiresAt,
+        }).catch((mailErr) => {
+          console.error('[Expiring Soon Email Error]:', mailErr);
+        });
+      }
+    }
+
+    // 2. Vitrines que venceram (expiresAt <= now) mas ainda estão dentro da janela de 30 dias
+    const newlyExpiredCatalogs = await prisma.catalog.findMany({
+      where: {
+        expiresAt: {
+          gte: cutoffDate,
+          lte: now,
+        },
+        OR: [{ status: 'ACTIVE' }, { notifiedExpiration: false }],
+      },
+      select: {
+        id: true,
+        storeName: true,
+        slug: true,
+        expiresAt: true,
+        notifiedExpiration: true,
+        user: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    for (const cat of newlyExpiredCatalogs) {
+      const shouldNotify = !cat.notifiedExpiration;
+
+      await prisma.catalog.update({
+        where: { id: cat.id },
+        data: {
+          status: 'EXPIRED',
+          notifiedExpiration: true,
+        },
+      });
+
+      if (shouldNotify && cat.expiresAt) {
+        void sendCatalogExpiredEmail({
+          to: cat.user.email,
+          name: cat.user.name,
+          storeName: cat.storeName,
+          slug: cat.slug,
+          expiresAt: cat.expiresAt,
+        }).catch((mailErr) => {
+          console.error('[Catalog Expired Email Error]:', mailErr);
+        });
+      }
+    }
+
+    // 3. Busca vitrines cujo período de carência de 30 dias já encerrou para exclusão definitiva
     const expiredBeyondGrace = await prisma.catalog.findMany({
       where: {
         expiresAt: { lt: cutoffDate },
@@ -62,20 +134,25 @@ export async function cleanupExpiredCatalogs(): Promise<number> {
       return 0;
     }
 
+    // Coleta todas as URLs de imagens e apaga em um único lote no R2 (1 operação Class A)
+    const allImageUrls: Array<string | null> = [];
     for (const catalog of expiredBeyondGrace) {
-      await safeDeleteUploadFile(catalog.logoUrl);
-
+      allImageUrls.push(catalog.logoUrl);
       for (const product of catalog.products) {
-        await safeDeleteUploadFile(product.imageUrl);
+        allImageUrls.push(product.imageUrl);
       }
-
-      await prisma.catalog.delete({
-        where: { id: catalog.id },
-      });
     }
 
+    await deleteImagesFromR2(allImageUrls);
+
+    await prisma.catalog.deleteMany({
+      where: {
+        id: { in: expiredBeyondGrace.map((c) => c.id) },
+      },
+    });
+
     console.log(
-      `🧹 [Cleanup]: ${expiredBeyondGrace.length} vitrine(s) vencida(s) há mais de 30 dias removida(s) permanentemente.`
+      `🧹 [Cleanup]: ${expiredBeyondGrace.length} vitrine(s) vencida(s) há mais de 30 dias removida(s) permanentemente (banco + R2).`
     );
     return expiredBeyondGrace.length;
   } catch (err) {
