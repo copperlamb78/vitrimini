@@ -11,7 +11,12 @@ import {
   registerSchema,
   resetPasswordSchema,
 } from '../utils/validation.js';
-import { sendPasswordResetEmail } from '../services/email.service.js';
+import {
+  getFrontendBaseUrl,
+  sendPasswordChangedEmail,
+  sendPasswordResetEmail,
+  sendWelcomeEmail,
+} from '../services/email.service.js';
 
 const router = Router();
 
@@ -81,6 +86,14 @@ router.post(
       });
 
       const token = signAuthToken(user);
+
+      // Dispara e-mail de boas-vindas em background sem bloquear a resposta do cadastro
+      void sendWelcomeEmail({
+        to: user.email,
+        name: user.name,
+      }).catch((mailErr) => {
+        console.error('[Welcome Email Error]:', mailErr);
+      });
 
       res.status(201).json({ token, user });
     } catch (error) {
@@ -166,9 +179,7 @@ router.post(
           },
         });
 
-        const frontendUrl = (
-          process.env.FRONTEND_URL || 'http://localhost:5173'
-        ).replace(/\/$/, '');
+        const frontendUrl = getFrontendBaseUrl();
         const resetUrl = `${frontendUrl}/redefinir-senha?token=${rawToken}`;
 
         try {
@@ -210,6 +221,8 @@ router.post(
         },
         select: {
           id: true,
+          name: true,
+          email: true,
         },
       });
 
@@ -229,6 +242,15 @@ router.post(
           passwordResetTokenHash: null,
           passwordResetExpiresAt: null,
         },
+      });
+
+      // Dispara confirmação de senha alterada em background
+      void sendPasswordChangedEmail({
+        to: user.email,
+        name: user.name,
+        changedAt: new Date(),
+      }).catch((mailErr) => {
+        console.error('[Password Changed Email Error]:', mailErr);
       });
 
       res.json({
