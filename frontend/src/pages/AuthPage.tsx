@@ -181,14 +181,14 @@ export function AuthPage() {
                     className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-3 text-xs font-bold text-white transition hover:bg-zinc-800"
                   >
                     <ArrowLeft className="h-3.5 w-3.5" />
-                    Voltar para o login
+                    Voltar ao login
                   </button>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="mt-5 space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700">
-                      Seu E-mail cadastrado *
+                      E-mail cadastrado *
                     </label>
                     <input
                       type="email"
@@ -232,7 +232,7 @@ export function AuthPage() {
                         Enviando link...
                       </>
                     ) : (
-                      'Enviar link de recuperação'
+                      'Enviar link'
                     )}
                   </button>
 
@@ -245,7 +245,7 @@ export function AuthPage() {
                     className="flex w-full items-center justify-center gap-1.5 py-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-800"
                   >
                     <ArrowLeft className="h-3.5 w-3.5" />
-                    Voltar para o login
+                    Voltar ao login
                   </button>
                 </form>
               )}
@@ -300,7 +300,7 @@ export function AuthPage() {
                 {tab === 'register' && (
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700">
-                      Seu Nome *
+                      Nome *
                     </label>
                     <input
                       type="text"
@@ -345,7 +345,7 @@ export function AuthPage() {
                 {tab === 'register' && (
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700">
-                      Seu WhatsApp (com DDD) *
+                      WhatsApp (com DDD) *
                     </label>
                     <input
                       type="tel"
@@ -433,9 +433,9 @@ export function AuthPage() {
                       Aguarde...
                     </>
                   ) : tab === 'login' ? (
-                    'Entrar na minha conta'
+                    'Entrar'
                   ) : (
-                    'Criar minha conta'
+                    'Criar conta'
                   )}
                 </button>
               </form>
