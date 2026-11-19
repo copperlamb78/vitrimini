@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   CheckCircle2,
   Copy,
@@ -9,6 +10,7 @@ import {
   Sparkles,
   ArrowLeft,
   RefreshCw,
+  Store,
 } from 'lucide-react';
 import type { CreateCatalogResponse } from '../types/catalog';
 import {
@@ -20,7 +22,7 @@ import logoVitriMini from '../assets/logo-vitrimini.png';
 
 interface PixPaymentModalProps {
   paymentData: CreateCatalogResponse;
-  initialPaid?: boolean;
+  isRenewal?: boolean;
   onCancelDraft: (catalogId: string) => void;
   onCloseAfterPaid: () => void;
   onConfirmed: (info: {
@@ -32,12 +34,12 @@ interface PixPaymentModalProps {
 
 export function PixPaymentModal({
   paymentData,
-  initialPaid = false,
+  isRenewal = false,
   onCancelDraft,
   onCloseAfterPaid,
   onConfirmed,
 }: PixPaymentModalProps) {
-  const [paid, setPaid] = useState(initialPaid);
+  const [paid, setPaid] = useState(false);
   const [slug, setSlug] = useState(paymentData.slug);
   const [editToken, setEditToken] = useState(paymentData.editToken);
 
@@ -52,7 +54,6 @@ export function PixPaymentModal({
   const [simulating, setSimulating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Bloqueia fechamento acidental via tecla ESC
   useEffect(() => {
     function blockEscape(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -73,8 +74,16 @@ export function PixPaymentModal({
       }
 
       try {
-        const res = await getCatalogStatus(paymentData.catalogId);
-        if (res.status === 'ACTIVE') {
+        const res = await getCatalogStatus(
+          paymentData.catalogId,
+          paymentData.paymentRecordId
+        );
+
+        const isConfirmed = paymentData.paymentRecordId
+          ? Boolean(res.paymentPaid)
+          : res.status === 'ACTIVE';
+
+        if (isConfirmed) {
           setSlug(res.slug);
           setEditToken(res.editToken);
           setPaid(true);
@@ -107,10 +116,9 @@ export function PixPaymentModal({
       }
       return false;
     },
-    [paymentData.catalogId, onConfirmed]
+    [paymentData.catalogId, paymentData.paymentRecordId, onConfirmed]
   );
 
-  // Checagem imediata ao abrir/retomar + polling automático a cada 3 segundos
   useEffect(() => {
     if (paid) return;
 
@@ -120,7 +128,6 @@ export function PixPaymentModal({
       void checkStatusOnce(false);
     }, 3000);
 
-    // Também re-verifica imediatamente quando o usuário volta do app do banco (visibilitychange / focus)
     function handleVisibility() {
       if (document.visibilityState === 'visible') {
         void checkStatusOnce(false);
@@ -147,7 +154,7 @@ export function PixPaymentModal({
     setError(null);
     try {
       const res = await mockPayCatalog(paymentData.catalogId);
-      if (res.status === 'ACTIVE') {
+      if (res.status === 'ACTIVE' || res.paymentPaid) {
         setSlug(res.slug);
         setEditToken(res.editToken);
         setPaid(true);
@@ -182,7 +189,6 @@ export function PixPaymentModal({
       <div className="relative my-auto w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
         {!paid ? (
           <div>
-            {/* Barra superior com botão explícito "Voltar e editar" */}
             <div className="mb-3 flex items-center justify-between">
               <button
                 type="button"
@@ -190,7 +196,7 @@ export function PixPaymentModal({
                 className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-stone-500 transition hover:bg-stone-100 hover:text-stone-800"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
-                Voltar e editar
+                Voltar
               </button>
 
               <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
@@ -233,10 +239,14 @@ export function PixPaymentModal({
                 className="mx-auto mb-2 h-7 w-auto object-contain"
               />
               <h2 className="text-xl font-bold text-stone-900">
-                Pague R$ 24,90 (taxa única)
+                {isRenewal
+                  ? 'Renovar Vitrine (+90 dias — R$ 24,90)'
+                  : 'Pague R$ 24,90 (taxa única)'}
               </h2>
               <p className="mt-1 text-xs text-stone-500">
-                Sua vitrine ficará ativa por 90 dias com produtos ilimitados. Pode abrir o app do banco tranquilo: salvamos este pedido no seu navegador.
+                {isRenewal
+                  ? 'Ao pagar o Pix, sua vitrine ganha mais 90 dias de validade automaticamente.'
+                  : 'Sua vitrine ficará ativa por 90 dias com produtos ilimitados e salva na sua conta.'}
               </p>
 
               {paymentData.qrCodeBase64 && (
@@ -271,7 +281,6 @@ export function PixPaymentModal({
                 )}
               </button>
 
-              {/* Botão manual de verificação imediata */}
               <button
                 type="button"
                 onClick={() => checkStatusOnce(true)}
@@ -322,10 +331,13 @@ export function PixPaymentModal({
               <CheckCircle2 className="h-8 w-8" />
             </div>
             <h2 className="mt-3 text-xl font-bold text-stone-900">
-              Vitrine Publicada no VitriMini!
+              {isRenewal
+                ? 'Vitrine Renovada por +90 dias!'
+                : 'Vitrine Publicada no VitriMini!'}
             </h2>
             <p className="mt-1 text-sm text-stone-500">
-              Sua vitrine já está no ar e seus links também ficaram salvos em <strong>"Minhas Vitrines"</strong> neste navegador.
+              Sua vitrine está ativa e disponível a qualquer momento no seu painel{' '}
+              <strong>Minhas Vitrines</strong>.
             </p>
 
             <div className="mt-5 space-y-3 text-left">
@@ -361,19 +373,11 @@ export function PixPaymentModal({
               </div>
 
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                  <div>
-                    <p className="text-xs font-bold text-amber-900">
-                      Link Secreto de Edição (Guarde com cuidado!)
-                    </p>
-                    <p className="mt-0.5 text-xs text-amber-800">
-                      Salve este link no seu WhatsApp (envie para você mesmo). É por ele que você pausa itens esgotados e altera preços sem precisar de senha.
-                    </p>
-                  </div>
-                </div>
-                <p className="mt-2 truncate rounded-md bg-white/80 px-2 py-1 text-xs font-mono text-stone-700">
-                  {editUrl}
+                <p className="text-xs font-bold text-amber-900">
+                  Painel de Edição da Vitrine
+                </p>
+                <p className="mt-0.5 text-xs text-amber-800">
+                  Você também pode acessar este painel quando quiser entrando na sua conta em <strong>Minhas Vitrines</strong>.
                 </p>
                 <div className="mt-2 flex gap-2">
                   <button
@@ -386,7 +390,7 @@ export function PixPaymentModal({
                     ) : (
                       <Copy className="h-3.5 w-3.5" />
                     )}
-                    {copiedEdit ? 'Copiado!' : 'Copiar Link Secreto de Edição'}
+                    {copiedEdit ? 'Copiado!' : 'Copiar Link de Edição'}
                   </button>
                   <a
                     href={`/editar/${editToken}`}
@@ -400,13 +404,23 @@ export function PixPaymentModal({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={onCloseAfterPaid}
-              className="mt-5 w-full rounded-xl border border-stone-300 bg-white py-2.5 text-xs font-bold text-stone-700 transition hover:bg-stone-50"
-            >
-              Já copiei meus links — Fechar janela
-            </button>
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+              <Link
+                to="/minhas-vitrines"
+                onClick={onCloseAfterPaid}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-stone-900 py-2.5 text-xs font-bold text-white transition hover:bg-stone-800"
+              >
+                <Store className="h-3.5 w-3.5" />
+                Ir para Minhas Vitrines
+              </Link>
+              <button
+                type="button"
+                onClick={onCloseAfterPaid}
+                className="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-xs font-bold text-stone-700 transition hover:bg-stone-50"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         )}
       </div>
