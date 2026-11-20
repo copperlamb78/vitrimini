@@ -3,13 +3,17 @@ import express, { Request, Response } from 'express';
 import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.routes.js';
 import catalogRoutes from './routes/catalog.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import mpRoutes from './routes/mp.routes.js';
 import { errorHandler, FRIENDLY_ERRORS } from './middlewares/errorHandler.js';
-import { validateJwtSecretConfig } from './middlewares/auth.js';
+import {
+  isAllowedOrigin,
+  validateJwtSecretConfig,
+} from './middlewares/auth.js';
 import { startCleanupScheduler } from './services/cleanup.service.js';
 import { prisma } from './lib/prisma.js';
 import { getFrontendBaseUrl } from './services/email.service.js';
@@ -28,21 +32,6 @@ app.use(
   })
 );
 
-const configuredFrontend = (process.env.FRONTEND_URL || '')
-  .split(',')
-  .map((url) => url.trim().replace(/\/+$/, ''))
-  .filter(Boolean);
-
-const allowedOrigins = new Set<string>([
-  'https://vitrimini.com.br',
-  'https://www.vitrimini.com.br',
-  'https://painel.vitrimini.com.br',
-  ...configuredFrontend,
-  ...(process.env.NODE_ENV !== 'production'
-    ? ['http://localhost:5173', 'http://127.0.0.1:5173']
-    : []),
-]);
-
 app.use(
   cors({
     origin(origin, callback) {
@@ -51,8 +40,7 @@ app.use(
         callback(null, true);
         return;
       }
-      const normalized = origin.replace(/\/+$/, '');
-      if (allowedOrigins.has(normalized)) {
+      if (isAllowedOrigin(origin)) {
         callback(null, true);
         return;
       }
@@ -92,9 +80,30 @@ function escapeXml(raw: string): string {
     .replace(/'/g, '&apos;');
 }
 
+const SITEMAP_CACHE_TTL_MS = 5 * 60 * 1000;
+let sitemapCache: { xml: string; expiresAt: number } | null = null;
+
+const sitemapRateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutos
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'Muitas solicitações ao sitemap. Aguarde alguns instantes.',
+  },
+});
+
 // Sitemap XML dinâmico para indexação no Google (página inicial + vitrines ativas)
-app.get('/sitemap.xml', async (_req: Request, res: Response, next) => {
+app.get('/sitemap.xml', sitemapRateLimiter, async (_req: Request, res: Response, next) => {
   try {
+    const nowMs = Date.now();
+    if (sitemapCache && sitemapCache.expiresAt > nowMs) {
+      res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.status(200).send(sitemapCache.xml);
+      return;
+    }
+
     const baseUrl = getFrontendBaseUrl();
     const now = new Date();
 
@@ -139,6 +148,11 @@ app.get('/sitemap.xml', async (_req: Request, res: Response, next) => {
 ${urlNodes.join('\n')}
 </urlset>`;
 
+    sitemapCache = {
+      xml,
+      expiresAt: nowMs + SITEMAP_CACHE_TTL_MS,
+    };
+
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.status(200).send(xml);
@@ -160,6 +174,9 @@ app.use('/api/*', (_req: Request, res: Response) => {
 app.use(errorHandler);
 
 if (process.env.VITRIMINI_TEST_MODE !== 'true') {
+  if (process.env.NODE_ENV === 'production' && process.env.MOCK_PIX === 'true') {
+    throw new Error('MOCK_PIX=true é proibido em ambiente de produção.');
+  }
   validateJwtSecretConfig();
   app.listen(PORT, () => {
     console.log(`🚀 VitriMini API rodando na porta ${PORT}`);
