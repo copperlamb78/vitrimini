@@ -8,16 +8,21 @@ import {
 import type { AuthResponse, AuthUser } from '../types/catalog';
 import {
   AUTH_SESSION_HINT_KEY,
-  AUTH_TOKEN_KEY,
-  AUTH_USER_KEY,
+  clearLegacyAuthStorage,
   clearStoredAuthSession,
+  getAccessToken,
   getMe,
+  hasStoredSessionHint,
   isJwtTokenExpired,
   loginUser,
   logoutUser,
+  markStoredSessionHint,
   refreshAuthSession,
   registerUser,
+  setAccessToken,
 } from '../services/api';
+
+const DRAFT_STORAGE_KEY = 'vitrimini_draft_v1';
 
 interface RegisterInput {
   name: string;
@@ -43,38 +48,15 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-function readInitialToken(): string | null {
-  try {
-    return localStorage.getItem(AUTH_TOKEN_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function hasSessionHint(): boolean {
-  try {
-    return (
-      localStorage.getItem(AUTH_SESSION_HINT_KEY) === '1' ||
-      Boolean(localStorage.getItem(AUTH_TOKEN_KEY))
-    );
-  } catch {
-    return false;
-  }
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => {
-    const raw = readInitialToken();
-    if (!raw || isJwtTokenExpired(raw)) return null;
-    return raw;
-  });
+  const [token, setToken] = useState<string | null>(() => getAccessToken());
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState<boolean>(() => hasSessionHint());
+  const [loading, setLoading] = useState<boolean>(() => hasStoredSessionHint());
 
   const persistSession = useCallback((auth: AuthResponse) => {
-    localStorage.setItem(AUTH_TOKEN_KEY, auth.token);
-    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(auth.user));
-    localStorage.setItem(AUTH_SESSION_HINT_KEY, '1');
+    setAccessToken(auth.token);
+    markStoredSessionHint();
+    clearLegacyAuthStorage();
     setToken(auth.token);
     setUser(auth.user);
     setLoading(false);
@@ -83,6 +65,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     void logoutUser();
     clearStoredAuthSession();
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch {
+      // Ignora falhas de storage
+    }
     setToken(null);
     setUser(null);
     setLoading(false);
@@ -92,40 +79,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     async function bootstrapSession() {
-      const storedToken = readInitialToken();
-      const shouldTryRefresh = hasSessionHint();
+      clearLegacyAuthStorage();
 
-      if (!storedToken && !shouldTryRefresh) {
+      if (!hasStoredSessionHint()) {
         if (!cancelled) {
+          setAccessToken(null);
+          setToken(null);
           setUser(null);
           setLoading(false);
         }
         return;
       }
 
-      if (!storedToken || isJwtTokenExpired(storedToken)) {
+      const existingToken = getAccessToken();
+      let activeToken =
+        existingToken && !isJwtTokenExpired(existingToken) ? existingToken : null;
+
+      if (!activeToken) {
         const refreshed = await refreshAuthSession();
         if (cancelled) return;
-        if (refreshed) {
-          setToken(refreshed.token);
-          setUser(refreshed.user);
+        if (!refreshed) {
+          clearStoredAuthSession();
+          setToken(null);
+          setUser(null);
           setLoading(false);
           return;
         }
-        clearStoredAuthSession();
-        setToken(null);
-        setUser(null);
-        setLoading(false);
-        return;
+        activeToken = refreshed.token;
       }
 
       try {
-        const res = await getMe(storedToken);
+        const res = await getMe(activeToken);
         if (cancelled) return;
-        const latestToken = readInitialToken() || storedToken;
+        const latestToken = getAccessToken() || activeToken;
         setToken(latestToken);
         setUser(res.user);
-        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(res.user));
       } catch {
         if (cancelled) return;
         clearStoredAuthSession();
@@ -148,6 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Sincronia entre abas (storage), refresh silencioso (auth:refreshed) e 401 (auth:logout)
   useEffect(() => {
     function handleForceLogout() {
+      setAccessToken(null);
       setToken(null);
       setUser(null);
       setLoading(false);
@@ -156,25 +145,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     function handleRefreshed(e: Event) {
       const detail = (e as CustomEvent<AuthResponse>).detail;
       if (detail?.token && detail?.user) {
+        setAccessToken(detail.token);
         setToken(detail.token);
         setUser(detail.user);
       }
     }
 
     function handleStorageChange(e: StorageEvent) {
-      if (
-        e.key === AUTH_TOKEN_KEY ||
-        e.key === AUTH_USER_KEY ||
-        e.key === AUTH_SESSION_HINT_KEY ||
-        e.key === null
-      ) {
-        const currentToken = localStorage.getItem(AUTH_TOKEN_KEY);
-        if (!currentToken || isJwtTokenExpired(currentToken)) {
+      if (e.key === AUTH_SESSION_HINT_KEY || e.key === null) {
+        if (!hasStoredSessionHint()) {
+          setAccessToken(null);
           setToken(null);
           setUser(null);
           setLoading(false);
-        } else {
-          setToken(currentToken);
         }
       }
     }
