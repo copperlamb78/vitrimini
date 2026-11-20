@@ -193,9 +193,13 @@ export function OrderTrackingPage() {
     : DELIVERY_STATUS_INDEX[order.status];
   const isCancelled = order.status === 'CANCELLED';
 
+  const isOnlinePaid =
+    order.paymentChannel === 'MERCADO_PAGO' && order.paymentStatus === 'PAID';
   const whatsappDigits = order.store.whatsapp.replace(/\D/g, '');
   const whatsappHelpUrl = `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(
-    `Olá! Gostaria de falar sobre o meu pedido #${order.orderNumber}.`
+    isOnlinePaid
+      ? `Oi! Fiz o pedido #${order.orderNumber} na vitrine e queria tirar uma dúvida.`
+      : `Olá! Gostaria de falar sobre o meu pedido #${order.orderNumber}.`
   )}`;
 
   async function handleCopyPix() {
@@ -473,7 +477,9 @@ export function OrderTrackingPage() {
               )}
             </span>
             <span className="inline-flex items-center rounded-lg bg-zinc-100 px-2.5 py-1 font-semibold">
-              Pagamento: {PAYMENT_LABELS[order.paymentMethod] || order.paymentMethod}
+              {order.paymentChannel === 'MERCADO_PAGO'
+                ? 'Pago online'
+                : `Pagamento: ${PAYMENT_LABELS[order.paymentMethod] || order.paymentMethod}`}
             </span>
             {order.deliveryDate && (
               <span className="inline-flex items-center rounded-lg bg-zinc-100 px-2.5 py-1 font-semibold">
@@ -488,13 +494,14 @@ export function OrderTrackingPage() {
           href={whatsappHelpUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"
+          className={
+            isOnlinePaid
+              ? 'flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 shadow-xs transition hover:bg-zinc-50'
+              : 'flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700'
+          }
         >
           <MessageCircle className="h-4 w-4" />
-          {order.paymentChannel === 'MERCADO_PAGO' &&
-          order.paymentStatus === 'PAID'
-            ? 'Enviar comprovante no WhatsApp da loja'
-            : 'Falar com a loja no WhatsApp'}
+          Falar com a loja no WhatsApp
         </a>
 
         <div className="text-center">
