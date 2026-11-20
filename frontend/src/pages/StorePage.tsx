@@ -39,6 +39,7 @@ import {
 import { applyPageSeo } from '../utils/seo';
 import { filterActiveDeliverySlots } from '../utils/deliverySchedule';
 import { StorePageSkeleton } from '../components/Skeletons';
+import { AuthModal } from '../components/AuthModal';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 import logoIcon from '../assets/logo-icon.png';
 
@@ -54,6 +55,7 @@ export function StorePage() {
 
   const [cart, setCart] = useState<Record<string, number>>({});
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [checkingStock, setCheckingStock] = useState(false);
   const [stockAlert, setStockAlert] = useState<string | null>(null);
 
@@ -276,9 +278,12 @@ export function StorePage() {
 
   async function handleOpenCheckout() {
     const ok = await verifyCartStockBeforeProceed();
-    if (ok) {
-      setCheckoutOpen(true);
+    if (!ok) return;
+    if (!user) {
+      setAuthModalOpen(true);
+      return;
     }
+    setCheckoutOpen(true);
   }
 
   const activeDeliveryDates = useMemo(
@@ -289,6 +294,11 @@ export function StorePage() {
   async function handleSendWhatsApp(e: React.FormEvent) {
     e.preventDefault();
     if (!catalog || cartSummary.items.length === 0) return;
+    if (!user) {
+      setCheckoutOpen(false);
+      setAuthModalOpen(true);
+      return;
+    }
 
     setOrderError(null);
     if (!isValidBrazilianPhone(customerPhone)) {
@@ -308,6 +318,15 @@ export function StorePage() {
             ? 'A combinar com a loja'
             : preferredSchedule.trim() || null;
 
+      const effectivePaymentChannel: OrderPaymentChannel =
+        catalog.onlinePaymentAvailable ? paymentChannel : 'WHATSAPP';
+      const effectivePaymentMethod: OrderPaymentMethod =
+        catalog.onlinePaymentAvailable
+          ? effectivePaymentChannel === 'MERCADO_PAGO'
+            ? 'CARD'
+            : 'OTHER'
+          : paymentMethod;
+
       const orderRes = await createStoreOrder(catalog.slug, {
         customerName: customerName.trim(),
         customerPhone: phoneToDDI(customerPhone),
@@ -315,8 +334,8 @@ export function StorePage() {
         deliveryAddress:
           fulfillmentType === 'delivery' ? address.trim() : null,
         deliveryDate: chosenDate,
-        paymentMethod,
-        paymentChannel: catalog.onlinePaymentAvailable ? paymentChannel : 'WHATSAPP',
+        paymentMethod: effectivePaymentMethod,
+        paymentChannel: effectivePaymentChannel,
         notes: customerNotes.trim() || null,
         items: cartSummary.items.map((item) => ({
           productId: item.product.id,
@@ -346,7 +365,13 @@ export function StorePage() {
           ? `*Recebimento:* Entrega — ${address.trim()}`
           : `*Recebimento:* Retirada no local`
       );
-      lines.push(`*Pagamento:* ${paymentLabelMap[paymentMethod]}`);
+      lines.push(
+        `*Pagamento:* ${
+          catalog.onlinePaymentAvailable && effectivePaymentChannel === 'WHATSAPP'
+            ? 'A combinar no WhatsApp'
+            : paymentLabelMap[effectivePaymentMethod]
+        }`
+      );
 
       lines.push('', '*Itens do Pedido:*');
       for (const item of cartSummary.items) {
@@ -371,8 +396,12 @@ export function StorePage() {
 
       const whatsappUrl = `https://wa.me/${catalog.whatsapp}?text=${encodeURIComponent(lines.join('\n'))}`;
       setOnlinePaid(orderRes.paymentStatus === 'PAID');
-      setCreatedOrder({ order: orderRes, whatsappUrl });
       setCart({});
+      if (orderRes.paymentChannel === 'MERCADO_PAGO' && orderRes.mpCheckoutUrl) {
+        window.location.assign(orderRes.mpCheckoutUrl);
+        return;
+      }
+      setCreatedOrder({ order: orderRes, whatsappUrl });
       if (orderRes.paymentChannel !== 'MERCADO_PAGO') {
         window.open(whatsappUrl, '_blank');
       }
@@ -858,22 +887,12 @@ export function StorePage() {
               </div>
             ) : (
             <form onSubmit={handleSendWhatsApp} className="mt-4 space-y-4">
-              {user ? (
+              {user && (
                 <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800">
                   <ShoppingBag className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                   <span>
                     Pedido salvo na sua conta (<strong>{user.name.split(' ')[0]}</strong>)
                   </span>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-600">
-                  <span>Quer salvar seus pedidos?</span>
-                  <Link
-                    to={`/entrar?redirect=${encodeURIComponent(`/c/${slug}`)}`}
-                    className="shrink-0 font-bold text-rose-600 hover:underline"
-                  >
-                    Entrar / Criar conta
-                  </Link>
                 </div>
               )}
 
@@ -909,7 +928,7 @@ export function StorePage() {
                 />
               </div>
 
-              {catalog.onlinePaymentAvailable && (
+              {catalog.onlinePaymentAvailable ? (
                 <div>
                   <label className="block text-xs font-semibold text-stone-700">
                     Como deseja pagar?
@@ -917,19 +936,14 @@ export function StorePage() {
                   <div className="mt-1.5 grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        setPaymentChannel('MERCADO_PAGO');
-                        if (paymentMethod !== 'PIX' && paymentMethod !== 'CARD') {
-                          setPaymentMethod('PIX');
-                        }
-                      }}
+                      onClick={() => setPaymentChannel('MERCADO_PAGO')}
                       className={`cursor-pointer rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
                         paymentChannel === 'MERCADO_PAGO'
                           ? `${theme.softBorder} ${theme.softBg} ${theme.softText}`
                           : 'border-stone-200 text-stone-600'
                       }`}
                     >
-                      Pagar agora (Pix / Cartão)
+                      Pagar agora (Pix ou Cartão)
                     </button>
                     <button
                       type="button"
@@ -944,47 +958,36 @@ export function StorePage() {
                     </button>
                   </div>
                 </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-semibold text-stone-700">
-                  Forma de Pagamento
-                </label>
-                <div
-                  className={`mt-1.5 grid gap-1.5 ${
-                    paymentChannel === 'MERCADO_PAGO'
-                      ? 'grid-cols-2'
-                      : 'grid-cols-4'
-                  }`}
-                >
-                  {(
-                    paymentChannel === 'MERCADO_PAGO'
-                      ? ([
-                          { id: 'PIX', label: 'Pix na hora' },
-                          { id: 'CARD', label: 'Cartão' },
-                        ] as const)
-                      : ([
-                          { id: 'PIX', label: 'Pix' },
-                          { id: 'CARD', label: 'Cartão' },
-                          { id: 'CASH', label: 'Dinheiro' },
-                          { id: 'OTHER', label: 'Outro' },
-                        ] as const)
-                  ).map((pm) => (
-                    <button
-                      key={pm.id}
-                      type="button"
-                      onClick={() => setPaymentMethod(pm.id)}
-                      className={`cursor-pointer rounded-xl border py-2 text-xs font-bold transition ${
-                        paymentMethod === pm.id
-                          ? `${theme.softBorder} ${theme.softBg} ${theme.softText}`
-                          : 'border-stone-200 text-stone-600'
-                      }`}
-                    >
-                      {pm.label}
-                    </button>
-                  ))}
+              ) : (
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700">
+                    Forma de Pagamento
+                  </label>
+                  <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+                    {(
+                      [
+                        { id: 'PIX', label: 'Pix' },
+                        { id: 'CARD', label: 'Cartão' },
+                        { id: 'CASH', label: 'Dinheiro' },
+                        { id: 'OTHER', label: 'Outro' },
+                      ] as const
+                    ).map((pm) => (
+                      <button
+                        key={pm.id}
+                        type="button"
+                        onClick={() => setPaymentMethod(pm.id)}
+                        className={`cursor-pointer rounded-xl border py-2 text-xs font-bold transition ${
+                          paymentMethod === pm.id
+                            ? `${theme.softBorder} ${theme.softBg} ${theme.softText}`
+                            : 'border-stone-200 text-stone-600'
+                        }`}
+                      >
+                        {pm.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Seleção Visual de Datas/Turnos em Grade (Pills) ou Fallback Opcional */}
               {activeDeliveryDates.length > 0 ? (
@@ -1107,7 +1110,7 @@ export function StorePage() {
                   </span>
                 </div>
 
-                {catalog.depositPct > 0 && (
+                {!catalog.onlinePaymentAvailable && catalog.depositPct > 0 && (
                   <div className="flex items-center justify-between text-sm">
                     <span className={`font-semibold ${theme.softText}`}>
                       Sinal para reservar ({catalog.depositPct}%)
@@ -1118,7 +1121,7 @@ export function StorePage() {
                   </div>
                 )}
 
-                {catalog.pixKey && (
+                {!catalog.onlinePaymentAvailable && catalog.pixKey && (
                   <div className="mt-2 border-t border-stone-200 pt-3">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-500">
                       Chave Pix da Loja
@@ -1173,6 +1176,26 @@ export function StorePage() {
             )}
           </div>
         </div>
+      )}
+
+      {authModalOpen && (
+        <AuthModal
+          initialTab="register"
+          defaultPhone={customerPhone}
+          headline="Crie sua conta rápida para finalizar seu pedido"
+          subheadline="É só nome, WhatsApp, e-mail e senha. Assim você acompanha seus pedidos com segurança."
+          onClose={() => setAuthModalOpen(false)}
+          onSuccess={(auth) => {
+            if (!customerName.trim() && auth.user.name) {
+              setCustomerName(auth.user.name);
+            }
+            if (!customerPhone.trim() && auth.user.phone) {
+              setCustomerPhone(formatPhoneMask(auth.user.phone));
+            }
+            setAuthModalOpen(false);
+            setCheckoutOpen(true);
+          }}
+        />
       )}
     </div>
   );
