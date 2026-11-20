@@ -104,6 +104,12 @@ export function AuthModal({
         setError('Informe um WhatsApp válido com DDD: (99) 99999-9999.');
         return;
       }
+      if (password.trim().length < 6) {
+        setError(
+          'A senha precisa ter pelo menos 6 caracteres (sem contar espaços no início ou no fim).'
+        );
+        return;
+      }
     }
 
     setSubmitting(true);
