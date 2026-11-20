@@ -540,9 +540,11 @@ export function CatalogOrdersTab({
                       </>
                     )}
                   </span>
-                  <span className="rounded-lg bg-zinc-100 px-2 py-1 font-semibold">
-                    {PAYMENT_LABELS[order.paymentMethod] || order.paymentMethod}
-                  </span>
+                  {order.paymentChannel !== 'MERCADO_PAGO' && (
+                    <span className="rounded-lg bg-zinc-100 px-2 py-1 font-semibold">
+                      {PAYMENT_LABELS[order.paymentMethod] || order.paymentMethod}
+                    </span>
+                  )}
                   {order.paymentChannel === 'MERCADO_PAGO' && (
                     <span
                       className={`rounded-lg px-2 py-1 font-bold ${
@@ -578,6 +580,15 @@ export function CatalogOrdersTab({
                     <strong>Obs:</strong> {order.notes}
                   </p>
                 )}
+
+                {order.status === 'CANCELLED' &&
+                  order.paymentChannel === 'MERCADO_PAGO' &&
+                  order.paymentStatus === 'PAID' && (
+                    <div className="mt-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-900">
+                      Pedido pago online: lembre-se de fazer o estorno no
+                      aplicativo do Mercado Pago caso ainda não tenha feito.
+                    </div>
+                  )}
 
                 {/* Ações rápidas */}
                 <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-3">
