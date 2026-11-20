@@ -1,6 +1,10 @@
 import type { ThemeId } from '../constants/themes';
 
 export type CatalogStatus = 'DRAFT' | 'ACTIVE' | 'EXPIRED';
+export type CatalogPlanType = 'ESSENTIAL' | 'PRO';
+export type CatalogPlanCode = 'ESSENTIAL_90D' | 'PRO_90D' | 'PRO_365D';
+export type OrderPaymentChannel = 'WHATSAPP' | 'MERCADO_PAGO';
+export type OrderPaymentStatus = 'PENDING' | 'PAID' | 'CANCELLED';
 
 export interface AuthUser {
   id: string;
@@ -41,6 +45,11 @@ export interface Catalog {
   userId?: string;
   renewalCount?: number;
   isTrial?: boolean;
+  planType?: CatalogPlanType;
+  onlinePaymentEnabled?: boolean;
+  mpConnected?: boolean;
+  hasProAccess?: boolean;
+  onlinePaymentAvailable?: boolean;
   storeName: string;
   logoUrl: string | null;
   themeColor: ThemeId | string;
@@ -88,6 +97,10 @@ export interface MyCatalogItem {
   editToken: string;
   status: CatalogStatus;
   isTrial?: boolean;
+  planType?: CatalogPlanType;
+  onlinePaymentEnabled?: boolean;
+  mpConnected?: boolean;
+  hasProAccess?: boolean;
   isExpired?: boolean;
   daysLeft?: number | null;
   daysLeftToDelete?: number | null;
@@ -146,6 +159,8 @@ export interface Order {
   deliveryAddress: string | null;
   deliveryDate: string | null;
   paymentMethod: OrderPaymentMethod;
+  paymentChannel?: OrderPaymentChannel;
+  paymentStatus?: OrderPaymentStatus;
   notes: string | null;
   status: OrderStatus;
   totalCents: number;
@@ -159,7 +174,12 @@ export interface CreateOrderResponse {
   trackingCode: string;
   totalCents: number;
   status: OrderStatus;
+  paymentChannel?: OrderPaymentChannel;
+  paymentStatus?: OrderPaymentStatus;
   trackingUrl: string;
+  mpQrCodeBase64?: string;
+  mpPixCopyPaste?: string;
+  mpCheckoutUrl?: string;
 }
 
 export interface PublicTrackedOrder {
@@ -169,6 +189,8 @@ export interface PublicTrackedOrder {
   deliveryType: DeliveryType;
   deliveryDate: string | null;
   paymentMethod: OrderPaymentMethod;
+  paymentChannel?: OrderPaymentChannel;
+  paymentStatus?: OrderPaymentStatus;
   totalCents: number;
   createdAt: string;
   updatedAt: string;
