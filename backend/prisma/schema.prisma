@@ -74,6 +74,9 @@ model User {
   passwordResetTokenHash String?
   passwordResetExpiresAt DateTime?
   hasUsedTrial           Boolean          @default(false)
+  termsAcceptedAt        DateTime?
+  privacyAcceptedAt      DateTime?
+  termsVersion           String?
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
 
@@ -166,11 +169,13 @@ model CatalogPayment {
   user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   catalogId   String
   catalog     Catalog             @relation(fields: [catalogId], references: [id], onDelete: Cascade)
-  type        PaymentType         @default(CREATION)
-  planCode    String              @default("ESSENTIAL_90D")
-  status      PaymentRecordStatus @default(PENDING)
-  amountCents Int                 // Ex: 2490
-  gatewayId   String?             // ID da Order/Payment no Mercado Pago
+  type           PaymentType         @default(CREATION)
+  planCode       String              @default("ESSENTIAL_90D")
+  status         PaymentRecordStatus @default(PENDING)
+  amountCents    Int                 // Ex: 2490
+  feeCents       Int?
+  netAmountCents Int?
+  gatewayId      String?             // ID da Order/Payment no Mercado Pago
   paidAt      DateTime?
   createdAt   DateTime            @default(now())
 
@@ -196,8 +201,10 @@ model Order {
   paymentStatus   OrderPaymentStatus  @default(PENDING)
   mpPaymentId     String?
   notes           String?
-  status          OrderStatus        @default(PENDING)
+  status          OrderStatus         @default(PENDING)
   totalCents      Int
+  mpFeeCents      Int?
+  netAmountCents  Int?
 
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
