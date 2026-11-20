@@ -4,7 +4,13 @@ import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma.js';
 import { AppError } from '../middlewares/errorHandler.js';
-import { requireAuth, signAuthToken, type AuthUserPayload } from '../middlewares/auth.js';
+import {
+  getAllowedAdminEmails,
+  isAllowedOrigin,
+  requireAuth,
+  signAuthToken,
+  type AuthUserPayload,
+} from '../middlewares/auth.js';
 import {
   forgotPasswordSchema,
   loginSchema,
@@ -126,6 +132,20 @@ function hashResetToken(rawToken: string): string {
   return hashToken(rawToken);
 }
 
+function rejectUntrustedOrigin(
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): void {
+  const originHeader = req.headers.origin;
+  const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader;
+  if (origin !== undefined && !isAllowedOrigin(origin)) {
+    next(new AppError(403, 'Origem não autorizada.'));
+    return;
+  }
+  next();
+}
+
 // POST /api/auth/register
 router.post(
   '/register',
@@ -133,9 +153,17 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = registerSchema.parse(req.body);
+      const normalizedEmail = parsed.email.trim().toLowerCase();
+
+      if (getAllowedAdminEmails().has(normalizedEmail)) {
+        throw new AppError(
+          403,
+          'Este endereço de e-mail não está disponível para auto-cadastro.'
+        );
+      }
 
       const existing = await prisma.user.findUnique({
-        where: { email: parsed.email },
+        where: { email: normalizedEmail },
         select: { id: true },
       });
 
@@ -390,6 +418,7 @@ router.post(
 // POST /api/auth/refresh (Rotação obrigatória + detecção de reuso)
 router.post(
   '/refresh',
+  rejectUntrustedOrigin,
   sessionRateLimiter,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -490,6 +519,7 @@ router.post(
 // POST /api/auth/logout
 router.post(
   '/logout',
+  rejectUntrustedOrigin,
   sessionRateLimiter,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
