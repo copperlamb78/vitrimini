@@ -56,6 +56,7 @@ const publicStoreRateLimiter = rateLimit({
   },
 });
 
+const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 const ALLOWED_THEMES = new Set([
   'rose',
@@ -157,6 +158,7 @@ async function confirmCatalogPayment(paymentRecordId: string) {
         where: { id: paymentRecord.catalogId },
         data: {
           status: 'ACTIVE',
+          isTrial: false,
           renewalCount: { increment: 1 },
           expiresAt: new Date(baseTime + NINETY_DAYS_MS),
           notified7DaysBefore: false,
@@ -172,11 +174,17 @@ async function confirmCatalogPayment(paymentRecordId: string) {
       };
     }
 
+    const creationBaseTime =
+      currentExpires && currentExpires.getTime() > now
+        ? currentExpires.getTime()
+        : now;
+
     const updatedCatalog = await tx.catalog.update({
       where: { id: paymentRecord.catalogId },
       data: {
         status: 'ACTIVE',
-        expiresAt: new Date(now + NINETY_DAYS_MS),
+        isTrial: false,
+        expiresAt: new Date(creationBaseTime + NINETY_DAYS_MS),
         notified7DaysBefore: false,
         notifiedExpiration: false,
       },
@@ -296,10 +304,72 @@ router.post(
         const slug = await generateUniqueSlug(meta.storeName);
         const amountCents = getCatalogPriceCents();
 
+        const [dbUser, existingTrialByWhatsapp] = await Promise.all([
+          prisma.user.findUnique({
+            where: { id: userId },
+            select: { hasUsedTrial: true },
+          }),
+          prisma.catalog.findFirst({
+            where: { whatsapp: meta.whatsapp, isTrial: true },
+            select: { id: true },
+          }),
+        ]);
+
+        const isEligibleForTrial = Boolean(
+          dbUser && !dbUser.hasUsedTrial && !existingTrialByWhatsapp
+        );
+
+        if (isEligibleForTrial) {
+          const trialCatalog = await prisma.$transaction(async (tx) => {
+            const claimed = await tx.user.updateMany({
+              where: { id: userId, hasUsedTrial: false },
+              data: { hasUsedTrial: true },
+            });
+
+            if (claimed.count === 0) {
+              return null;
+            }
+
+            return tx.catalog.create({
+              data: {
+                slug,
+                status: 'ACTIVE',
+                isTrial: true,
+                expiresAt: new Date(Date.now() + FIFTEEN_DAYS_MS),
+                userId,
+                storeName: meta.storeName,
+                logoUrl,
+                themeColor: meta.themeColor,
+                whatsapp: meta.whatsapp,
+                pixKey: meta.pixKey,
+                depositPct: meta.depositPct,
+                paymentNotice: meta.paymentNotice,
+                deliveryDates: meta.deliveryDates.filter(Boolean),
+                notes: meta.notes,
+                products: {
+                  create: productsData,
+                },
+              },
+            });
+          });
+
+          if (trialCatalog) {
+            res.status(201).json({
+              catalogId: trialCatalog.id,
+              slug: trialCatalog.slug,
+              editToken: trialCatalog.editToken,
+              activatedByTrial: true,
+              expiresAt: trialCatalog.expiresAt,
+            });
+            return;
+          }
+        }
+
         const catalog = await prisma.catalog.create({
           data: {
             slug,
             status: 'DRAFT',
+            isTrial: false,
             userId,
             storeName: meta.storeName,
             logoUrl,
@@ -347,6 +417,7 @@ router.post(
           qrCodeBase64: payment.qrCodeBase64,
           pixCopyPaste: payment.pixCopyPaste,
           mockMode: payment.mockMode,
+          activatedByTrial: false,
         });
       } catch (innerErr) {
         if (uploadedUrls.length > 0) {
@@ -441,33 +512,45 @@ router.get(
       const nowMs = Date.now();
       const DAY_MS = 24 * 60 * 60 * 1000;
 
-      const catalogs = await prisma.catalog.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          storeName: true,
-          slug: true,
-          editToken: true,
-          status: true,
-          expiresAt: true,
-          renewalCount: true,
-          logoUrl: true,
-          themeColor: true,
-          createdAt: true,
-          _count: {
-            select: {
-              products: true,
+      const [catalogs, dbUser] = await Promise.all([
+        prisma.catalog.findMany({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            storeName: true,
+            slug: true,
+            editToken: true,
+            status: true,
+            isTrial: true,
+            expiresAt: true,
+            renewalCount: true,
+            logoUrl: true,
+            themeColor: true,
+            createdAt: true,
+            _count: {
+              select: {
+                products: true,
+              },
             },
           },
-        },
-      });
+        }),
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { hasUsedTrial: true },
+        }),
+      ]);
 
       const enriched = catalogs.map((cat) => {
         const expiresMs = cat.expiresAt ? cat.expiresAt.getTime() : null;
         const isExpired =
           cat.status === 'EXPIRED' ||
           (expiresMs !== null && expiresMs < nowMs);
+
+        let daysLeft: number | null = null;
+        if (!isExpired && expiresMs !== null) {
+          daysLeft = Math.max(1, Math.ceil((expiresMs - nowMs) / DAY_MS));
+        }
 
         let daysLeftToDelete: number | null = null;
         if (isExpired && expiresMs !== null) {
@@ -482,11 +565,15 @@ router.get(
           ...cat,
           status: isExpired ? ('EXPIRED' as const) : cat.status,
           isExpired,
+          daysLeft,
           daysLeftToDelete,
         };
       });
 
-      res.json({ catalogs: enriched });
+      res.json({
+        catalogs: enriched,
+        canUseTrial: !dbUser?.hasUsedTrial,
+      });
     } catch (error) {
       next(error);
     }
@@ -621,11 +708,17 @@ router.post(
         return;
       }
 
-      const expiresAt = new Date(Date.now() + NINETY_DAYS_MS);
+      const now = Date.now();
+      const baseTime =
+        existing.expiresAt && existing.expiresAt.getTime() > now
+          ? existing.expiresAt.getTime()
+          : now;
+      const expiresAt = new Date(baseTime + NINETY_DAYS_MS);
       const updated = await prisma.catalog.update({
         where: { id },
         data: {
           status: 'ACTIVE',
+          isTrial: false,
           expiresAt,
         },
         select: {
@@ -879,6 +972,7 @@ router.get(
           slug: true,
           editToken: true,
           status: true,
+          isTrial: true,
           renewalCount: true,
           storeName: true,
           logoUrl: true,
@@ -933,6 +1027,7 @@ router.get(
           slug: true,
           editToken: true,
           status: true,
+          isTrial: true,
           renewalCount: true,
           storeName: true,
           logoUrl: true,
@@ -1234,6 +1329,7 @@ async function handleAuthenticatedCatalogUpdate(
               slug: true,
               editToken: true,
               status: true,
+              isTrial: true,
               renewalCount: true,
               storeName: true,
               logoUrl: true,

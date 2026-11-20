@@ -16,7 +16,7 @@ import {
   QrCode,
   X,
 } from 'lucide-react';
-import type { Catalog } from '../types/catalog';
+import type { Catalog, CreateCatalogResponse } from '../types/catalog';
 import {
   getTheme,
   THEMES,
@@ -25,6 +25,7 @@ import {
 import {
   getCatalogById,
   getSafeErrorMessage,
+  renewCatalog,
   updateCatalogById,
 } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -44,6 +45,7 @@ import { DeliveryScheduleEditor } from '../components/DeliveryScheduleEditor';
 import { CatalogOrdersTab } from '../components/CatalogOrdersTab';
 import { CatalogAnalyticsTab } from '../components/CatalogAnalyticsTab';
 import { CatalogLivePreview } from '../components/CatalogLivePreview';
+import { PixPaymentModal } from '../components/PixPaymentModal';
 
 const ShareCatalogModal = lazy(() =>
   import('../components/ShareCatalogModal').then((m) => ({
@@ -76,6 +78,9 @@ export function ManagePage() {
   const [pendingOrdersCount, setPendingOrdersCount] = useState<number>(0);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [renewingTrial, setRenewingTrial] = useState(false);
+  const [paymentModalData, setPaymentModalData] =
+    useState<CreateCatalogResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +88,7 @@ export function ManagePage() {
 
   const [catalogMeta, setCatalogMeta] = useState<Pick<
     Catalog,
-    'id' | 'slug' | 'status'
+    'id' | 'slug' | 'status' | 'isTrial' | 'expiresAt'
   > | null>(null);
 
   const [storeName, setStoreName] = useState('');
@@ -154,7 +159,13 @@ export function ManagePage() {
 
     getCatalogById(catalogId)
       .then((data) => {
-        setCatalogMeta({ id: data.id, slug: data.slug, status: data.status });
+        setCatalogMeta({
+          id: data.id,
+          slug: data.slug,
+          status: data.status,
+          isTrial: data.isTrial,
+          expiresAt: data.expiresAt,
+        });
         setStoreName(data.storeName);
         setExistingLogoUrl(data.logoUrl);
         setThemeColor(
@@ -444,6 +455,51 @@ export function ManagePage() {
           activeTab === 'catalog' ? 'max-w-6xl' : 'max-w-4xl'
         }`}
       >
+        {catalogMeta?.isTrial &&
+          catalogMeta.expiresAt &&
+          new Date(catalogMeta.expiresAt).getTime() > Date.now() && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-xs text-emerald-900">
+              <span>
+                <strong>15 dias grátis:</strong>{' '}
+                {(() => {
+                  const days = Math.max(
+                    1,
+                    Math.ceil(
+                      (new Date(catalogMeta.expiresAt).getTime() - Date.now()) /
+                        (24 * 60 * 60 * 1000)
+                    )
+                  );
+                  const dateStr = new Date(
+                    catalogMeta.expiresAt
+                  ).toLocaleDateString('pt-BR');
+                  return `${days === 1 ? 'resta 1 dia' : `restam ${days} dias`} (vence em ${dateStr}).`;
+                })()}
+              </span>
+              <button
+                type="button"
+                disabled={renewingTrial}
+                onClick={async () => {
+                  setRenewingTrial(true);
+                  try {
+                    const payment = await renewCatalog(catalogMeta.id);
+                    setPaymentModalData(payment);
+                  } catch (err) {
+                    setError(
+                      getSafeErrorMessage(
+                        err,
+                        'Não foi possível gerar o Pix agora.'
+                      )
+                    );
+                  } finally {
+                    setRenewingTrial(false);
+                  }
+                }}
+                className="cursor-pointer rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {renewingTrial ? 'Gerando Pix...' : 'Garantir +90 dias por R$ 24,90'}
+              </button>
+            </div>
+          )}
         {/* Abas de Gestão */}
         <div className="mb-5 grid grid-cols-3 gap-1.5 rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-2xs">
           {[
@@ -977,6 +1033,20 @@ export function ManagePage() {
             onClose={() => setShareModalOpen(false)}
           />
         </Suspense>
+      )}
+
+      {paymentModalData && (
+        <PixPaymentModal
+          paymentData={paymentModalData}
+          isRenewal={true}
+          onCancelDraft={() => setPaymentModalData(null)}
+          onCloseAfterPaid={() => setPaymentModalData(null)}
+          onConfirmed={() => {
+            setCatalogMeta((prev) =>
+              prev ? { ...prev, isTrial: false } : prev
+            );
+          }}
+        />
       )}
     </div>
   );

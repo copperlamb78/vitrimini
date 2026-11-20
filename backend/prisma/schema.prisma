@@ -57,6 +57,7 @@ model User {
   passwordHash           String
   passwordResetTokenHash String?
   passwordResetExpiresAt DateTime?
+  hasUsedTrial           Boolean          @default(false)
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
 
@@ -88,6 +89,7 @@ model Catalog {
   userId        String
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   renewalCount  Int              @default(0) // Quantas vezes esta vitrine foi renovada
+  isTrial       Boolean          @default(false) // Se foi ativada com 15 dias grátis iniciais
 
   storeName     String
   logoUrl       String?          // Caminho relativo da foto/logo, ex: /uploads/logo-uuid.webp
@@ -116,6 +118,7 @@ model Catalog {
 
   @@index([userId])
   @@index([status])
+  @@index([whatsapp, isTrial])
 }
 
 model Product {

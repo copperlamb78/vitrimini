@@ -111,6 +111,8 @@ export function CreatorPage() {
 
   const [paymentModalData, setPaymentModalData] =
     useState<CreateCatalogResponse | null>(null);
+  const [trialSuccessData, setTrialSuccessData] =
+    useState<CreateCatalogResponse | null>(null);
 
   const activeTheme = getTheme(themeColor);
   const firstName = user?.name.split(' ')[0] || '';
@@ -331,7 +333,12 @@ export function CreatorPage() {
         formData.append('products', JSON.stringify(serializedProducts));
 
         const response = await createCatalog(formData, tokenOverride);
-        setPaymentModalData(response);
+        if (response.activatedByTrial) {
+          localStorage.removeItem(DRAFT_STORAGE_KEY);
+          setTrialSuccessData(response);
+        } else {
+          setPaymentModalData(response);
+        }
       } catch (err) {
         setError(
           getSafeErrorMessage(
@@ -392,6 +399,8 @@ export function CreatorPage() {
   const handlePaymentConfirmed = useCallback(() => {
     localStorage.removeItem(DRAFT_STORAGE_KEY);
   }, []);
+
+  const canUseTrial = !user || user.canUseTrial !== false;
 
   return (
     <div className="flex min-h-screen flex-col bg-stone-50">
@@ -468,9 +477,15 @@ export function CreatorPage() {
       </header>
 
       {/* Banner de Proposta de Valor */}
-      <div className="border-b border-emerald-100 bg-emerald-50/80 px-4 py-2 text-center text-xs font-semibold text-emerald-900 xl:hidden">
-        Produtos ilimitados • Pagamento único de R$ 24,90 • Sem mensalidade
-      </div>
+      {canUseTrial ? (
+        <div className="border-b border-emerald-100 bg-emerald-50/80 px-4 py-2 text-center text-xs font-semibold text-emerald-900">
+          Sua primeira vitrine entra no ar hoje com <strong>15 dias grátis</strong> • Depois apenas R$ 24,90 por 90 dias
+        </div>
+      ) : (
+        <div className="border-b border-emerald-100 bg-emerald-50/80 px-4 py-2 text-center text-xs font-semibold text-emerald-900 xl:hidden">
+          Produtos ilimitados • Pagamento único de R$ 24,90 • Sem mensalidade
+        </div>
+      )}
 
       {/* Mobile Tabs */}
       <div className="sticky top-0 z-20 border-b border-stone-200 bg-white px-4 py-2 lg:hidden">
@@ -860,17 +875,21 @@ export function CreatorPage() {
                 {submitting ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Gerando vitrine e Pix...
+                    {canUseTrial ? 'Publicando sua vitrine...' : 'Gerando vitrine e Pix...'}
                   </>
                 ) : (
                   <>
                     <Sparkles className="h-5 w-5" />
-                    Publicar vitrine (R$ 24,90)
+                    {canUseTrial
+                      ? 'Publicar com 15 dias grátis'
+                      : 'Publicar vitrine (R$ 24,90)'}
                   </>
                 )}
               </button>
               <p className="text-center text-xs text-stone-500">
-                Produtos ilimitados • Pagamento único de R$ 24,90 • Válida por 90 dias
+                {canUseTrial
+                  ? 'Sua primeira vitrine entra no ar hoje com 15 dias grátis • Sem cartão de crédito'
+                  : 'Produtos ilimitados • Pagamento único de R$ 24,90 • Válida por 90 dias'}
               </p>
             </div>
           </form>
@@ -926,6 +945,40 @@ export function CreatorPage() {
           onCloseAfterPaid={() => setPaymentModalData(null)}
           onConfirmed={handlePaymentConfirmed}
         />
+      )}
+
+      {trialSuccessData && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-emerald-200 bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+              <Sparkles className="h-6 w-6" />
+            </div>
+            <h2 className="mt-3 text-xl font-extrabold text-zinc-900">
+              Vitrine no ar com 15 dias grátis!
+            </h2>
+            <p className="mt-1.5 text-sm text-zinc-600">
+              Sua vitrine já está publicada e pronta para receber pedidos no WhatsApp.
+            </p>
+            <div className="mt-5 space-y-2.5">
+              <Link
+                to={`/c/${trialSuccessData.slug}`}
+                className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold shadow-sm transition ${activeTheme.primaryBg} ${activeTheme.primaryHover} ${activeTheme.buttonText}`}
+              >
+                Abrir minha vitrine
+              </Link>
+              <Link
+                to={`/painel/${trialSuccessData.catalogId}`}
+                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-xs font-bold text-zinc-800 transition hover:bg-zinc-100"
+              >
+                Ir para o painel de gestão
+              </Link>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

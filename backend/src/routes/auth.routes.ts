@@ -159,6 +159,7 @@ router.post(
           name: true,
           email: true,
           phone: true,
+          hasUsedTrial: true,
         },
       });
 
@@ -172,7 +173,13 @@ router.post(
         console.error('[Welcome Email Error]:', mailErr);
       });
 
-      res.status(201).json({ token, user });
+      res.status(201).json({
+        token,
+        user: {
+          ...user,
+          canUseTrial: !user.hasUsedTrial,
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -194,6 +201,7 @@ router.post(
           name: true,
           email: true,
           phone: true,
+          hasUsedTrial: true,
           passwordHash: true,
           _count: {
             select: {
@@ -221,6 +229,8 @@ router.post(
         name: user.name,
         email: user.email,
         phone: user.phone,
+        hasUsedTrial: user.hasUsedTrial,
+        canUseTrial: !user.hasUsedTrial,
         _count: user._count,
       };
 
@@ -393,6 +403,7 @@ router.post(
               name: true,
               email: true,
               phone: true,
+              hasUsedTrial: true,
             },
           },
         },
@@ -458,7 +469,13 @@ router.post(
         getRefreshCookieOptions(REFRESH_TOKEN_TTL_MS)
       );
 
-      res.json({ token: accessToken, user: stored.user });
+      res.json({
+        token: accessToken,
+        user: {
+          ...stored.user,
+          canUseTrial: !stored.user.hasUsedTrial,
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -503,6 +520,7 @@ router.get(
           name: true,
           email: true,
           phone: true,
+          hasUsedTrial: true,
           createdAt: true,
           _count: {
             select: {
@@ -518,7 +536,12 @@ router.get(
         throw new AppError(401, 'Conta não encontrada. Entre novamente.');
       }
 
-      res.json({ user });
+      res.json({
+        user: {
+          ...user,
+          canUseTrial: !user.hasUsedTrial,
+        },
+      });
     } catch (error) {
       next(error);
     }

@@ -7,6 +7,8 @@ export interface AuthUser {
   name: string;
   email: string;
   phone: string;
+  hasUsedTrial?: boolean;
+  canUseTrial?: boolean;
   createdAt?: string;
   _count?: {
     catalogs: number;
@@ -38,6 +40,7 @@ export interface Catalog {
   status: CatalogStatus;
   userId?: string;
   renewalCount?: number;
+  isTrial?: boolean;
   storeName: string;
   logoUrl: string | null;
   themeColor: ThemeId | string;
@@ -62,9 +65,11 @@ export interface CreateCatalogResponse {
   paymentRecordId?: string;
   slug: string;
   editToken: string;
-  qrCodeBase64: string;
-  pixCopyPaste: string;
-  mockMode: boolean;
+  qrCodeBase64?: string;
+  pixCopyPaste?: string;
+  mockMode?: boolean;
+  activatedByTrial?: boolean;
+  expiresAt?: string | null;
 }
 
 export interface CatalogStatusResponse {
@@ -82,7 +87,9 @@ export interface MyCatalogItem {
   slug: string;
   editToken: string;
   status: CatalogStatus;
+  isTrial?: boolean;
   isExpired?: boolean;
+  daysLeft?: number | null;
   daysLeftToDelete?: number | null;
   expiresAt: string | null;
   renewalCount: number;
@@ -96,6 +103,7 @@ export interface MyCatalogItem {
 
 export interface MyCatalogsResponse {
   catalogs: MyCatalogItem[];
+  canUseTrial?: boolean;
 }
 
 export interface DraftProductItem {

@@ -264,7 +264,14 @@ export function MyCatalogsPage() {
                         </div>
                       </div>
 
-                      {cat.status === 'ACTIVE' && (
+                      {cat.status === 'ACTIVE' && cat.isTrial && (
+                        <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase text-emerald-800">
+                          {cat.daysLeft != null
+                            ? `15 dias grátis • ${cat.daysLeft === 1 ? 'Resta 1 dia' : `Restam ${cat.daysLeft} dias`}`
+                            : '15 dias grátis'}
+                        </span>
+                      )}
+                      {cat.status === 'ACTIVE' && !cat.isTrial && (
                         <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase text-emerald-800">
                           Ativa
                         </span>
@@ -397,6 +404,8 @@ export function MyCatalogsPage() {
                       )}
                       {cat.status === 'DRAFT'
                         ? 'Ativar com Pix (R$ 24,90)'
+                        : cat.isTrial && !cat.isExpired
+                        ? 'Garantir +90 dias por R$ 24,90'
                         : 'Renovar (+90 dias — R$ 24,90)'}
                     </button>
                   </div>

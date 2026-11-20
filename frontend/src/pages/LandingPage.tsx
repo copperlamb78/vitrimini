@@ -341,7 +341,7 @@ export function LandingPage() {
               <div className="vm-hero-enter space-y-6 lg:col-span-6">
                 <div className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3.5 py-1.5 text-xs font-bold text-rose-700">
                   <Sparkles className="h-3.5 w-3.5 text-rose-600" />
-                  <span>0% de comissão • Sem mensalidade • Pronta em 2 minutos</span>
+                  <span>15 dias grátis na 1ª vitrine • 0% de comissão • Sem mensalidade</span>
                 </div>
 
                 <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.65rem] lg:leading-[1.12]">
@@ -349,9 +349,10 @@ export function LandingPage() {
                 </h1>
 
                 <p className="text-base leading-relaxed text-zinc-600">
-                  Chega de mandar PDF pesado e responder preço o dia inteiro. Monte sua vitrine com fotos, datas de entrega e sinal no Pix por apenas{' '}
-                  <strong className="font-bold text-zinc-900">R$ 24,90</strong>{' '}
-                  uma única vez por 90 dias, com{' '}
+                  Chega de mandar PDF pesado e responder preço o dia inteiro. Sua primeira vitrine entra no ar hoje com{' '}
+                  <strong className="font-bold text-zinc-900">15 dias grátis</strong>{' '}
+                  (sem cartão) e, para continuar depois, custa apenas{' '}
+                  <strong className="font-bold text-zinc-900">R$ 24,90 no Pix por 90 dias</strong>, com{' '}
                   <strong className="font-bold text-zinc-900">0% de comissão</strong>.
                 </p>
 
@@ -360,7 +361,7 @@ export function LandingPage() {
                     to="/criar"
                     className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-rose-600 px-6 py-4 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:-translate-y-0.5 hover:bg-rose-700"
                   >
-                    Criar vitrine grátis
+                    Começar 15 dias grátis
                     <ArrowRight className="h-4 w-4" />
                   </Link>
 
@@ -375,7 +376,7 @@ export function LandingPage() {
                 </div>
 
                 <p className="text-xs text-zinc-500">
-                  Você monta e testa tudo gratuitamente. Só paga os R$ 24,90 via Pix se gostar e quiser publicar.
+                  Sem cartão de crédito e sem cobrança automática. Você testa na prática com seus clientes por 15 dias.
                 </p>
               </div>
 
@@ -734,11 +735,11 @@ export function LandingPage() {
             <Reveal className="mx-auto max-w-lg rounded-2xl border border-rose-200 bg-rose-50/30 p-7 text-center shadow-sm sm:p-9">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-700">
                 <Store className="h-3.5 w-3.5" />
-                Acesso Completo por 90 Dias
+                15 Dias Grátis na 1ª Vitrine • Depois 90 Dias por R$ 24,90
               </span>
 
               <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-zinc-900">
-                Um único pagamento. Sem surpresas.
+                Comece grátis hoje. Sem cartão e sem surpresas.
               </h2>
 
               <div className="mt-5 flex items-baseline justify-center gap-1">
@@ -748,7 +749,7 @@ export function LandingPage() {
                 </span>
               </div>
               <p className="mt-1 text-xs font-semibold text-rose-700">
-                pagamento único via Pix • válida por 90 dias
+                após os 15 dias grátis • pagamento único no Pix por 90 dias
               </p>
 
               <ul className="mt-6 space-y-3 text-left text-sm text-zinc-700">
@@ -766,7 +767,7 @@ export function LandingPage() {
                 to="/criar"
                 className="mt-7 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-rose-600 px-6 py-4 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:-translate-y-0.5 hover:bg-rose-700"
               >
-                Criar vitrine agora
+                Criar vitrine com 15 dias grátis
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Reveal>

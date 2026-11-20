@@ -5,9 +5,19 @@ export interface LandingFaqItem {
 
 export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
   {
-    question: 'Tem mensalidade ou cobrança automática depois dos 90 dias?',
+    question: 'Como funcionam os 15 dias grátis na primeira vitrine?',
     answer:
-      'Não. O pagamento de R$ 24,90 é feito uma única vez via Pix e libera sua vitrine por 90 dias corridos. Não pedimos cartão de crédito e nunca fazemos cobranças automáticas.',
+      'Ao criar sua primeira vitrine na VitriMini, ela já entra no ar imediatamente por 15 dias grátis — sem precisar cadastrar cartão de crédito e sem cobrança automática. Se quiser continuar depois desse prazo, basta renovar por R$ 24,90 via Pix para garantir mais 90 dias.',
+  },
+  {
+    question: 'Tem mensalidade ou cobrança automática depois dos 15 dias ou dos 90 dias?',
+    answer:
+      'Não. Não pedimos cartão de crédito e nunca fazemos cobranças automáticas. Quando quiser continuar com a vitrine no ar, você faz um pagamento único de R$ 24,90 via Pix e libera mais 90 dias corridos.',
+  },
+  {
+    question: 'Se eu pagar os R$ 24,90 antes de acabar os 15 dias grátis, eu perco os dias que faltavam?',
+    answer:
+      'De jeito nenhum! Os 90 dias são somados a partir da data em que seus 15 dias grátis iam vencer, então você aproveita até 105 dias no ar.',
   },
   {
     question: 'Vocês cobram alguma taxa sobre as encomendas que eu vender?',
@@ -31,10 +41,5 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
       'Existe limite de quantos produtos posso cadastrar na minha vitrine?',
     answer:
       'Não há limite. Você pode cadastrar quantos doces, marmitas, peças ou produtos sob encomenda desejar, todos com foto, descrição e preço.',
-  },
-  {
-    question: 'Posso testar a vitrine antes de pagar os R$ 24,90?',
-    answer:
-      'Sim. Você monta sua vitrine completa, escolhe a cor da marca, cadastra os produtos e testa tudo gratuitamente. O pagamento único via Pix só é feito quando você decidir publicar.',
   },
 ];
