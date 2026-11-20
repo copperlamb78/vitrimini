@@ -42,6 +42,7 @@ import {
   parsePriceToCents,
   phoneToDDI,
   resolveImageUrl,
+  safeRedirect,
 } from '../utils/format';
 import { blobToDataUrl, compressImage } from '../utils/compressImage';
 import { applyPageSeo } from '../utils/seo';
@@ -428,6 +429,29 @@ export function ManagePage() {
     }
   }
 
+  async function handleConnectMercadoPago() {
+    if (!catalogMeta) return;
+    setMpLoading(true);
+    setMpFeedback(null);
+    try {
+      const { authUrl } = await getMercadoPagoConnectUrl(catalogMeta.id);
+      if (!safeRedirect(authUrl)) {
+        throw new Error(
+          'Não foi possível abrir a página de conexão com segurança.'
+        );
+      }
+    } catch (err) {
+      setMpFeedback({
+        type: 'error',
+        text: getSafeErrorMessage(
+          err,
+          'Não foi possível iniciar a conexão agora.'
+        ),
+      });
+      setMpLoading(false);
+    }
+  }
+
   if (loading) {
     return <ManagePageSkeleton />;
   }
@@ -577,25 +601,7 @@ export function ManagePage() {
             <button
               type="button"
               disabled={mpLoading}
-              onClick={async () => {
-                setMpLoading(true);
-                setMpFeedback(null);
-                try {
-                  const { authUrl } = await getMercadoPagoConnectUrl(
-                    catalogMeta.id
-                  );
-                  window.location.assign(authUrl);
-                } catch (err) {
-                  setMpFeedback({
-                    type: 'error',
-                    text: getSafeErrorMessage(
-                      err,
-                      'Não foi possível iniciar a conexão agora.'
-                    ),
-                  });
-                  setMpLoading(false);
-                }
-              }}
+              onClick={() => void handleConnectMercadoPago()}
               className="cursor-pointer rounded-xl bg-sky-600 px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {mpLoading ? 'Abrindo...' : 'Conectar Mercado Pago'}
@@ -1043,25 +1049,7 @@ export function ManagePage() {
                       <button
                         type="button"
                         disabled={mpLoading}
-                        onClick={async () => {
-                          setMpLoading(true);
-                          setMpFeedback(null);
-                          try {
-                            const { authUrl } = await getMercadoPagoConnectUrl(
-                              catalogMeta.id
-                            );
-                            window.location.assign(authUrl);
-                          } catch (err) {
-                            setMpFeedback({
-                              type: 'error',
-                              text: getSafeErrorMessage(
-                                err,
-                                'Não foi possível iniciar a conexão agora.'
-                              ),
-                            });
-                            setMpLoading(false);
-                          }
-                        }}
+                        onClick={() => void handleConnectMercadoPago()}
                         className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {mpLoading ? (
