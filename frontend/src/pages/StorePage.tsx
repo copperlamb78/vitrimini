@@ -226,6 +226,12 @@ export function StorePage() {
     return Math.round((cartSummary.totalCents * catalog.depositPct) / 100);
   }, [catalog, cartSummary.totalCents]);
 
+  const minOrderCents = catalog?.minOrderCents ?? 0;
+  const missingForMinOrder =
+    minOrderCents > 0 ? Math.max(0, minOrderCents - cartSummary.totalCents) : 0;
+  const belowMinOrder = missingForMinOrder > 0;
+  const belowMpMin = cartSummary.totalCents < 100;
+
   async function handleCopyPixKey() {
     if (!catalog?.pixKey) return;
     await navigator.clipboard.writeText(catalog.pixKey);
@@ -277,6 +283,7 @@ export function StorePage() {
   }
 
   async function handleOpenCheckout() {
+    if (belowMinOrder) return;
     const ok = await verifyCartStockBeforeProceed();
     if (!ok) return;
     if (!user) {
@@ -319,7 +326,9 @@ export function StorePage() {
             : preferredSchedule.trim() || null;
 
       const effectivePaymentChannel: OrderPaymentChannel =
-        catalog.onlinePaymentAvailable ? paymentChannel : 'WHATSAPP';
+        catalog.onlinePaymentAvailable && !belowMpMin
+          ? paymentChannel
+          : 'WHATSAPP';
       const effectivePaymentMethod: OrderPaymentMethod =
         catalog.onlinePaymentAvailable
           ? effectivePaymentChannel === 'MERCADO_PAGO'
@@ -536,6 +545,18 @@ export function StorePage() {
           </div>
         )}
 
+        {(catalog.minOrderCents ?? 0) > 0 && (
+          <div className="flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-xs text-stone-600 shadow-2xs">
+            <ShoppingBag className={`h-3.5 w-3.5 shrink-0 ${theme.primaryText}`} />
+            <span>
+              Pedido mínimo:{' '}
+              <strong className="font-bold text-stone-900">
+                {formatCurrency(catalog.minOrderCents!)}
+              </strong>
+            </span>
+          </div>
+        )}
+
         {/* Alerta de item esgotado durante a compra */}
         {stockAlert && (
           <div className="flex items-start justify-between gap-2.5 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-semibold text-red-800">
@@ -699,6 +720,13 @@ export function StorePage() {
       {/* Barra Fixa Inferior do Carrinho */}
       {cartSummary.count > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 px-4 py-3 backdrop-blur-xs">
+          {belowMinOrder && (
+            <div className="mx-auto mb-2 max-w-xl rounded-lg bg-amber-50 px-3 py-1.5 text-center text-xs font-medium text-amber-800">
+              Adicione mais{' '}
+              <strong>{formatCurrency(missingForMinOrder)}</strong> para atingir
+              o pedido mínimo ({formatCurrency(minOrderCents)})
+            </div>
+          )}
           <div className="mx-auto flex max-w-xl items-center justify-between gap-4">
             <div>
               <p className="text-xs font-medium text-stone-500">
@@ -714,8 +742,8 @@ export function StorePage() {
             <button
               type="button"
               onClick={handleOpenCheckout}
-              disabled={checkingStock}
-              className={`inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold shadow-lg transition disabled:opacity-70 ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText} ${theme.shadowColor}`}
+              disabled={checkingStock || belowMinOrder}
+              className={`inline-flex cursor-pointer items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold shadow-lg transition disabled:cursor-not-allowed disabled:opacity-50 ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText} ${theme.shadowColor}`}
             >
               {checkingStock && <Loader2 className="h-4 w-4 animate-spin" />}
               Finalizar Pedido
@@ -936,11 +964,14 @@ export function StorePage() {
                   <div className="mt-1.5 grid grid-cols-2 gap-2">
                     <button
                       type="button"
+                      disabled={belowMpMin}
                       onClick={() => setPaymentChannel('MERCADO_PAGO')}
-                      className={`cursor-pointer rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
-                        paymentChannel === 'MERCADO_PAGO'
-                          ? `${theme.softBorder} ${theme.softBg} ${theme.softText}`
-                          : 'border-stone-200 text-stone-600'
+                      className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
+                        belowMpMin
+                          ? 'cursor-not-allowed border-stone-200 bg-stone-50 text-stone-400'
+                          : paymentChannel === 'MERCADO_PAGO'
+                            ? `cursor-pointer ${theme.softBorder} ${theme.softBg} ${theme.softText}`
+                            : 'cursor-pointer border-stone-200 text-stone-600'
                       }`}
                     >
                       Pagar agora (Pix ou Cartão)
@@ -949,7 +980,7 @@ export function StorePage() {
                       type="button"
                       onClick={() => setPaymentChannel('WHATSAPP')}
                       className={`cursor-pointer rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
-                        paymentChannel === 'WHATSAPP'
+                        belowMpMin || paymentChannel === 'WHATSAPP'
                           ? `${theme.softBorder} ${theme.softBg} ${theme.softText}`
                           : 'border-stone-200 text-stone-600'
                       }`}
@@ -957,6 +988,11 @@ export function StorePage() {
                       Combinar no WhatsApp
                     </button>
                   </div>
+                  {belowMpMin && (
+                    <p className="mt-1.5 text-[11px] text-stone-500">
+                      Pagamento online disponível para pedidos a partir de R$ 1,00.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div>
