@@ -491,7 +491,10 @@ export function OrderTrackingPage() {
           className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"
         >
           <MessageCircle className="h-4 w-4" />
-          Falar com a loja no WhatsApp
+          {order.paymentChannel === 'MERCADO_PAGO' &&
+          order.paymentStatus === 'PAID'
+            ? 'Enviar comprovante no WhatsApp da loja'
+            : 'Falar com a loja no WhatsApp'}
         </a>
 
         <div className="text-center">
