@@ -228,6 +228,7 @@ export async function registerUser(input: {
   email: string;
   phone: string;
   password: string;
+  acceptTerms: boolean;
 }): Promise<AuthResponse> {
   return safeRequest<AuthResponse>(
     `${API_BASE_URL}/api/auth/register`,
