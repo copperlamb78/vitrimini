@@ -14,7 +14,7 @@ export function EditTokenRedirectPage() {
   useEffect(() => {
     applyPageSeo({
       title: 'Redirecionando — VitriMini',
-      description: 'Acesso autenticado ao painel da vitrine.',
+      description: 'Acesso ao painel da vitrine.',
       canonicalPath: '/editar',
       noindex: true,
     });

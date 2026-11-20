@@ -7,6 +7,7 @@
 - `[Interatividade]` → Todo elemento clicável (botões, links, cards, abas, pills, toggles) deve ter `cursor-pointer` (e `cursor-not-allowed` quando desabilitado).
 - `[Polling + Skeleton]` → Skeleton Loaders só aparecem na carga inicial ou troca de rota; **nunca** exibir skeleton durante polling silencioso (15s/20s) para não fazer a tela piscar.
 - `[Web Audio API]` → Sempre tornar o disparo de som `async` e dar `await ctx.resume()` se `ctx.state === 'suspended'` antes de iniciar os osciladores, desbloqueando o áudio na interação do usuário.
+- `[UX Writing / Zero Jargão]` → Nunca usar jargão técnico (*logado, login, slug, URL, token, autenticação, sessão expirada, upload, MIME, tracking*) em textos ou erros voltados a compradores e lojistas; usar linguagem natural (`na sua conta`, `entrar`, `link da vitrine`, `envio da foto`, `sua conexão expirou, entre novamente`, `código do pedido`), exceto no Super Admin e logs internos.
 
 ## Autenticação, Sessão & Segurança (AppSec / LGPD)
 - `[Sessão / Falso Logado]` → Nunca renderizar nome do usuário ou atalhos de logado confiando apenas no `localStorage`; validar primeiro com `GET /api/auth/me` (ou refresh silencioso) e limpar sessão globalmente em `401`.

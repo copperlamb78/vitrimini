@@ -81,10 +81,10 @@ export const resetPasswordSchema = z.object({
   token: z
     .string()
     .trim()
-    .min(32, 'Token de redefinição inválido.')
-    .max(128, 'Token de redefinição inválido.')
+    .min(32, 'Link de redefinição inválido.')
+    .max(128, 'Link de redefinição inválido.')
     .refine((val) => /^[a-f0-9]+$/i.test(val), {
-      message: 'Token de redefinição inválido.',
+      message: 'Link de redefinição inválido.',
     }),
   password: z
     .string()
@@ -141,7 +141,7 @@ export const productInputSchema = z.object({
         }
         return false;
       },
-      { message: 'URL de imagem inválida.' }
+      { message: 'Link de imagem inválido.' }
     )
     .nullable()
     .optional(),

@@ -127,7 +127,7 @@ export function AuthModal({
       setError(
         getSafeErrorMessage(
           err,
-          'Não foi possível autenticar agora. Confira seus dados e tente novamente.'
+          'Não foi possível entrar agora. Confira seus dados e tente novamente.'
         )
       );
     } finally {
@@ -189,7 +189,7 @@ export function AuthModal({
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-3 text-xs font-bold text-white transition hover:bg-zinc-800"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
-                Voltar ao login
+                Voltar para entrar
               </button>
             </div>
           ) : (
@@ -253,7 +253,7 @@ export function AuthModal({
                 className="flex w-full items-center justify-center gap-1.5 py-1 text-xs font-semibold text-zinc-500 hover:text-zinc-800"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
-                Voltar ao login
+                Voltar para entrar
               </button>
             </form>
           )
@@ -427,7 +427,7 @@ export function AuthModal({
                 {submitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Autenticando...
+                    Entrando...
                   </>
                 ) : tab === 'register' ? (
                   'Criar conta e continuar'

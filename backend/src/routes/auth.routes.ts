@@ -106,7 +106,7 @@ const sessionRateLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     error:
-      'Muitas tentativas de atualização de sessão. Aguarde alguns minutos e tente novamente.',
+      'Muitas tentativas seguidas. Aguarde alguns minutos e tente novamente.',
   },
 });
 
@@ -380,7 +380,7 @@ router.post(
     try {
       const rawRefresh = parseRefreshCookie(req);
       if (!rawRefresh) {
-        throw new AppError(401, 'Sessão expirada. Faça login novamente.');
+        throw new AppError(401, 'Sua conexão expirou. Entre novamente.');
       }
 
       const tokenHash = hashToken(rawRefresh);
@@ -400,7 +400,7 @@ router.post(
 
       if (!stored) {
         res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieOptions());
-        throw new AppError(401, 'Sessão inválida. Faça login novamente.');
+        throw new AppError(401, 'Sua conexão expirou. Entre novamente.');
       }
 
       // Se um token já revogado for reutilizado, revoga todas as sessões do usuário
@@ -412,7 +412,7 @@ router.post(
         res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieOptions());
         throw new AppError(
           401,
-          'Sessão encerrada por segurança. Faça login novamente.'
+          'Por segurança, você foi desconectado. Entre novamente.'
         );
       }
 
@@ -422,7 +422,7 @@ router.post(
           data: { revokedAt: new Date() },
         });
         res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieOptions());
-        throw new AppError(401, 'Sessão expirada. Faça login novamente.');
+        throw new AppError(401, 'Sua conexão expirou. Entre novamente.');
       }
 
       const nextRawRefresh = crypto.randomBytes(48).toString('hex');
@@ -448,7 +448,7 @@ router.post(
 
       if (!rotated) {
         res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieOptions());
-        throw new AppError(401, 'Sessão expirada. Faça login novamente.');
+        throw new AppError(401, 'Sua conexão expirou. Entre novamente.');
       }
 
       const accessToken = signAuthToken(stored.user);
@@ -515,7 +515,7 @@ router.get(
       });
 
       if (!user) {
-        throw new AppError(401, 'Usuário não encontrado. Faça login novamente.');
+        throw new AppError(401, 'Conta não encontrada. Entre novamente.');
       }
 
       res.json({ user });

@@ -173,10 +173,10 @@ export function MyOrdersPage() {
               <ShoppingBag className="h-6 w-6" />
             </div>
             <h2 className="mt-3 text-base font-extrabold text-zinc-900">
-              Você ainda não fez nenhum pedido logado
+              Você ainda não fez nenhum pedido
             </h2>
             <p className="mx-auto mt-1 max-w-sm text-xs text-zinc-500">
-              Ao finalizar uma encomenda em qualquer vitrine da VitriMini enquanto estiver logado, ela aparecerá aqui automaticamente.
+              Quando você fizer uma encomenda em qualquer vitrine usando esta conta, ela aparecerá aqui automaticamente.
             </p>
           </div>
         ) : (

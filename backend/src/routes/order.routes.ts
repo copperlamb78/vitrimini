@@ -16,7 +16,7 @@ import {
 
 const router = Router();
 
-const uuidParamSchema = z.string().uuid('Identificador inválido.');
+const uuidParamSchema = z.string().uuid('Código inválido.');
 
 const orderCreationRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos

@@ -261,7 +261,7 @@ export async function getMe(
     {
       headers: getAuthHeaders(tokenOverride),
     },
-    'Sessão expirada. Faça login novamente.'
+    'Sua conexão expirou. Entre novamente.'
   );
 }
 
@@ -554,6 +554,6 @@ export async function getAdminOverview(): Promise<AdminOverviewResponse> {
     {
       headers: getAuthHeaders(),
     },
-    'Acesso negado ou sessão expirada.'
+    'Acesso negado ou sua conexão expirou.'
   );
 }

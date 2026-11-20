@@ -52,13 +52,13 @@ export function requireAuth(
 ): void {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    next(new AppError(401, 'Faça login na sua conta para continuar.'));
+    next(new AppError(401, 'Entre na sua conta para continuar.'));
     return;
   }
 
   const token = authHeader.slice(7).trim();
   if (!token) {
-    next(new AppError(401, 'Sessão expirada. Faça login novamente.'));
+    next(new AppError(401, 'Sua conexão expirou. Entre novamente.'));
     return;
   }
 
@@ -72,7 +72,7 @@ export function requireAuth(
     };
     next();
   } catch {
-    next(new AppError(401, 'Sessão inválida ou expirada. Faça login novamente.'));
+    next(new AppError(401, 'Sua conexão expirou. Entre novamente.'));
   }
 }
 

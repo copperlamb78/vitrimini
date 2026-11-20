@@ -42,7 +42,7 @@ export function ResetPasswordPage() {
     setError(null);
 
     if (!token || token.length < 32) {
-      setError('Link de redefinição inválido. Solicite um novo link na tela de login.');
+      setError('Link de redefinição inválido. Solicite um novo link para entrar.');
       return;
     }
 
@@ -88,7 +88,7 @@ export function ResetPasswordPage() {
             className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Voltar ao login
+            Voltar para entrar
           </Link>
         </div>
       </header>
@@ -110,7 +110,7 @@ export function ResetPasswordPage() {
                 to="/entrar"
                 className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-zinc-900 px-4 py-3 text-xs font-bold text-white transition hover:bg-zinc-800"
               >
-                Ir para a tela de login
+                Ir para a tela de entrada
               </Link>
             </div>
           ) : success ? (

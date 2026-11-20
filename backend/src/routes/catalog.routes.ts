@@ -71,7 +71,7 @@ const productsArraySchema = z
   .min(1, 'Adicione pelo menos um produto válido.')
   .max(300, 'Limite máximo de produtos por requisição excedido.');
 
-const uuidParamSchema = z.string().uuid('Identificador inválido.');
+const uuidParamSchema = z.string().uuid('Código inválido.');
 
 function parseJsonField<T>(value: unknown, fallback: T): T {
   if (value === undefined || value === null || value === '') return fallback;

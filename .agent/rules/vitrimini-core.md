@@ -13,6 +13,7 @@ Estas regras se aplicam a todos os agentes, subagentes e execuções neste repos
 - **LGPD Estrita:** Nunca vazar dados pessoais (telefone, e-mail, endereço, CPF/CNPJ, tokens) em rotas públicas (ex.: `/pedido/:trackingCode`, vitrine pública).
 - **Tema Dinâmico da Vitrine:** Nunca usar preto fixo (`#000`, `bg-black`, `text-black`) onde o componente deve seguir a cor/tema dinâmico da loja (`frontend/src/constants/themes.ts`).
 - **UX & UI:** Todo elemento interativo (botões, links, cards clicáveis) deve ter `cursor-pointer`. Use Skeleton Loaders (`Skeletons.tsx`) sem piscar durante polling.
+- **UX Writing (Zero Jargão Técnico):** Nunca usar jargão técnico ("dev-speak" como *logado/deslogado, login/logout, slug, URL, token, hash, payload, autenticação, sessão expirada, 401/500, timeout, network error, upload, MIME, tracking*) em textos visíveis para compradores e lojistas (labels, botões, placeholders, estados vazios, toasts e mensagens de erro da API). Use linguagem natural e humana (`na sua conta`, `entrar`/`sair`, `link da vitrine`, `código`, `envio da foto`, `sua conexão expirou, entre novamente`, `código do pedido`). *Exceção:* Painel Super Admin e logs internos do servidor.
 
 ## 3. Portões de Aprovação (Interação com o Usuário)
 1. **Antes de codar (Checkpoint Obrigatório em demandas `M` e `G`):**
