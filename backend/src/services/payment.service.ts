@@ -2,10 +2,55 @@ import crypto from 'node:crypto';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
 
+export type PlanCode = 'ESSENTIAL_90D' | 'PRO_90D' | 'PRO_365D';
+
+export interface PlanDefinition {
+  code: PlanCode;
+  planType: 'ESSENTIAL' | 'PRO';
+  days: number;
+  amountCents: number;
+  label: string;
+}
+
+export const PLAN_CATALOG: Record<PlanCode, PlanDefinition> = {
+  ESSENTIAL_90D: {
+    code: 'ESSENTIAL_90D',
+    planType: 'ESSENTIAL',
+    days: 90,
+    amountCents: 2490,
+    label: 'VitriMini Essencial (90 dias)',
+  },
+  PRO_90D: {
+    code: 'PRO_90D',
+    planType: 'PRO',
+    days: 90,
+    amountCents: 3990,
+    label: 'VitriMini Pro Trimestral (90 dias)',
+  },
+  PRO_365D: {
+    code: 'PRO_365D',
+    planType: 'PRO',
+    days: 365,
+    amountCents: 9990,
+    label: 'VitriMini Pro Anual (365 dias)',
+  },
+};
+
+export function resolvePlanDefinition(rawCode?: unknown): PlanDefinition {
+  if (typeof rawCode === 'string' && rawCode in PLAN_CATALOG) {
+    return PLAN_CATALOG[rawCode as PlanCode];
+  }
+  return {
+    ...PLAN_CATALOG.ESSENTIAL_90D,
+    amountCents: getCatalogPriceCents(),
+  };
+}
+
 export interface CreatePixPaymentInput {
   catalogId: string;
   storeName: string;
   amountCents?: number;
+  description?: string;
   payerEmail?: string;
   idempotencyKey?: string;
 }
@@ -43,6 +88,7 @@ export async function createPixPayment({
   catalogId,
   storeName: _storeName,
   amountCents = getCatalogPriceCents(),
+  description = 'VitriMini - Publicação de Vitrine (90 dias)',
   payerEmail,
   idempotencyKey,
 }: CreatePixPaymentInput): Promise<PixPaymentResult> {
@@ -80,7 +126,7 @@ export async function createPixPayment({
       processing_mode: 'automatic',
       total_amount: amountString,
       external_reference: catalogId,
-      description: 'VitriMini - Publicação de Vitrine (90 dias)',
+      description,
       payer: {
         email: resolvedEmail,
       },
