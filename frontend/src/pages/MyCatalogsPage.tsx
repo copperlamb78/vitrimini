@@ -29,6 +29,7 @@ import { getStoreInitials, getTheme } from '../constants/themes';
 import { resolveImageUrl } from '../utils/format';
 import { applyPageSeo } from '../utils/seo';
 import { PixPaymentModal } from '../components/PixPaymentModal';
+import { PlanSelectorModal, type PlanOption } from '../components/PlanSelectorModal';
 import { MyCatalogsSkeleton } from '../components/Skeletons';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
@@ -57,6 +58,10 @@ export function MyCatalogsPage() {
   const [renewingId, setRenewingId] = useState<string | null>(null);
   const [paymentModalData, setPaymentModalData] =
     useState<CreateCatalogResponse | null>(null);
+  const [selectedPlanForModal, setSelectedPlanForModal] =
+    useState<PlanOption | null>(null);
+  const [planTargetCatalog, setPlanTargetCatalog] =
+    useState<MyCatalogItem | null>(null);
   const [isModalRenewal, setIsModalRenewal] = useState(true);
   const [shareCatalog, setShareCatalog] = useState<{
     storeName: string;
@@ -104,12 +109,15 @@ export function MyCatalogsPage() {
     setTimeout(() => setCopiedId(null), 2000);
   }
 
-  async function handleRenewOrActivate(cat: MyCatalogItem) {
-    setRenewingId(cat.id);
+  async function handleConfirmPlanSelection(plan: PlanOption) {
+    if (!planTargetCatalog) return;
+    setRenewingId(planTargetCatalog.id);
     setError(null);
     try {
-      const res = await renewCatalog(cat.id);
-      setIsModalRenewal(cat.status !== 'DRAFT');
+      const res = await renewCatalog(planTargetCatalog.id, plan.code);
+      setIsModalRenewal(planTargetCatalog.status !== 'DRAFT');
+      setSelectedPlanForModal(plan);
+      setPlanTargetCatalog(null);
       setPaymentModalData(res);
     } catch (err) {
       setError(
@@ -273,7 +281,7 @@ export function MyCatalogsPage() {
                       )}
                       {cat.status === 'ACTIVE' && !cat.isTrial && (
                         <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase text-emerald-800">
-                          Ativa
+                          {cat.planType === 'PRO' ? 'Ativa • Pro' : 'Ativa'}
                         </span>
                       )}
                       {cat.status === 'DRAFT' && (
@@ -386,12 +394,12 @@ export function MyCatalogsPage() {
                       </button>
                     )}
 
-                    {/* Botão de Renovação / Ativação (+90 dias — R$ 24,90) */}
+                    {/* Botão de Renovação / Ativação / Planos */}
                     <button
                       type="button"
-                      onClick={() => handleRenewOrActivate(cat)}
+                      onClick={() => setPlanTargetCatalog(cat)}
                       disabled={isRenewing}
-                      className={`flex h-9 w-full items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold transition disabled:opacity-60 ${
+                      className={`flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                         cat.status === 'DRAFT'
                           ? 'bg-rose-600 text-white hover:bg-rose-700'
                           : 'border border-rose-200 bg-rose-50/70 text-rose-700 hover:bg-rose-100'
@@ -403,10 +411,10 @@ export function MyCatalogsPage() {
                         <RefreshCw className="h-3.5 w-3.5" />
                       )}
                       {cat.status === 'DRAFT'
-                        ? 'Ativar com Pix (R$ 24,90)'
+                        ? 'Escolher plano e ativar'
                         : cat.isTrial && !cat.isExpired
-                        ? 'Garantir +90 dias por R$ 24,90'
-                        : 'Renovar (+90 dias — R$ 24,90)'}
+                        ? 'Escolher plano (a partir de R$ 24,90)'
+                        : 'Renovar / Mudar plano'}
                     </button>
                   </div>
                 </div>
@@ -416,10 +424,25 @@ export function MyCatalogsPage() {
         )}
       </main>
 
+      {planTargetCatalog && (
+        <PlanSelectorModal
+          storeName={planTargetCatalog.storeName}
+          initialPlan={
+            planTargetCatalog.planType === 'PRO' ? 'PRO_90D' : 'ESSENTIAL_90D'
+          }
+          loading={renewingId === planTargetCatalog.id}
+          onSelectPlan={(plan) => void handleConfirmPlanSelection(plan)}
+          onClose={() => setPlanTargetCatalog(null)}
+        />
+      )}
+
       {paymentModalData && (
         <PixPaymentModal
           paymentData={paymentModalData}
           isRenewal={isModalRenewal}
+          planName={selectedPlanForModal?.name}
+          planPriceLabel={selectedPlanForModal?.priceLabel}
+          planDays={selectedPlanForModal?.days}
           onCancelDraft={() => setPaymentModalData(null)}
           onCloseAfterPaid={() => {
             setPaymentModalData(null);
