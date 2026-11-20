@@ -53,6 +53,10 @@ import { CatalogAnalyticsTab } from '../components/CatalogAnalyticsTab';
 import { CatalogLivePreview } from '../components/CatalogLivePreview';
 import { PixPaymentModal } from '../components/PixPaymentModal';
 import { PlanSelectorModal, type PlanOption } from '../components/PlanSelectorModal';
+import {
+  ConnectMercadoPagoModal,
+  isMpInviteDismissed,
+} from '../components/ConnectMercadoPagoModal';
 
 const ShareCatalogModal = lazy(() =>
   import('../components/ShareCatalogModal').then((m) => ({
@@ -90,6 +94,9 @@ export function ManagePage() {
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanOption | null>(null);
   const [mpLoading, setMpLoading] = useState(false);
+  const [mpInviteCatalogId, setMpInviteCatalogId] = useState<string | null>(
+    null
+  );
   const [mpFeedback, setMpFeedback] = useState<{
     type: 'success' | 'error';
     text: string;
@@ -552,6 +559,44 @@ export function ManagePage() {
             </button>
           </div>
         )}
+        {catalogMeta?.hasProAccess && !catalogMeta.mpConnected && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-200 bg-sky-50/80 px-4 py-3 text-xs text-sky-950">
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4 shrink-0 text-sky-700" />
+              <span>
+                Seu <strong>Plano Pro</strong> dá direito a Pagamento Online
+                Automático (Pix e Cartão direto na sua conta).
+              </span>
+            </div>
+            <button
+              type="button"
+              disabled={mpLoading}
+              onClick={async () => {
+                setMpLoading(true);
+                setMpFeedback(null);
+                try {
+                  const { authUrl } = await getMercadoPagoConnectUrl(
+                    catalogMeta.id
+                  );
+                  window.location.assign(authUrl);
+                } catch (err) {
+                  setMpFeedback({
+                    type: 'error',
+                    text: getSafeErrorMessage(
+                      err,
+                      'Não foi possível iniciar a conexão agora.'
+                    ),
+                  });
+                  setMpLoading(false);
+                }
+              }}
+              className="cursor-pointer rounded-xl bg-sky-600 px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {mpLoading ? 'Abrindo...' : 'Conectar Mercado Pago'}
+            </button>
+          </div>
+        )}
+
         {/* Abas de Gestão */}
         <div className="mb-5 grid grid-cols-3 gap-1.5 rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-2xs">
           {[
@@ -961,6 +1006,9 @@ export function ManagePage() {
                       <p className="text-xs leading-relaxed text-zinc-600">
                         Conecte sua conta Mercado Pago para que seus clientes paguem na hora por Pix ou Cartão, com o dinheiro caindo direto para você.
                       </p>
+                      <p className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-[11px] leading-relaxed text-zinc-600">
+                        <strong>Importante:</strong> a VitriMini cobra 0% de comissão. Sobre as vendas pagas online, aplicam-se apenas as taxas padrão da sua própria conta do Mercado Pago (Pix ou Cartão).
+                      </p>
                       <button
                         type="button"
                         disabled={mpLoading}
@@ -1241,7 +1289,12 @@ export function ManagePage() {
       {planModalOpen && catalogMeta && (
         <PlanSelectorModal
           storeName={storeName || 'Minha Vitrine'}
-          initialPlan={catalogMeta.planType === 'PRO' ? 'PRO_90D' : 'PRO_90D'}
+          initialPlan="PRO_90D"
+          currentPlanType={catalogMeta.planType}
+          hasActiveDays={Boolean(
+            catalogMeta.expiresAt &&
+              new Date(catalogMeta.expiresAt).getTime() > Date.now()
+          )}
           loading={renewingTrial}
           onSelectPlan={async (plan) => {
             setRenewingTrial(true);
@@ -1274,22 +1327,35 @@ export function ManagePage() {
           planDays={selectedPlan?.days}
           onCancelDraft={() => setPaymentModalData(null)}
           onCloseAfterPaid={() => setPaymentModalData(null)}
-          onConfirmed={() => {
+          onConfirmed={(info) => {
+            const isProSelected = selectedPlan?.code !== 'ESSENTIAL_90D';
             setCatalogMeta((prev) =>
               prev
                 ? {
                     ...prev,
                     isTrial: false,
-                    planType:
-                      selectedPlan?.code === 'ESSENTIAL_90D'
-                        ? 'ESSENTIAL'
-                        : 'PRO',
-                    hasProAccess:
-                      selectedPlan?.code !== 'ESSENTIAL_90D' || prev.hasProAccess,
+                    planType: isProSelected ? 'PRO' : 'ESSENTIAL',
+                    hasProAccess: isProSelected || prev.hasProAccess,
                   }
                 : prev
             );
+            if (
+              isProSelected &&
+              !catalogMeta?.mpConnected &&
+              !isMpInviteDismissed(info.catalogId)
+            ) {
+              setPaymentModalData(null);
+              setMpInviteCatalogId(info.catalogId);
+            }
           }}
+        />
+      )}
+
+      {mpInviteCatalogId && (
+        <ConnectMercadoPagoModal
+          catalogId={mpInviteCatalogId}
+          badgeText="Plano Pro ativado!"
+          onClose={() => setMpInviteCatalogId(null)}
         />
       )}
     </div>
