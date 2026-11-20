@@ -7,6 +7,7 @@ import authRoutes from './routes/auth.routes.js';
 import catalogRoutes from './routes/catalog.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import mpRoutes from './routes/mp.routes.js';
 import { errorHandler, FRIENDLY_ERRORS } from './middlewares/errorHandler.js';
 import { validateJwtSecretConfig } from './middlewares/auth.js';
 import { startCleanupScheduler } from './services/cleanup.service.js';
@@ -149,6 +150,7 @@ ${urlNodes.join('\n')}
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api', orderRoutes);
+app.use('/api', mpRoutes);
 app.use('/api', catalogRoutes);
 
 app.use('/api/*', (_req: Request, res: Response) => {
