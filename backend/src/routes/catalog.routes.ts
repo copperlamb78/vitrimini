@@ -6,11 +6,12 @@ import { assertValidImageMagicBytes, upload } from '../config/upload.js';
 import { generateUniqueSlug } from '../utils/slug.js';
 import {
   createPixPayment,
-  getCatalogPriceCents,
   isMockPixEnabled,
+  resolvePlanDefinition,
   validateMercadoPagoWebhookSignature,
   verifyMercadoPagoOrder,
 } from '../services/payment.service.js';
+import { hasProFeatures } from '../services/mpOAuth.service.js';
 import { AppError, FRIENDLY_ERRORS } from '../middlewares/errorHandler.js';
 import { getOptionalAuthUserId, requireAuth } from '../middlewares/auth.js';
 import {
@@ -147,6 +148,8 @@ async function confirmCatalogPayment(paymentRecordId: string) {
 
     const now = Date.now();
     const currentExpires = paymentRecord.catalog.expiresAt;
+    const planDef = resolvePlanDefinition(paymentRecord.planCode);
+    const planDurationMs = planDef.days * 24 * 60 * 60 * 1000;
 
     if (paymentRecord.type === 'RENEWAL') {
       const baseTime =
@@ -159,8 +162,9 @@ async function confirmCatalogPayment(paymentRecordId: string) {
         data: {
           status: 'ACTIVE',
           isTrial: false,
+          planType: planDef.planType,
           renewalCount: { increment: 1 },
-          expiresAt: new Date(baseTime + NINETY_DAYS_MS),
+          expiresAt: new Date(baseTime + planDurationMs),
           notified7DaysBefore: false,
           notifiedExpiration: false,
         },
@@ -184,7 +188,8 @@ async function confirmCatalogPayment(paymentRecordId: string) {
       data: {
         status: 'ACTIVE',
         isTrial: false,
-        expiresAt: new Date(creationBaseTime + NINETY_DAYS_MS),
+        planType: planDef.planType,
+        expiresAt: new Date(creationBaseTime + planDurationMs),
         notified7DaysBefore: false,
         notifiedExpiration: false,
       },
@@ -302,7 +307,8 @@ router.post(
         );
 
         const slug = await generateUniqueSlug(meta.storeName);
-        const amountCents = getCatalogPriceCents();
+        const planDef = resolvePlanDefinition(req.body.planCode);
+        const amountCents = planDef.amountCents;
 
         const [dbUser, existingTrialByWhatsapp] = await Promise.all([
           prisma.user.findUnique({
@@ -370,6 +376,7 @@ router.post(
             slug,
             status: 'DRAFT',
             isTrial: false,
+            planType: planDef.planType,
             userId,
             storeName: meta.storeName,
             logoUrl,
@@ -390,6 +397,7 @@ router.post(
           catalogId: catalog.id,
           storeName: catalog.storeName,
           amountCents,
+          description: planDef.label,
           payerEmail: req.user!.email,
         });
 
@@ -398,6 +406,7 @@ router.post(
             userId,
             catalogId: catalog.id,
             type: 'CREATION',
+            planCode: planDef.code,
             status: 'PENDING',
             amountCents,
             gatewayId: payment.paymentId,
@@ -453,7 +462,8 @@ router.post(
         throw new AppError(403, 'Você não tem permissão para alterar esta vitrine.');
       }
 
-      const amountCents = getCatalogPriceCents();
+      const planDef = resolvePlanDefinition(req.body?.planCode);
+      const amountCents = planDef.amountCents;
       const paymentType =
         catalog.status === 'DRAFT' &&
         catalog.renewalCount === 0 &&
@@ -465,6 +475,7 @@ router.post(
         catalogId: catalog.id,
         storeName: catalog.storeName,
         amountCents,
+        description: planDef.label,
         payerEmail: req.user!.email,
         idempotencyKey: `vitrimini-renew-${catalog.id}-${Date.now()}`,
       });
@@ -474,6 +485,7 @@ router.post(
           userId,
           catalogId: catalog.id,
           type: paymentType,
+          planCode: planDef.code,
           status: 'PENDING',
           amountCents,
           gatewayId: payment.paymentId,
@@ -523,6 +535,9 @@ router.get(
             editToken: true,
             status: true,
             isTrial: true,
+            planType: true,
+            onlinePaymentEnabled: true,
+            mpUserId: true,
             expiresAt: true,
             renewalCount: true,
             logoUrl: true,
@@ -561,12 +576,15 @@ router.get(
           );
         }
 
+        const { mpUserId: catMpUserId, ...safeCat } = cat;
         return {
-          ...cat,
+          ...safeCat,
           status: isExpired ? ('EXPIRED' as const) : cat.status,
           isExpired,
           daysLeft,
           daysLeftToDelete,
+          mpConnected: Boolean(catMpUserId),
+          hasProAccess: hasProFeatures(cat),
         };
       });
 
@@ -708,17 +726,21 @@ router.post(
         return;
       }
 
+      const planDef = resolvePlanDefinition(req.body?.planCode);
       const now = Date.now();
       const baseTime =
         existing.expiresAt && existing.expiresAt.getTime() > now
           ? existing.expiresAt.getTime()
           : now;
-      const expiresAt = new Date(baseTime + NINETY_DAYS_MS);
+      const expiresAt = new Date(
+        baseTime + planDef.days * 24 * 60 * 60 * 1000
+      );
       const updated = await prisma.catalog.update({
         where: { id },
         data: {
           status: 'ACTIVE',
           isTrial: false,
+          planType: planDef.planType,
           expiresAt,
         },
         select: {
@@ -842,6 +864,10 @@ router.get(
           userId: true,
           slug: true,
           status: true,
+          isTrial: true,
+          planType: true,
+          onlinePaymentEnabled: true,
+          mpAccessToken: true,
           storeName: true,
           logoUrl: true,
           themeColor: true,
@@ -919,6 +945,10 @@ router.get(
         deliveryDates: catalog.deliveryDates,
         notes: catalog.notes,
         expiresAt: catalog.expiresAt,
+        onlinePaymentAvailable:
+          hasProFeatures(catalog) &&
+          catalog.onlinePaymentEnabled &&
+          Boolean(catalog.mpAccessToken),
         products: catalog.products,
       });
     } catch (error) {
@@ -973,6 +1003,9 @@ router.get(
           editToken: true,
           status: true,
           isTrial: true,
+          planType: true,
+          onlinePaymentEnabled: true,
+          mpUserId: true,
           renewalCount: true,
           storeName: true,
           logoUrl: true,
@@ -1004,8 +1037,12 @@ router.get(
         throw new AppError(403, 'Você não tem permissão para acessar esta vitrine.');
       }
 
-      const { userId: _ownerId, ...safeCatalog } = catalog;
-      res.json(safeCatalog);
+      const { userId: _ownerId, mpUserId: catMpUserId, ...safeCatalog } = catalog;
+      res.json({
+        ...safeCatalog,
+        mpConnected: Boolean(catMpUserId),
+        hasProAccess: hasProFeatures(catalog),
+      });
     } catch (error) {
       next(error);
     }
@@ -1028,6 +1065,9 @@ router.get(
           editToken: true,
           status: true,
           isTrial: true,
+          planType: true,
+          onlinePaymentEnabled: true,
+          mpUserId: true,
           renewalCount: true,
           storeName: true,
           logoUrl: true,
@@ -1059,8 +1099,12 @@ router.get(
         throw new AppError(403, 'Você não tem permissão para acessar esta vitrine.');
       }
 
-      const { userId: _ownerId, ...safeCatalog } = catalog;
-      res.json(safeCatalog);
+      const { userId: _ownerId, mpUserId: catMpUserId, ...safeCatalog } = catalog;
+      res.json({
+        ...safeCatalog,
+        mpConnected: Boolean(catMpUserId),
+        hasProAccess: hasProFeatures(catalog),
+      });
     } catch (error) {
       next(error);
     }
