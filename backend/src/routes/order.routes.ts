@@ -183,8 +183,24 @@ router.post(
         });
       }
 
+      if (catalog.minOrderCents > 0 && totalCents < catalog.minOrderCents) {
+        const formattedMin = (catalog.minOrderCents / 100)
+          .toFixed(2)
+          .replace('.', ',');
+        throw new AppError(
+          400,
+          `O valor mínimo para pedidos nesta loja é de R$ ${formattedMin}.`
+        );
+      }
+
       const isOnlinePayment = parsed.paymentChannel === 'MERCADO_PAGO';
       if (isOnlinePayment) {
+        if (totalCents < 100) {
+          throw new AppError(
+            400,
+            'O pagamento online exige um valor mínimo de R$ 1,00.'
+          );
+        }
         if (
           !hasProFeatures(catalog) ||
           !catalog.onlinePaymentEnabled ||
