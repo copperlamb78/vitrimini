@@ -270,6 +270,7 @@ router.post(
         whatsapp: req.body.whatsapp,
         pixKey: req.body.pixKey,
         depositPct: req.body.depositPct,
+        minOrderCents: req.body.minOrderCents,
         paymentNotice: req.body.paymentNotice,
         themeColor: normalizeThemeColor(req.body.themeColor),
         notes: req.body.notes,
@@ -361,6 +362,7 @@ router.post(
                 whatsapp: meta.whatsapp,
                 pixKey: meta.pixKey,
                 depositPct: meta.depositPct,
+                minOrderCents: meta.minOrderCents,
                 paymentNotice: meta.paymentNotice,
                 deliveryDates: meta.deliveryDates.filter(Boolean),
                 notes: meta.notes,
@@ -396,6 +398,7 @@ router.post(
             whatsapp: meta.whatsapp,
             pixKey: meta.pixKey,
             depositPct: meta.depositPct,
+            minOrderCents: meta.minOrderCents,
             paymentNotice: meta.paymentNotice,
             deliveryDates: meta.deliveryDates.filter(Boolean),
             notes: meta.notes,
@@ -894,6 +897,7 @@ router.get(
           whatsapp: true,
           pixKey: true,
           depositPct: true,
+          minOrderCents: true,
           paymentNotice: true,
           deliveryDates: true,
           notes: true,
@@ -961,6 +965,7 @@ router.get(
         whatsapp: catalog.whatsapp,
         pixKey: catalog.pixKey,
         depositPct: catalog.depositPct,
+        minOrderCents: catalog.minOrderCents,
         paymentNotice: catalog.paymentNotice,
         deliveryDates: catalog.deliveryDates,
         notes: catalog.notes,
@@ -1033,6 +1038,7 @@ router.get(
           whatsapp: true,
           pixKey: true,
           depositPct: true,
+          minOrderCents: true,
           paymentNotice: true,
           deliveryDates: true,
           notes: true,
@@ -1095,6 +1101,7 @@ router.get(
           whatsapp: true,
           pixKey: true,
           depositPct: true,
+          minOrderCents: true,
           paymentNotice: true,
           deliveryDates: true,
           notes: true,
@@ -1178,6 +1185,20 @@ async function handleAuthenticatedCatalogUpdate(
         depositPctRaw !== undefined ? Number(depositPctRaw) : existing.depositPct;
 
       if (![0, 50, 100].includes(depositPct)) {
+        throw new AppError(400, FRIENDLY_ERRORS.VALIDATION);
+      }
+
+      const minOrderCentsRaw = req.body.minOrderCents;
+      const minOrderCents =
+        minOrderCentsRaw !== undefined && minOrderCentsRaw !== ''
+          ? Number(minOrderCentsRaw)
+          : existing.minOrderCents;
+
+      if (
+        !Number.isInteger(minOrderCents) ||
+        minOrderCents < 0 ||
+        minOrderCents > 10000000
+      ) {
         throw new AppError(400, FRIENDLY_ERRORS.VALIDATION);
       }
 
@@ -1331,6 +1352,7 @@ async function handleAuthenticatedCatalogUpdate(
               whatsapp: cleanWhatsapp,
               pixKey: cleanPixKey,
               depositPct,
+              minOrderCents,
               paymentNotice: cleanPaymentNotice,
               deliveryDates,
               notes: cleanNotes,
@@ -1401,6 +1423,7 @@ async function handleAuthenticatedCatalogUpdate(
               whatsapp: true,
               pixKey: true,
               depositPct: true,
+              minOrderCents: true,
               paymentNotice: true,
               deliveryDates: true,
               notes: true,
