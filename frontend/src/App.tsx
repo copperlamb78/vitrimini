@@ -44,6 +44,11 @@ const AdminDashboardPage = lazy(() =>
     default: m.AdminDashboardPage,
   }))
 );
+const LegalDocPage = lazy(() =>
+  import('./pages/LegalDocPage').then((m) => ({
+    default: m.LegalDocPage,
+  }))
+);
 
 const isAdminSubdomain =
   typeof window !== 'undefined' &&
@@ -74,6 +79,11 @@ export function App() {
                 element={<EditTokenRedirectPage />}
               />
               <Route path="/super-admin" element={<AdminDashboardPage />} />
+              <Route path="/termos" element={<LegalDocPage type="terms" />} />
+              <Route
+                path="/privacidade"
+                element={<LegalDocPage type="privacy" />}
+              />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           )}
