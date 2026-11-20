@@ -24,6 +24,7 @@ interface RegisterInput {
   email: string;
   phone: string;
   password: string;
+  acceptTerms: boolean;
 }
 
 interface LoginInput {
