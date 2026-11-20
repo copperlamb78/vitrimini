@@ -231,6 +231,9 @@ export interface CatalogAnalytics {
   period: string;
   confirmedRevenueCents: number;
   pendingRevenueCents: number;
+  onlineGrossRevenueCents?: number;
+  onlineMpFeesCents?: number;
+  onlineNetRevenueCents?: number;
   completedOrdersCount: number;
   pendingOrdersCount: number;
   cancelledOrdersCount: number;
@@ -280,6 +283,11 @@ export interface AdminOverviewResponse {
     payments30dCount: number;
     revenueTotalCents: number;
     paymentsTotalCount: number;
+    revenue?: {
+      today: { grossCents: number; feeCents: number; netCents: number };
+      last30d: { grossCents: number; feeCents: number; netCents: number };
+      total: { grossCents: number; feeCents: number; netCents: number };
+    };
   };
   recentCatalogs: Array<{
     id: string;
