@@ -183,9 +183,27 @@ export async function createPixPayment({
   };
 }
 
+export function calculatePixFeeFallback(amountCents: number): {
+  feeCents: number;
+  netAmountCents: number;
+} {
+  const rawPct = Number(process.env.MP_PIX_FEE_PERCENT);
+  const feePercent =
+    Number.isFinite(rawPct) && rawPct >= 0 && rawPct < 50 ? rawPct : 0.99;
+  const feeCents = Math.round((amountCents * feePercent) / 100);
+  const netAmountCents = Math.max(0, amountCents - feeCents);
+  return { feeCents, netAmountCents };
+}
+
 export async function verifyMercadoPagoOrder(
   orderId: string
-): Promise<{ approved: boolean; status?: string; catalogId?: string }> {
+): Promise<{
+  approved: boolean;
+  status?: string;
+  catalogId?: string;
+  feeCents?: number;
+  netAmountCents?: number;
+}> {
   if (isMockPixEnabled()) {
     return { approved: true, status: 'processed' };
   }
@@ -211,6 +229,12 @@ export async function verifyMercadoPagoOrder(
     status_detail?: string;
     external_reference?: string;
     total_amount?: string | number;
+    transactions?: {
+      payments?: Array<{
+        transaction_details?: { net_received_amount?: number };
+        fee_details?: Array<{ amount?: number; fee_payer?: string }>;
+      }>;
+    };
   };
 
   const expectedCents = getCatalogPriceCents();
@@ -225,10 +249,32 @@ export async function verifyMercadoPagoOrder(
     (!data.status_detail || data.status_detail === 'accredited') &&
     isAmountValid;
 
+  const firstTx = data.transactions?.payments?.[0];
+  const rawNet = firstTx?.transaction_details?.net_received_amount;
+  let feeCents: number | undefined;
+  let netAmountCents: number | undefined;
+
+  if (typeof rawNet === 'number' && Number.isFinite(rawNet) && rawNet >= 0) {
+    netAmountCents = Math.min(paidCents, Math.round(rawNet * 100));
+    feeCents = Math.max(0, paidCents - netAmountCents);
+  } else if (Array.isArray(firstTx?.fee_details) && firstTx.fee_details.length > 0) {
+    const sumFee = firstTx.fee_details
+      .filter((f) => !f.fee_payer || f.fee_payer === 'collector')
+      .reduce((acc, f) => acc + (typeof f.amount === 'number' ? f.amount : 0), 0);
+    feeCents = Math.max(0, Math.round(sumFee * 100));
+    netAmountCents = Math.max(0, paidCents - feeCents);
+  } else if (isProcessed) {
+    const fallback = calculatePixFeeFallback(paidCents);
+    feeCents = fallback.feeCents;
+    netAmountCents = fallback.netAmountCents;
+  }
+
   return {
     approved: isProcessed,
     status: data.status,
     catalogId: data.external_reference,
+    feeCents,
+    netAmountCents,
   };
 }
 
