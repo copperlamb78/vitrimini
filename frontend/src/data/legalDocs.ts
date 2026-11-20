@@ -30,9 +30,10 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
       },
       {
         number: '2',
-        title: 'Objeto do Serviço',
+        title: 'Objeto do Serviço e Responsabilidade pelas Vendas',
         paragraphs: [
-          'O VitriMini oferece uma ferramenta de criação de vitrines digitais de encomendas com registro de pedidos, painel de gestão e indicadores para o Lojista, link de acompanhamento de status para o comprador e envio do resumo do pedido ao WhatsApp do Lojista. A Plataforma não é um marketplace, não realiza intermediação financeira das vendas do Lojista e não cobra comissão sobre os pedidos recebidos.',
+          'O VitriMini é uma plataforma de tecnologia para criação de vitrines digitais e organização de pedidos, oferecendo painel de gestão e acompanhamento de status para o cliente.',
+          'A venda, o preparo, a entrega, a qualidade dos produtos anunciados e eventuais estornos ou reembolsos de pagamentos feitos diretamente ao lojista (inclusive via Mercado Pago) são de responsabilidade exclusiva do lojista vendedor. A Plataforma não intermedia valores de vendas nem cobra comissão sobre os pedidos.',
         ],
       },
       {
