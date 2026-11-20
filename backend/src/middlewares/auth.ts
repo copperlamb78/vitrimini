@@ -28,6 +28,10 @@ function getJwtSecret(): string {
   return secret || 'vitrimini-default-jwt-secret-2026';
 }
 
+export function validateJwtSecretConfig(): void {
+  getJwtSecret();
+}
+
 export function signAuthToken(user: AuthUserPayload): string {
   return jwt.sign(
     {
@@ -37,7 +41,7 @@ export function signAuthToken(user: AuthUserPayload): string {
       phone: user.phone,
     },
     getJwtSecret(),
-    { expiresIn: '30d' }
+    { expiresIn: '15m' }
   );
 }
 
@@ -86,4 +90,36 @@ export function getOptionalAuthUserId(req: Request): string | null {
   } catch {
     return null;
   }
+}
+
+function getAllowedAdminEmails(): Set<string> {
+  return new Set(
+    (process.env.ADMIN_EMAILS || '')
+      .split(',')
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+export function requireAdmin(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  requireAuth(req, res, (authErr?: unknown) => {
+    if (authErr) {
+      next(authErr);
+      return;
+    }
+
+    const email = req.user?.email?.trim().toLowerCase();
+    const allowedAdmins = getAllowedAdminEmails();
+
+    if (!email || allowedAdmins.size === 0 || !allowedAdmins.has(email)) {
+      next(new AppError(403, 'Acesso restrito a administradores.'));
+      return;
+    }
+
+    next();
+  });
 }

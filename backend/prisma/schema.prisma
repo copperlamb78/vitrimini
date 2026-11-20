@@ -24,6 +24,31 @@ enum PaymentRecordStatus {
   PAID
 }
 
+enum OrderStatus {
+  PENDING
+  PREPARING
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED
+}
+
+enum DeliveryType {
+  PICKUP
+  DELIVERY
+}
+
+enum OrderPaymentMethod {
+  PIX
+  CARD
+  CASH
+  OTHER
+}
+
+enum EmailLogStatus {
+  SENT
+  FAILED
+}
+
 model User {
   id                     String           @id @default(uuid())
   name                   String
@@ -37,6 +62,21 @@ model User {
 
   catalogs               Catalog[]
   payments               CatalogPayment[]
+  refreshTokens          RefreshToken[]
+  orders                 Order[]
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Catalog {
@@ -52,14 +92,18 @@ model Catalog {
   storeName     String
   logoUrl       String?          // Caminho relativo da foto/logo, ex: /uploads/logo-uuid.webp
   themeColor    String           @default("rose") // Identificador do tema de cor escolhido
-  whatsapp      String           // Apenas números com DDI, ex: 5575999999999
-  pixKey        String?          // Chave Pix do lojista para receber o sinal dos clientes
-  depositPct    Int              @default(50) // Porcentagem de sinal (0, 50 ou 100)
-  deliveryDates String[]         // Ex: ["24/12 (Qui) • Manhã", "24/12 (Qui) • Tarde"]
-  notes         String?          // Regras gerais da loja
+  whatsapp            String           // Apenas números com DDI, ex: 5575999999999
+  pixKey              String?          // Chave Pix do lojista para receber o sinal dos clientes
+  depositPct          Int              @default(50) // Porcentagem de sinal (0, 50 ou 100)
+  deliveryDates       String[]         // Ex: ["24/12 (Qui) • Manhã", "24/12 (Qui) • Tarde"]
+  notes               String?          // Regras gerais da loja
+  pickupAddress       String?          // Endereço da loja para retirada
+  pickupInstructions  String?          // Horário ou instruções de retirada
+  deliveryEstimate    String?          // Previsão padrão de entrega
 
   paymentId           String?
   expiresAt           DateTime?
+  notifyOrderByEmail  Boolean          @default(true)
   notified7DaysBefore Boolean          @default(false)
   notifiedExpiration  Boolean          @default(false)
   createdAt           DateTime         @default(now())
@@ -67,19 +111,27 @@ model Catalog {
 
   products      Product[]
   payments      CatalogPayment[]
+  orders        Order[]
+
+  @@index([userId])
+  @@index([status])
 }
 
 model Product {
-  id          String   @id @default(uuid())
+  id          String      @id @default(uuid())
   catalogId   String
-  catalog     Catalog  @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  catalog     Catalog     @relation(fields: [catalogId], references: [id], onDelete: Cascade)
 
   name        String
   description String?
-  priceCents  Int      // Sempre em centavos
-  imageUrl    String?  // Caminho relativo, ex: /uploads/123.webp
-  orderIndex  Int      @default(0)
-  available   Boolean  @default(true)
+  priceCents  Int         // Sempre em centavos
+  imageUrl    String?     // URL pública no Cloudflare R2
+  orderIndex  Int         @default(0)
+  available   Boolean     @default(true)
+
+  orderItems  OrderItem[]
+
+  @@index([catalogId, available])
 }
 
 model CatalogPayment {
@@ -94,4 +146,62 @@ model CatalogPayment {
   gatewayId   String?             // ID da Order/Payment no Mercado Pago
   paidAt      DateTime?
   createdAt   DateTime            @default(now())
+
+  @@index([status, createdAt])
+}
+
+model Order {
+  id              String             @id @default(uuid())
+  orderNumber     Int
+  trackingCode    String             @unique
+  catalogId       String
+  catalog         Catalog            @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  userId          String?
+  user            User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  customerName    String
+  customerPhone   String             // Apenas dígitos normalizados (ex: 5575999999999)
+  deliveryType    DeliveryType       @default(PICKUP)
+  deliveryAddress String?
+  deliveryDate    String?
+  paymentMethod   OrderPaymentMethod @default(PIX)
+  notes           String?
+  status          OrderStatus        @default(PENDING)
+  totalCents      Int
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  items           OrderItem[]
+
+  @@unique([catalogId, orderNumber])
+  @@index([catalogId, createdAt])
+  @@index([catalogId, status])
+  @@index([userId, createdAt])
+}
+
+model OrderItem {
+  id             String   @id @default(uuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String?
+  product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  productName    String
+  unitPriceCents Int
+  quantity       Int
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model EmailLog {
+  id           String         @id @default(uuid())
+  type         String
+  recipient    String
+  status       EmailLogStatus
+  errorMessage String?
+  createdAt    DateTime       @default(now())
+
+  @@index([createdAt, status])
 }

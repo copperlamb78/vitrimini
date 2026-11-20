@@ -125,11 +125,22 @@ export const productInputSchema = z.object({
     .string()
     .max(300)
     .refine(
-      (val) =>
-        val === '' ||
-        val.startsWith('https://') ||
-        val.startsWith('http://') ||
-        val.startsWith('/'),
+      (val) => {
+        if (
+          val === '' ||
+          val.startsWith('https://') ||
+          (val.startsWith('/') && !val.startsWith('//'))
+        ) {
+          return true;
+        }
+        if (process.env.NODE_ENV !== 'production') {
+          return (
+            val.startsWith('http://localhost') ||
+            val.startsWith('http://127.0.0.1')
+          );
+        }
+        return false;
+      },
       { message: 'URL de imagem inválida.' }
     )
     .nullable()
@@ -190,9 +201,94 @@ export const catalogMetadataSchema = z.object({
       z
         .string()
         .transform(sanitizePlainText)
-        .pipe(z.string().max(80, 'Data de entrega muito longa.'))
+        .pipe(z.string().max(120, 'Data de entrega muito longa.'))
     )
     .max(60, 'Limite máximo de 60 datas de entrega excedido.')
     .optional()
     .default([]),
+});
+
+export const createOrderSchema = z
+  .object({
+    customerName: z
+      .string()
+      .transform(sanitizePlainText)
+      .pipe(
+        z
+          .string()
+          .min(2, 'Informe seu nome (mínimo 2 caracteres).')
+          .max(100, 'Nome muito longo.')
+      ),
+    customerPhone: brazilianPhoneSchema,
+    deliveryType: z.enum(['PICKUP', 'DELIVERY']).default('PICKUP'),
+    deliveryAddress: z
+      .string()
+      .nullable()
+      .optional()
+      .transform((val) => {
+        if (!val) return null;
+        const cleaned = sanitizePlainText(val);
+        return cleaned.length > 0 ? cleaned : null;
+      })
+      .refine((val) => val === null || val.length <= 240, {
+        message: 'Endereço muito longo (máximo 240 caracteres).',
+      }),
+    deliveryDate: z
+      .string()
+      .nullable()
+      .optional()
+      .transform((val) => {
+        if (!val) return null;
+        const cleaned = sanitizePlainText(val);
+        return cleaned.length > 0 ? cleaned : null;
+      })
+      .refine((val) => val === null || val.length <= 100, {
+        message: 'Data de entrega muito longa.',
+      }),
+    paymentMethod: z.enum(['PIX', 'CARD', 'CASH', 'OTHER']).default('PIX'),
+    notes: z
+      .string()
+      .nullable()
+      .optional()
+      .transform((val) => {
+        if (!val) return null;
+        const cleaned = sanitizePlainText(val);
+        return cleaned.length > 0 ? cleaned : null;
+      })
+      .refine((val) => val === null || val.length <= 400, {
+        message: 'Observações muito longas (máximo 400 caracteres).',
+      }),
+    items: z
+      .array(
+        z.object({
+          productId: z.string().uuid('Produto inválido.'),
+          quantity: z.coerce
+            .number()
+            .int('Quantidade inválida.')
+            .min(1, 'Quantidade mínima é 1.')
+            .max(100, 'Quantidade máxima por item é 100.'),
+        })
+      )
+      .min(1, 'Adicione pelo menos um item ao pedido.')
+      .max(50, 'Limite de 50 itens diferentes por pedido.'),
+  })
+  .refine(
+    (data) =>
+      data.deliveryType !== 'DELIVERY' ||
+      (typeof data.deliveryAddress === 'string' &&
+        data.deliveryAddress.trim().length >= 5),
+    {
+      message: 'Informe o endereço completo para entrega.',
+      path: ['deliveryAddress'],
+    }
+  );
+
+export const updateOrderStatusSchema = z.object({
+  status: z.enum([
+    'PENDING',
+    'PREPARING',
+    'OUT_FOR_DELIVERY',
+    'COMPLETED',
+    'CANCELLED',
+  ]),
 });

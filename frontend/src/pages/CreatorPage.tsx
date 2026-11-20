@@ -35,7 +35,7 @@ import { PixPaymentModal } from '../components/PixPaymentModal';
 import { AuthModal } from '../components/AuthModal';
 import { LogoUploader } from '../components/LogoUploader';
 import { ThemeSelector } from '../components/ThemeSelector';
-import { DeliveryDateBuilder } from '../components/DeliveryDateBuilder';
+import { DeliveryScheduleEditor } from '../components/DeliveryScheduleEditor';
 import { Footer } from '../components/Footer';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
@@ -71,7 +71,7 @@ function createEmptyProduct(): DraftProductItem {
 }
 
 export function CreatorPage() {
-  const { user, logout } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit');
 
   const [storeName, setStoreName] = useState('');
@@ -422,7 +422,9 @@ export function CreatorPage() {
               Produtos ilimitados • Pagamento único de R$ 24,90
             </span>
 
-            {user ? (
+            {authLoading ? (
+              <div className="h-8 w-24 animate-pulse rounded-xl bg-stone-200/70" />
+            ) : user ? (
               <>
                 <span className="hidden text-xs font-semibold text-stone-600 sm:inline">
                   Olá, <strong className="text-stone-900">{firstName}</strong>
@@ -611,7 +613,7 @@ export function CreatorPage() {
                   <label className="mb-1.5 block text-xs font-semibold text-stone-700">
                     Datas e Turnos de Entrega / Retirada
                   </label>
-                  <DeliveryDateBuilder
+                  <DeliveryScheduleEditor
                     value={deliveryDates}
                     onChange={setDeliveryDates}
                     theme={activeTheme}

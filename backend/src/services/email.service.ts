@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { prisma } from '../lib/prisma.js';
 
 export interface SendWelcomeEmailInput {
   to: string;
@@ -112,7 +113,30 @@ function parseSender(rawFrom: string): { name: string; email: string } {
   };
 }
 
+async function recordEmailLog(params: {
+  type: string;
+  recipient: string;
+  status: 'SENT' | 'FAILED';
+  errorMessage?: string;
+}): Promise<void> {
+  try {
+    await prisma.emailLog.create({
+      data: {
+        type: params.type,
+        recipient: params.recipient,
+        status: params.status,
+        errorMessage: params.errorMessage
+          ? params.errorMessage.slice(0, 500)
+          : null,
+      },
+    });
+  } catch (logErr) {
+    console.error('[EmailLog Error]:', logErr);
+  }
+}
+
 async function sendEmail(params: {
+  type: string;
   to: string;
   toName?: string;
   subject: string;
@@ -121,49 +145,80 @@ async function sendEmail(params: {
 }): Promise<void> {
   const brevoApiKey = process.env.BREVO_API_KEY?.trim();
 
-  if (brevoApiKey) {
-    const sender = parseSender(getFromAddress());
-    const response = await fetch(BREVO_API_URL, {
-      method: 'POST',
-      headers: {
-        'api-key': brevoApiKey,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
-        sender,
-        to: [
-          {
-            email: params.to,
-            ...(params.toName?.trim() ? { name: params.toName.trim() } : {}),
-          },
-        ],
-        subject: params.subject,
-        htmlContent: params.html,
-        textContent: params.text,
-      }),
+  try {
+    if (brevoApiKey) {
+      const sender = parseSender(getFromAddress());
+      const response = await fetch(BREVO_API_URL, {
+        method: 'POST',
+        headers: {
+          'api-key': brevoApiKey,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          sender,
+          to: [
+            {
+              email: params.to,
+              ...(params.toName?.trim() ? { name: params.toName.trim() } : {}),
+            },
+          ],
+          subject: params.subject,
+          htmlContent: params.html,
+          textContent: params.text,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(
+          `[Brevo API Error]: HTTP ${response.status} - ${errorBody}`
+        );
+        const errMsg = `HTTP ${response.status}: ${errorBody}`;
+        await recordEmailLog({
+          type: params.type,
+          recipient: params.to,
+          status: 'FAILED',
+          errorMessage: errMsg,
+        });
+        throw new Error(
+          `Falha ao enviar e-mail via Brevo API (HTTP ${response.status}).`
+        );
+      }
+
+      await recordEmailLog({
+        type: params.type,
+        recipient: params.to,
+        status: 'SENT',
+      });
+      return;
+    }
+
+    const transporter = getTransporter();
+    await transporter.sendMail({
+      from: getFromAddress(),
+      to: params.to,
+      subject: params.subject,
+      text: params.text,
+      html: params.html,
     });
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error(
-        `[Brevo API Error]: HTTP ${response.status} - ${errorBody}`
-      );
-      throw new Error(
-        `Falha ao enviar e-mail via Brevo API (HTTP ${response.status}).`
-      );
+    await recordEmailLog({
+      type: params.type,
+      recipient: params.to,
+      status: 'SENT',
+    });
+  } catch (err) {
+    if (!brevoApiKey) {
+      await recordEmailLog({
+        type: params.type,
+        recipient: params.to,
+        status: 'FAILED',
+        errorMessage: err instanceof Error ? err.message : String(err),
+      });
     }
-    return;
+    throw err;
   }
-
-  const transporter = getTransporter();
-  await transporter.sendMail({
-    from: getFromAddress(),
-    to: params.to,
-    subject: params.subject,
-    text: params.text,
-    html: params.html,
-  });
 }
 
 export function getFrontendBaseUrl(): string {
@@ -286,6 +341,7 @@ export async function sendWelcomeEmail({
   ].join('\n');
 
   await sendEmail({
+    type: 'WELCOME',
     to,
     toName: name,
     subject: 'Bem-vindo à VitriMini — Sua vitrine digital está pronta',
@@ -350,6 +406,7 @@ export async function sendPasswordResetEmail({
   ].join('\n');
 
   await sendEmail({
+    type: 'PASSWORD_RESET',
     to,
     toName: name,
     subject: 'Redefinição de senha — VitriMini',
@@ -413,6 +470,7 @@ export async function sendPasswordChangedEmail({
   ].join('\n');
 
   await sendEmail({
+    type: 'PASSWORD_CHANGED',
     to,
     toName: name,
     subject: 'Sua senha na VitriMini foi alterada',
@@ -504,6 +562,7 @@ export async function sendCatalogPublishedEmail({
   ].join('\n');
 
   await sendEmail({
+    type: 'CATALOG_PUBLISHED',
     to,
     toName: name,
     subject: 'Sua vitrine está no ar! Guarde seus links da VitriMini',
@@ -580,6 +639,7 @@ export async function sendCatalogRenewedEmail({
   ].join('\n');
 
   await sendEmail({
+    type: 'CATALOG_RENEWED',
     to,
     toName: name,
     subject: 'Renovação confirmada! Sua vitrine ganhou +90 dias',
@@ -638,6 +698,7 @@ export async function sendCatalogExpiringSoonEmail({
   ].join('\n');
 
   await sendEmail({
+    type: 'CATALOG_EXPIRING_SOON',
     to,
     toName: name,
     subject: 'Sua vitrine na VitriMini vence em 7 dias',
@@ -698,9 +759,107 @@ export async function sendCatalogExpiredEmail({
   ].join('\n');
 
   await sendEmail({
+    type: 'CATALOG_EXPIRED',
     to,
     toName: name,
     subject: 'Sua vitrine foi pausada — Seus produtos estão salvos por 30 dias',
+    text,
+    html,
+  });
+}
+
+export interface SendNewOrderEmailInput {
+  to: string;
+  merchantName: string;
+  storeName: string;
+  catalogId: string;
+  orderNumber: number;
+  customerName: string;
+  totalCents: number;
+  deliveryType: 'PICKUP' | 'DELIVERY';
+  items: Array<{ productName: string; quantity: number; unitPriceCents: number }>;
+}
+
+/**
+ * 8. E-mail de Novo Pedido Recebido (para o lojista)
+ */
+export async function sendNewOrderEmail({
+  to,
+  merchantName,
+  storeName,
+  catalogId,
+  orderNumber,
+  customerName,
+  totalCents,
+  deliveryType,
+  items,
+}: SendNewOrderEmailInput): Promise<void> {
+  const firstName = merchantName.split(' ')[0] || 'Lojista';
+  const baseUrl = getFrontendBaseUrl();
+  const panelUrl = `${baseUrl}/painel/${catalogId}`;
+  const formattedTotal = (totalCents / 100).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+  const deliveryLabel = deliveryType === 'DELIVERY' ? 'Entrega' : 'Retirada';
+
+  if (!isEmailConfigured()) {
+    console.log(
+      `[Email Dev Fallback] Novo pedido #${orderNumber} (${storeName}) para ${to}`
+    );
+    return;
+  }
+
+  const itemsHtml = items
+    .map(
+      (item) =>
+        `<li style="margin-bottom: 6px; font-size: 13px; color: #3f3f46;"><strong>${item.quantity}x</strong> ${item.productName} — ${((item.unitPriceCents * item.quantity) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</li>`
+    )
+    .join('');
+
+  const bodyHtml = `
+    <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
+      Olá, <strong>${firstName}</strong>! Você recebeu um novo pedido na vitrine <strong>${storeName}</strong>.
+    </p>
+    <div style="background-color: #fafafa; border: 1px solid #e4e4e7; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;">
+      <p style="margin: 0 0 6px 0; font-size: 13px; color: #18181b;">
+        <strong>Pedido #${orderNumber}</strong> • ${deliveryLabel}
+      </p>
+      <p style="margin: 0 0 10px 0; font-size: 13px; color: #52525b;">
+        Cliente: <strong>${customerName}</strong>
+      </p>
+      <ul style="margin: 0 0 10px 0; padding-left: 18px;">
+        ${itemsHtml}
+      </ul>
+      <p style="margin: 0; font-size: 14px; font-weight: 800; color: #e11d48;">
+        Total: ${formattedTotal}
+      </p>
+    </div>
+  `;
+
+  const html = renderBaseEmailLayout({
+    title: `Novo pedido #${orderNumber} recebido!`,
+    bodyHtml,
+    ctaLabel: 'Gerenciar Pedido no Painel',
+    ctaUrl: panelUrl,
+  });
+
+  const text = [
+    `Olá, ${firstName}!`,
+    '',
+    `Você recebeu o pedido #${orderNumber} na vitrine "${storeName}".`,
+    `Cliente: ${customerName} (${deliveryLabel})`,
+    ...items.map((item) => `- ${item.quantity}x ${item.productName}`),
+    `Total: ${formattedTotal}`,
+    '',
+    `Acesse seu painel para atualizar o status: ${panelUrl}`,
+  ].join('\n');
+
+  await sendEmail({
+    type: 'NEW_ORDER',
+    to,
+    toName: merchantName,
+    subject: `Novo pedido #${orderNumber} na vitrine ${storeName}`,
     text,
     html,
   });

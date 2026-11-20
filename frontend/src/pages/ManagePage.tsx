@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   Save,
   Plus,
@@ -9,6 +9,11 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  ClipboardList,
+  BarChart3,
+  Settings2,
+  Eye,
+  X,
 } from 'lucide-react';
 import type { Catalog } from '../types/catalog';
 import {
@@ -17,10 +22,11 @@ import {
   type ThemeId,
 } from '../constants/themes';
 import {
-  getManageCatalog,
+  getCatalogById,
   getSafeErrorMessage,
-  updateManageCatalog,
+  updateCatalogById,
 } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import {
   centsToPriceInput,
   formatPhoneMask,
@@ -33,7 +39,11 @@ import { blobToDataUrl, compressImage } from '../utils/compressImage';
 import { applyPageSeo } from '../utils/seo';
 import { LogoUploader } from '../components/LogoUploader';
 import { ThemeSelector } from '../components/ThemeSelector';
-import { DeliveryDateBuilder } from '../components/DeliveryDateBuilder';
+import { DeliveryScheduleEditor } from '../components/DeliveryScheduleEditor';
+import { CatalogOrdersTab } from '../components/CatalogOrdersTab';
+import { CatalogAnalyticsTab } from '../components/CatalogAnalyticsTab';
+import { CatalogLivePreview } from '../components/CatalogLivePreview';
+import { ManagePageSkeleton } from '../components/Skeletons';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
 interface EditableProduct {
@@ -48,9 +58,16 @@ interface EditableProduct {
   blob?: Blob;
 }
 
-export function ManagePage() {
-  const { editToken } = useParams<{ editToken: string }>();
+type ManageTab = 'orders' | 'analytics' | 'catalog';
 
+export function ManagePage() {
+  const { catalogId } = useParams<{ catalogId: string }>();
+  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  const [activeTab, setActiveTab] = useState<ManageTab>('orders');
+  const [pendingOrdersCount, setPendingOrdersCount] = useState<number>(0);
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +92,10 @@ export function ManagePage() {
   const [depositPct, setDepositPct] = useState(50);
   const [deliveryDates, setDeliveryDates] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
+  const [pickupAddress, setPickupAddress] = useState('');
+  const [pickupInstructions, setPickupInstructions] = useState('');
+  const [deliveryEstimate, setDeliveryEstimate] = useState('');
+  const [notifyOrderByEmail, setNotifyOrderByEmail] = useState(true);
   const [products, setProducts] = useState<EditableProduct[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -82,19 +103,26 @@ export function ManagePage() {
 
   useEffect(() => {
     applyPageSeo({
-      title: 'Editar Vitrine — VitriMini',
-      description: 'Painel exclusivo de edição da vitrine na VitriMini.',
-      canonicalPath: '/editar',
+      title: 'Painel da Vitrine — VitriMini',
+      description: 'Painel de gestão de pedidos, financeiro e catálogo da VitriMini.',
+      canonicalPath: catalogId ? `/painel/${catalogId}` : '/painel',
       noindex: true,
     });
-  }, []);
+  }, [catalogId]);
 
   useEffect(() => {
-    if (!editToken) return;
+    if (authLoading || !catalogId) return;
+    if (!user) {
+      navigate(`/entrar?redirect=${encodeURIComponent(`/painel/${catalogId}`)}`, {
+        replace: true,
+      });
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
-    getManageCatalog(editToken)
+    getCatalogById(catalogId)
       .then((data) => {
         setCatalogMeta({ id: data.id, slug: data.slug, status: data.status });
         setStoreName(data.storeName);
@@ -109,6 +137,10 @@ export function ManagePage() {
         setDepositPct(data.depositPct);
         setDeliveryDates(data.deliveryDates);
         setNotes(data.notes || '');
+        setPickupAddress(data.pickupAddress || '');
+        setPickupInstructions(data.pickupInstructions || '');
+        setDeliveryEstimate(data.deliveryEstimate || '');
+        setNotifyOrderByEmail(data.notifyOrderByEmail ?? true);
         setProducts(
           data.products.map((p) => ({
             id: p.id,
@@ -125,12 +157,12 @@ export function ManagePage() {
         setError(
           getSafeErrorMessage(
             err,
-            'Não foi possível carregar o painel de edição agora. Verifique sua conexão.'
+            'Não foi possível carregar o painel da vitrine agora. Verifique sua conexão.'
           )
         );
       })
       .finally(() => setLoading(false));
-  }, [editToken]);
+  }, [authLoading, user, catalogId, navigate]);
 
   async function handleLogoSelect(file: File) {
     setError(null);
@@ -211,7 +243,7 @@ export function ManagePage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!editToken) return;
+    if (!catalogId) return;
 
     if (!isValidBrazilianPhone(whatsapp)) {
       setError('Informe um WhatsApp válido com DDD: (99) 99999-9999.');
@@ -231,6 +263,9 @@ export function ManagePage() {
       formData.append('depositPct', String(depositPct));
       formData.append('deliveryDates', JSON.stringify(deliveryDates));
       formData.append('notes', notes.trim());
+      formData.append('pickupAddress', pickupAddress.trim());
+      formData.append('pickupInstructions', pickupInstructions.trim());
+      formData.append('deliveryEstimate', deliveryEstimate.trim());
 
       if (logoBlob) {
         formData.append('logo', logoBlob, 'logo.webp');
@@ -257,8 +292,9 @@ export function ManagePage() {
       });
 
       formData.append('products', JSON.stringify(serialized));
+      formData.append('notifyOrderByEmail', String(notifyOrderByEmail));
 
-      const updated = await updateManageCatalog(editToken, formData);
+      const updated = await updateCatalogById(catalogId, formData);
       setExistingLogoUrl(updated.logoUrl);
       setLogoBlob(null);
       setLogoPreviewDataUrl(null);
@@ -289,11 +325,7 @@ export function ManagePage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50">
-        <Loader2 className="h-8 w-8 animate-spin text-stone-700" />
-      </div>
-    );
+    return <ManagePageSkeleton />;
   }
 
   if (error && !catalogMeta) {
@@ -321,6 +353,26 @@ export function ManagePage() {
   const displayedLogo =
     logoPreviewDataUrl ||
     (!removeLogo ? resolveImageUrl(existingLogoUrl) : null);
+
+  const deferredStoreName = useDeferredValue(storeName);
+  const deferredNotes = useDeferredValue(notes);
+  const deferredPickupAddress = useDeferredValue(pickupAddress);
+  const deferredDeliveryEstimate = useDeferredValue(deliveryEstimate);
+  const deferredDeliveryDates = useDeferredValue(deliveryDates);
+  const deferredProducts = useDeferredValue(products);
+
+  const previewProducts = useMemo(
+    () =>
+      deferredProducts.map((p) => ({
+        localId: p.localId,
+        name: p.name,
+        description: p.description,
+        priceInput: p.priceInput,
+        available: p.available,
+        imageUrl: p.previewDataUrl || resolveImageUrl(p.imageUrl),
+      })),
+    [deferredProducts]
+  );
 
   return (
     <div className="min-h-screen bg-stone-50 pb-20">
@@ -365,8 +417,77 @@ export function ManagePage() {
         </div>
       </header>
 
-      <main className="mx-auto mt-6 max-w-3xl px-4">
-        <form onSubmit={handleSave} className="space-y-6">
+      <main
+        className={`mx-auto mt-6 px-4 ${
+          activeTab === 'catalog' ? 'max-w-6xl' : 'max-w-4xl'
+        }`}
+      >
+        {/* Abas de Gestão */}
+        <div className="mb-5 grid grid-cols-3 gap-1.5 rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-2xs">
+          {[
+            { id: 'orders' as const, label: 'Pedidos', icon: ClipboardList },
+            { id: 'analytics' as const, label: 'Financeiro', icon: BarChart3 },
+            { id: 'catalog' as const, label: 'Catálogo', icon: Settings2 },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition ${
+                  isActive
+                    ? `${activeTheme.primaryBg} ${activeTheme.buttonText} shadow-xs`
+                    : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span>{tab.label}</span>
+                {tab.id === 'orders' && pendingOrdersCount > 0 && (
+                  <span
+                    className={`ml-0.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-extrabold leading-none ${
+                      isActive
+                        ? 'bg-white/25 text-white'
+                        : `${activeTheme.primaryBg} ${activeTheme.buttonText}`
+                    }`}
+                  >
+                    {pendingOrdersCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {activeTab === 'orders' && catalogId && (
+          <CatalogOrdersTab
+            catalogId={catalogId}
+            storeName={storeName}
+            theme={activeTheme}
+            onPendingCountChange={setPendingOrdersCount}
+          />
+        )}
+
+        {activeTab === 'analytics' && catalogId && (
+          <CatalogAnalyticsTab catalogId={catalogId} theme={activeTheme} />
+        )}
+
+        {activeTab === 'catalog' && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
+            <div className="lg:col-span-7">
+              <div className="mb-3 flex justify-end lg:hidden">
+                <button
+                  type="button"
+                  onClick={() => setMobilePreviewOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-xs font-bold text-zinc-800 shadow-2xs transition hover:bg-zinc-50"
+                >
+                  <Eye className={`h-4 w-4 ${activeTheme.primaryText}`} />
+                  Ver prévia
+                </button>
+              </div>
+
+              <form onSubmit={handleSave} className="space-y-6">
           {/* Produtos - Foco em pausar/reativar e editar preço rapidamente */}
           <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-2xs">
             <div className="flex items-center justify-between">
@@ -484,6 +605,8 @@ export function ManagePage() {
                           <img
                             src={displayImg}
                             alt={product.name}
+                            loading="lazy"
+                            decoding="async"
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -637,7 +760,7 @@ export function ManagePage() {
                 <label className="mb-1.5 block text-xs font-semibold text-stone-700">
                   Datas e Turnos de Entrega / Retirada
                 </label>
-                <DeliveryDateBuilder
+                <DeliveryScheduleEditor
                   value={deliveryDates}
                   onChange={setDeliveryDates}
                   theme={activeTheme}
@@ -654,6 +777,64 @@ export function ManagePage() {
                   onChange={(e) => setNotes(e.target.value)}
                   className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
                 />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-stone-700">
+                  Endereço para retirada (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={pickupAddress}
+                  onChange={(e) => setPickupAddress(e.target.value)}
+                  placeholder="Ex: Rua das Flores, 120 — Centro, Feira de Santana"
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-700">
+                  Instruções / Horário de retirada (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={pickupInstructions}
+                  onChange={(e) => setPickupInstructions(e.target.value)}
+                  placeholder="Ex: Seg a Sáb, 9h às 18h"
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-700">
+                  Previsão padrão de entrega (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={deliveryEstimate}
+                  onChange={(e) => setDeliveryEstimate(e.target.value)}
+                  placeholder="Ex: 30 a 50 min ou A combinar"
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+                  <div>
+                    <span className="block text-xs font-bold text-stone-800">
+                      Receber e-mail a cada novo pedido
+                    </span>
+                    <span className="block text-[11px] text-stone-500">
+                      Envia um alerta imediato para o e-mail da sua conta sempre que um cliente finalizar um pedido.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifyOrderByEmail}
+                    onChange={(e) => setNotifyOrderByEmail(e.target.checked)}
+                    className="h-4 w-4 accent-rose-600"
+                  />
+                </label>
               </div>
             </div>
           </section>
@@ -688,8 +869,63 @@ export function ManagePage() {
               </>
             )}
           </button>
-        </form>
+              </form>
+            </div>
+
+            {/* Prévia ao vivo Desktop (sticky) */}
+            <aside className="hidden lg:col-span-5 lg:sticky lg:top-6 lg:block">
+              <CatalogLivePreview
+                storeName={deferredStoreName}
+                logoUrl={displayedLogo}
+                themeColor={themeColor}
+                depositPct={depositPct}
+                deliveryDates={deferredDeliveryDates}
+                notes={deferredNotes}
+                pickupAddress={deferredPickupAddress}
+                deliveryEstimate={deferredDeliveryEstimate}
+                products={previewProducts}
+              />
+            </aside>
+          </div>
+        )}
       </main>
+
+      {/* Modal de Prévia ao vivo no Mobile/Tablet */}
+      {mobilePreviewOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex flex-col bg-black/70 p-4 backdrop-blur-xs lg:hidden"
+        >
+          <div className="mx-auto flex w-full max-w-sm items-center justify-between pb-3 text-white">
+            <span className="text-xs font-bold uppercase tracking-wider">
+              Prévia da Vitrine
+            </span>
+            <button
+              type="button"
+              onClick={() => setMobilePreviewOpen(false)}
+              aria-label="Fechar prévia"
+              className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/25"
+            >
+              <X className="h-4 w-4" />
+              Fechar
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto pb-4">
+            <CatalogLivePreview
+              storeName={deferredStoreName}
+              logoUrl={displayedLogo}
+              themeColor={themeColor}
+              depositPct={depositPct}
+              deliveryDates={deferredDeliveryDates}
+              notes={deferredNotes}
+              pickupAddress={deferredPickupAddress}
+              deliveryEstimate={deferredDeliveryEstimate}
+              products={previewProducts}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

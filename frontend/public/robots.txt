@@ -1,8 +1,11 @@
 User-agent: *
 Allow: /
 Disallow: /editar/
+Disallow: /painel/
+Disallow: /pedido/
 Disallow: /minhas-vitrines
 Disallow: /redefinir-senha
+Disallow: /super-admin
 Disallow: /admin
 
 Sitemap: https://vitrimini.com.br/sitemap.xml

@@ -32,7 +32,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
         number: '2',
         title: 'Objeto do Serviço',
         paragraphs: [
-          'O VitriMini oferece uma ferramenta de criação de vitrines digitais de encomendas com geração de resumo de pedido para envio direto ao WhatsApp do Lojista. A Plataforma não é um marketplace, não realiza intermediação financeira das vendas do Lojista e não cobra comissão sobre os pedidos recebidos.',
+          'O VitriMini oferece uma ferramenta de criação de vitrines digitais de encomendas com registro de pedidos, painel de gestão e indicadores para o Lojista, link de acompanhamento de status para o comprador e envio do resumo do pedido ao WhatsApp do Lojista. A Plataforma não é um marketplace, não realiza intermediação financeira das vendas do Lojista e não cobra comissão sobre os pedidos recebidos.',
         ],
       },
       {
@@ -70,7 +70,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
         title: 'Responsabilidade sobre Vendas, Entregas e Conteúdo',
         bullets: [
           {
-            text: 'Toda negociação, recebimento via Pix do Lojista, produção, qualidade e entrega das encomendas ocorrem exclusivamente entre o Lojista e seu cliente final. O VitriMini não garante entregas nem se responsabiliza por prejuízos, atrasos ou fraudes praticadas por terceiros.',
+            text: 'Toda negociação, recebimento via Pix do Lojista, produção, qualidade, entrega das encomendas e o tratamento adequado dos dados dos compradores no atendimento ocorrem exclusivamente sob responsabilidade do Lojista, em conformidade com a LGPD. O VitriMini não garante entregas nem se responsabiliza por prejuízos, atrasos ou fraudes praticadas por terceiros.',
           },
           {
             text: 'É estritamente proibido publicar produtos ilícitos, falsificados, restritos por lei ou conteúdo ofensivo. O VitriMini reserva-se o direito de suspender ou remover imediatamente, sem direito a reembolso, qualquer vitrine que viole esta cláusula.',
@@ -108,7 +108,11 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
           },
           {
             boldPrefix: 'Dados dos Clientes Finais (Compradores):',
-            text: 'O VitriMini não exige cadastro nem armazena dados pessoais ou pedidos dos compradores em seu banco de dados. Os itens escolhidos são formatados no navegador do comprador e enviados diretamente para o WhatsApp do Lojista.',
+            text: 'O VitriMini não exige cadastro de conta do comprador, mas armazena os dados do pedido enviado na vitrine (nome, telefone/WhatsApp, endereço de entrega quando informado, itens escolhidos, forma de pagamento, observações e status) exclusivamente para registrar a encomenda no painel do Lojista, gerar o histórico financeiro da loja e permitir o acompanhamento pelo código público (/pedido/:codigo — no qual telefone e endereço nunca são exibidos publicamente).',
+          },
+          {
+            boldPrefix: 'Cookies Essenciais e Logs Operacionais:',
+            text: 'Utilizamos apenas cookie estritamente necessário (HttpOnly) para manter a sessão autenticada do Lojista com segurança e registros técnicos de disparo de e-mails transacionais. Não utilizamos cookies de rastreamento ou publicidade.',
           },
           {
             boldPrefix: 'Dados de Pagamento:',
@@ -127,7 +131,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
         number: '4',
         title: 'Armazenamento, Segurança e Eliminação',
         paragraphs: [
-          'Adotamos criptografia de senhas, validação estrita de entradas e controle de acesso autenticado. Conforme os Termos de Uso, vitrines vencidas há mais de 30 (trinta) dias sem renovação têm seus registros e imagens definitivamente excluídos dos servidores.',
+          'Adotamos criptografia de senhas, validação estrita de entradas e controle de acesso autenticado. Conforme os Termos de Uso, vitrines vencidas há mais de 30 (trinta) dias sem renovação têm seus registros (produtos, pedidos associados e imagens) definitivamente excluídos dos servidores.',
         ],
       },
       {

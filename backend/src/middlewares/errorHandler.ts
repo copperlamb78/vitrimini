@@ -31,11 +31,38 @@ export const FRIENDLY_ERRORS = {
 
 export function errorHandler(
   err: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
-  console.error('[API Error]:', err);
+  if (process.env.NODE_ENV === 'production') {
+    const errObj =
+      typeof err === 'object' && err !== null
+        ? (err as { name?: unknown; message?: unknown; code?: unknown })
+        : null;
+    const safeLog: Record<string, unknown> = {
+      method: req.method,
+      path: req.path,
+      name:
+        err instanceof Error
+          ? err.name
+          : typeof errObj?.name === 'string'
+            ? errObj.name
+            : 'UnknownError',
+      message:
+        err instanceof Error
+          ? err.message
+          : typeof errObj?.message === 'string'
+            ? errObj.message
+            : String(err),
+    };
+    if (errObj && 'code' in errObj && errObj.code !== undefined) {
+      safeLog.code = errObj.code;
+    }
+    console.error('[API Error]:', safeLog);
+  } else {
+    console.error('[API Error]:', err);
+  }
 
   if (res.headersSent) {
     return;

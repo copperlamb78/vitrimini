@@ -3,12 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#E11D48" />
+    <link rel="preconnect" href="https://api.vitrimini.com.br" crossorigin />
+    <link rel="preconnect" href="https://cdn.vitrimini.com.br" crossorigin />
     <link rel="icon" type="image/png" href="/favicon.png" />
 
-    <title>VitriMini — Crie sua vitrine digital online e venda pelo WhatsApp</title>
+    <title>VitriMini | Catálogo Online e Pedidos pelo WhatsApp</title>
     <meta
       name="description"
-      content="Crie sua vitrine digital de encomendas em 2 minutos com fotos, datas de entrega e sinal no Pix. Sem mensalidade: pague R$ 24,90 uma vez e use por 90 dias."
+      content="Crie sua vitrine digital e catálogo online com pedidos organizados no WhatsApp, sinal no Pix e 0% de comissão. Pague R$ 24,90 uma vez e use por 90 dias."
     />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://vitrimini.com.br/" />
@@ -19,11 +22,11 @@
     <meta property="og:locale" content="pt_BR" />
     <meta
       property="og:title"
-      content="VitriMini — Crie sua vitrine digital online e venda pelo WhatsApp"
+      content="VitriMini | Catálogo Online e Pedidos pelo WhatsApp"
     />
     <meta
       property="og:description"
-      content="Crie sua vitrine digital de encomendas em 2 minutos com fotos, datas de entrega e sinal no Pix. Sem mensalidade: R$ 24,90 único por 90 dias."
+      content="Crie sua vitrine digital e catálogo online com pedidos organizados no WhatsApp, sinal no Pix e 0% de comissão. Pague R$ 24,90 uma vez e use por 90 dias."
     />
     <meta property="og:url" content="https://vitrimini.com.br/" />
     <meta property="og:image" content="https://vitrimini.com.br/og-cover.png" />
@@ -34,13 +37,96 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta
       name="twitter:title"
-      content="VitriMini — Crie sua vitrine digital online e venda pelo WhatsApp"
+      content="VitriMini | Catálogo Online e Pedidos pelo WhatsApp"
     />
     <meta
       name="twitter:description"
-      content="Crie sua vitrine digital de encomendas em 2 minutos com fotos, datas de entrega e sinal no Pix."
+      content="Crie sua vitrine digital e catálogo online com pedidos organizados no WhatsApp, sinal no Pix e 0% de comissão. Pague R$ 24,90 uma vez e use por 90 dias."
     />
     <meta name="twitter:image" content="https://vitrimini.com.br/og-cover.png" />
+
+    <!-- Structured Data (JSON-LD) -->
+    <script id="vitrimini-jsonld" type="application/ld+json">
+      [
+        {
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "name": "VitriMini",
+          "url": "https://vitrimini.com.br/",
+          "logo": "https://vitrimini.com.br/og-cover.png"
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          "name": "VitriMini",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web",
+          "inLanguage": "pt-BR",
+          "url": "https://vitrimini.com.br/",
+          "description": "Criador de vitrines digitais e catálogos online com pedidos organizados no WhatsApp, acompanhamento em tempo real e cálculo automático de sinal via Pix.",
+          "offers": {
+            "@type": "Offer",
+            "price": "24.90",
+            "priceCurrency": "BRL",
+            "availability": "https://schema.org/InStock"
+          }
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Tem mensalidade ou cobrança automática depois dos 90 dias?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Não. O pagamento de R$ 24,90 é feito uma única vez via Pix e libera sua vitrine por 90 dias corridos. Não pedimos cartão de crédito e nunca fazemos cobranças automáticas."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Vocês cobram alguma taxa sobre as encomendas que eu vender?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Zero comissão. Todo o valor das suas vendas e o sinal pago pelos seus clientes caem diretamente na sua conta usando a sua própria chave Pix."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Como meu cliente acompanha o status do pedido? Precisa baixar app?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Não precisa baixar nenhum aplicativo. Assim que você registra ou atualiza o pedido, um link exclusivo de acompanhamento em tempo real é gerado para o cliente ver cada etapa direto no navegador."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Consigo alterar preços ou marcar um produto como esgotado depois de publicar?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Sim. Você pode pausar itens esgotados em 1 toque, mudar preços, atualizar datas e turnos de entrega ou adicionar novos produtos quando quiser pelo painel da vitrine."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Existe limite de quantos produtos posso cadastrar na minha vitrine?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Não há limite. Você pode cadastrar quantos doces, marmitas, peças ou produtos sob encomenda desejar, todos com foto, descrição e preço."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Posso testar a vitrine antes de pagar os R$ 24,90?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Sim. Você monta sua vitrine completa, escolhe a cor da marca, cadastra os produtos e testa tudo gratuitamente. O pagamento único via Pix só é feito quando você decidir publicar."
+              }
+            }
+          ]
+        }
+      ]
+    </script>
   </head>
   <body class="bg-stone-50 text-stone-900 antialiased">
     <div id="root"></div>

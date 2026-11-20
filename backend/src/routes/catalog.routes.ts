@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { upload } from '../config/upload.js';
+import { assertValidImageMagicBytes, upload } from '../config/upload.js';
 import { generateUniqueSlug } from '../utils/slug.js';
 import {
   createPixPayment,
@@ -42,6 +42,17 @@ const catalogWriteRateLimiter = rateLimit({
   message: {
     error:
       'Muitas solicitações seguidas. Aguarde alguns minutos e tente novamente.',
+  },
+});
+
+const publicStoreRateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutos
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error:
+      'Muitas requisições para esta vitrine. Aguarde alguns instantes e tente novamente.',
   },
 });
 
@@ -245,6 +256,7 @@ router.post(
       const files = (req.files as Express.Multer.File[]) || [];
       const fileByField = new Map<string, Express.Multer.File>();
       for (const file of files) {
+        assertValidImageMagicBytes(file.buffer, file.mimetype);
         fileByField.set(file.fieldname, file);
       }
 
@@ -422,7 +434,7 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = req.user!.id;
-      await cleanupExpiredCatalogs();
+      void cleanupExpiredCatalogs();
 
       const nowMs = Date.now();
       const DAY_MS = 24 * 60 * 60 * 1000;
@@ -718,6 +730,7 @@ router.post(
 // GET /api/store/:slug
 router.get(
   '/store/:slug',
+  publicStoreRateLimiter,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const slug = String(req.params.slug || '').trim().toLowerCase();
@@ -729,9 +742,31 @@ router.get(
 
       const catalog = await prisma.catalog.findUnique({
         where: { slug },
-        include: {
+        select: {
+          id: true,
+          userId: true,
+          slug: true,
+          status: true,
+          storeName: true,
+          logoUrl: true,
+          themeColor: true,
+          whatsapp: true,
+          pixKey: true,
+          depositPct: true,
+          deliveryDates: true,
+          notes: true,
+          expiresAt: true,
           products: {
             orderBy: { orderIndex: 'asc' },
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              priceCents: true,
+              imageUrl: true,
+              orderIndex: true,
+              available: true,
+            },
           },
         },
       });
@@ -765,6 +800,15 @@ router.get(
         }
       }
 
+      if (isPreview) {
+        res.setHeader('Cache-Control', 'no-store');
+      } else {
+        res.setHeader(
+          'Cache-Control',
+          'public, max-age=15, stale-while-revalidate=30'
+        );
+      }
+
       res.json({
         id: catalog.id,
         slug: catalog.slug,
@@ -786,16 +830,48 @@ router.get(
   }
 );
 
-// GET /api/manage/:editToken
+// GET /api/catalogs/resolve-token/:editToken (Protegida com requireAuth + ownership)
 router.get(
-  '/manage/:editToken',
+  '/catalogs/resolve-token/:editToken',
+  requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const editToken = uuidParamSchema.parse(req.params.editToken);
       const catalog = await prisma.catalog.findUnique({
         where: { editToken },
+        select: { id: true, userId: true },
+      });
+
+      if (!catalog) {
+        throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
+      }
+
+      if (catalog.userId !== req.user!.id) {
+        throw new AppError(
+          403,
+          'Esta vitrine pertence a outra conta. Entre com o e-mail proprietário.'
+        );
+      }
+
+      res.json({ catalogId: catalog.id });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/catalogs/:id (Protegida com requireAuth + ownership)
+router.get(
+  '/catalogs/:id',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = uuidParamSchema.parse(req.params.id);
+      const catalog = await prisma.catalog.findUnique({
+        where: { id },
         select: {
           id: true,
+          userId: true,
           slug: true,
           editToken: true,
           status: true,
@@ -808,6 +884,10 @@ router.get(
           depositPct: true,
           deliveryDates: true,
           notes: true,
+          pickupAddress: true,
+          pickupInstructions: true,
+          deliveryEstimate: true,
+          notifyOrderByEmail: true,
           expiresAt: true,
           createdAt: true,
           updatedAt: true,
@@ -821,29 +901,95 @@ router.get(
         throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
       }
 
-      res.json(catalog);
+      if (catalog.userId !== req.user!.id) {
+        throw new AppError(403, 'Você não tem permissão para acessar esta vitrine.');
+      }
+
+      const { userId: _ownerId, ...safeCatalog } = catalog;
+      res.json(safeCatalog);
     } catch (error) {
       next(error);
     }
   }
 );
 
-// PUT /api/manage/:editToken
-router.put(
+// GET /api/manage/:editToken (Aposentado acesso anônimo — exige requireAuth + ownership)
+router.get(
   '/manage/:editToken',
-  catalogWriteRateLimiter,
-  upload.any(),
+  requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const editToken = uuidParamSchema.parse(req.params.editToken);
-      const existing = await prisma.catalog.findUnique({
+      const catalog = await prisma.catalog.findUnique({
         where: { editToken },
-        include: { products: true },
+        select: {
+          id: true,
+          userId: true,
+          slug: true,
+          editToken: true,
+          status: true,
+          renewalCount: true,
+          storeName: true,
+          logoUrl: true,
+          themeColor: true,
+          whatsapp: true,
+          pixKey: true,
+          depositPct: true,
+          deliveryDates: true,
+          notes: true,
+          pickupAddress: true,
+          pickupInstructions: true,
+          deliveryEstimate: true,
+          notifyOrderByEmail: true,
+          expiresAt: true,
+          createdAt: true,
+          updatedAt: true,
+          products: {
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
       });
 
-      if (!existing) {
+      if (!catalog) {
         throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
       }
+
+      if (catalog.userId !== req.user!.id) {
+        throw new AppError(403, 'Você não tem permissão para acessar esta vitrine.');
+      }
+
+      const { userId: _ownerId, ...safeCatalog } = catalog;
+      res.json(safeCatalog);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+async function handleAuthenticatedCatalogUpdate(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  lookup: { id?: string; editToken?: string }
+) {
+  try {
+    const existing = await prisma.catalog.findUnique({
+      where: lookup.id ? { id: lookup.id } : { editToken: lookup.editToken },
+      include: { products: true },
+    });
+
+    if (!existing) {
+      throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
+    }
+
+    if (existing.userId !== req.user!.id) {
+      throw new AppError(403, 'Você não tem permissão para alterar esta vitrine.');
+    }
+
+    const notifyOrderByEmail =
+      req.body.notifyOrderByEmail !== undefined
+        ? parseBoolean(req.body.notifyOrderByEmail, existing.notifyOrderByEmail)
+        : existing.notifyOrderByEmail;
 
       const rawStoreName =
         req.body.storeName !== undefined
@@ -885,7 +1031,7 @@ router.put(
       }
 
       const deliveryDates = rawDeliveryDates
-        .map((d) => sanitizePlainText(String(d)).slice(0, 80))
+        .map((d) => sanitizePlainText(String(d)).slice(0, 120))
         .filter(Boolean);
 
       const cleanPixKey =
@@ -902,6 +1048,27 @@ router.put(
             : null
           : existing.notes;
 
+      const cleanPickupAddress =
+        req.body.pickupAddress !== undefined
+          ? req.body.pickupAddress
+            ? sanitizePlainText(String(req.body.pickupAddress)).slice(0, 240)
+            : null
+          : existing.pickupAddress;
+
+      const cleanPickupInstructions =
+        req.body.pickupInstructions !== undefined
+          ? req.body.pickupInstructions
+            ? sanitizePlainText(String(req.body.pickupInstructions)).slice(0, 200)
+            : null
+          : existing.pickupInstructions;
+
+      const cleanDeliveryEstimate =
+        req.body.deliveryEstimate !== undefined
+          ? req.body.deliveryEstimate
+            ? sanitizePlainText(String(req.body.deliveryEstimate)).slice(0, 100)
+            : null
+          : existing.deliveryEstimate;
+
       const incomingProducts =
         req.body.products !== undefined
           ? productsArraySchema.parse(
@@ -913,6 +1080,7 @@ router.put(
       const files = (req.files as Express.Multer.File[]) || [];
       const fileByField = new Map<string, Express.Multer.File>();
       for (const file of files) {
+        assertValidImageMagicBytes(file.buffer, file.mimetype);
         fileByField.set(file.fieldname, file);
       }
 
@@ -993,6 +1161,10 @@ router.put(
               depositPct,
               deliveryDates,
               notes: cleanNotes,
+              pickupAddress: cleanPickupAddress,
+              pickupInstructions: cleanPickupInstructions,
+              deliveryEstimate: cleanDeliveryEstimate,
+              notifyOrderByEmail,
             },
           });
 
@@ -1057,6 +1229,7 @@ router.put(
               depositPct: true,
               deliveryDates: true,
               notes: true,
+              notifyOrderByEmail: true,
               expiresAt: true,
               createdAt: true,
               updatedAt: true,
@@ -1079,6 +1252,37 @@ router.put(
         }
         throw innerErr;
       }
+    } catch (error) {
+      next(error);
+    }
+}
+
+// PUT /api/catalogs/:id (Protegida com requireAuth + ownership)
+router.put(
+  '/catalogs/:id',
+  requireAuth,
+  catalogWriteRateLimiter,
+  upload.any(),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = uuidParamSchema.parse(req.params.id);
+      await handleAuthenticatedCatalogUpdate(req, res, next, { id });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// PUT /api/manage/:editToken (Aposentado acesso anônimo — exige requireAuth + ownership)
+router.put(
+  '/manage/:editToken',
+  requireAuth,
+  catalogWriteRateLimiter,
+  upload.any(),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const editToken = uuidParamSchema.parse(req.params.editToken);
+      await handleAuthenticatedCatalogUpdate(req, res, next, { editToken });
     } catch (error) {
       next(error);
     }

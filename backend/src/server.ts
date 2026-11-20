@@ -1,10 +1,14 @@
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
 import authRoutes from './routes/auth.routes.js';
 import catalogRoutes from './routes/catalog.routes.js';
+import orderRoutes from './routes/order.routes.js';
+import adminRoutes from './routes/admin.routes.js';
 import { errorHandler, FRIENDLY_ERRORS } from './middlewares/errorHandler.js';
+import { validateJwtSecretConfig } from './middlewares/auth.js';
 import { startCleanupScheduler } from './services/cleanup.service.js';
 import { prisma } from './lib/prisma.js';
 import { getFrontendBaseUrl } from './services/email.service.js';
@@ -14,6 +18,8 @@ const PORT = Number(process.env.PORT) || 3333;
 
 // Necessário atrás de proxy reverso (Render) para rate-limit e req.ip corretos
 app.set('trust proxy', 1);
+
+app.use(compression());
 
 app.use(
   helmet({
@@ -29,6 +35,7 @@ const configuredFrontend = (process.env.FRONTEND_URL || '')
 const allowedOrigins = new Set<string>([
   'https://vitrimini.com.br',
   'https://www.vitrimini.com.br',
+  'https://painel.vitrimini.com.br',
   ...configuredFrontend,
   ...(process.env.NODE_ENV !== 'production'
     ? ['http://localhost:5173', 'http://127.0.0.1:5173']
@@ -50,7 +57,8 @@ app.use(
       }
       callback(null, false);
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
@@ -139,6 +147,8 @@ ${urlNodes.join('\n')}
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api', orderRoutes);
 app.use('/api', catalogRoutes);
 
 app.use('/api/*', (_req: Request, res: Response) => {
@@ -148,6 +158,7 @@ app.use('/api/*', (_req: Request, res: Response) => {
 app.use(errorHandler);
 
 if (process.env.VITRIMINI_TEST_MODE !== 'true') {
+  validateJwtSecretConfig();
   app.listen(PORT, () => {
     console.log(`🚀 VitriMini API rodando na porta ${PORT}`);
     startCleanupScheduler();

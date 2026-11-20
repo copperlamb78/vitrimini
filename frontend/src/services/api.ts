@@ -1,14 +1,102 @@
 import { API_BASE_URL } from '../utils/format';
 import type {
+  AdminOverviewResponse,
   AuthResponse,
   AuthUser,
   Catalog,
+  CatalogAnalytics,
   CatalogStatusResponse,
   CreateCatalogResponse,
+  CreateOrderResponse,
+  DeliveryType,
   MyCatalogsResponse,
+  MyCustomerOrder,
+  Order,
+  OrderPaymentMethod,
+  OrderStatus,
+  PublicTrackedOrder,
 } from '../types/catalog';
 
 export const AUTH_TOKEN_KEY = 'vitrimini_auth_token';
+export const AUTH_USER_KEY = 'vitrimini_auth_user';
+export const AUTH_SESSION_HINT_KEY = 'vitrimini_has_session';
+const LEGACY_SAVED_CATALOGS_KEY = 'vitrimini_saved_catalogs';
+
+export function isJwtTokenExpired(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+    const payload = JSON.parse(atob(padded)) as { exp?: unknown };
+    if (typeof payload.exp !== 'number') return false;
+    return payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
+export function clearStoredAuthSession(): void {
+  try {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_USER_KEY);
+    localStorage.removeItem(AUTH_SESSION_HINT_KEY);
+    localStorage.removeItem(LEGACY_SAVED_CATALOGS_KEY);
+    sessionStorage.removeItem(AUTH_TOKEN_KEY);
+    sessionStorage.removeItem(AUTH_USER_KEY);
+  } catch {
+    // Ignora falhas de storage
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('auth:logout'));
+  }
+}
+
+let inFlightRefreshPromise: Promise<AuthResponse | null> | null = null;
+
+export async function refreshAuthSession(): Promise<AuthResponse | null> {
+  if (inFlightRefreshPromise) {
+    return inFlightRefreshPromise;
+  }
+
+  inFlightRefreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        return null;
+      }
+      const data = (await res.json().catch(() => null)) as AuthResponse | null;
+      if (!data?.token || !data?.user) {
+        return null;
+      }
+      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(data.user));
+      localStorage.setItem(AUTH_SESSION_HINT_KEY, '1');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:refreshed', { detail: data }));
+      }
+      return data;
+    } catch {
+      return null;
+    } finally {
+      inFlightRefreshPromise = null;
+    }
+  })();
+
+  return inFlightRefreshPromise;
+}
+
+function isPrivatePathname(pathname: string): boolean {
+  return (
+    pathname.startsWith('/painel') ||
+    pathname.startsWith('/minhas-vitrines') ||
+    pathname.startsWith('/meus-pedidos') ||
+    pathname.startsWith('/super-admin')
+  );
+}
 
 const TECHNICAL_PATTERNS = [
   /prisma/i,
@@ -57,11 +145,15 @@ function getAuthHeaders(tokenOverride?: string): Record<string, string> {
 async function safeRequest<T>(
   url: string,
   init: RequestInit | undefined,
-  fallbackMessage: string
+  fallbackMessage: string,
+  hasRetried = false
 ): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(url, init);
+    res = await fetch(url, {
+      ...init,
+      credentials: 'include',
+    });
   } catch {
     throw new Error(fallbackMessage);
   }
@@ -69,6 +161,40 @@ async function safeRequest<T>(
   const data = await res.json().catch(() => null);
 
   if (!res.ok) {
+    if (res.status === 401 && init?.headers) {
+      const headersObj = init.headers as Record<string, string>;
+      if (headersObj.Authorization) {
+        if (!hasRetried) {
+          const refreshed = await refreshAuthSession();
+          if (refreshed?.token) {
+            return safeRequest<T>(
+              url,
+              {
+                ...init,
+                headers: {
+                  ...headersObj,
+                  Authorization: `Bearer ${refreshed.token}`,
+                },
+              },
+              fallbackMessage,
+              true
+            );
+          }
+        }
+
+        clearStoredAuthSession();
+        if (
+          typeof window !== 'undefined' &&
+          isPrivatePathname(window.location.pathname)
+        ) {
+          const currentTarget = `${window.location.pathname}${window.location.search}`;
+          window.location.assign(
+            `/entrar?redirect=${encodeURIComponent(currentTarget)}`
+          );
+        }
+      }
+    }
+
     const serverMessage =
       data && typeof data === 'object' && 'error' in data
         ? String((data as { error?: unknown }).error || '')
@@ -81,6 +207,17 @@ async function safeRequest<T>(
   }
 
   return data as T;
+}
+
+export async function logoutUser(): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+  } catch {
+    // Silencioso: a limpeza local ocorre de qualquer forma
+  }
 }
 
 // Auth API
@@ -259,5 +396,164 @@ export async function updateManageCatalog(
       body: formData,
     },
     'Não foi possível salvar suas alterações agora. Verifique sua conexão e tente novamente.'
+  );
+}
+
+// Authenticated Catalog Management (by catalogId + token redirect)
+export async function resolveEditToken(
+  editToken: string
+): Promise<{ catalogId: string }> {
+  return safeRequest<{ catalogId: string }>(
+    `${API_BASE_URL}/api/catalogs/resolve-token/${encodeURIComponent(editToken)}`,
+    {
+      headers: getAuthHeaders(),
+    },
+    'Não foi possível localizar esta vitrine na sua conta.'
+  );
+}
+
+export async function getCatalogById(catalogId: string): Promise<Catalog> {
+  return safeRequest<Catalog>(
+    `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}`,
+    {
+      headers: getAuthHeaders(),
+    },
+    'Não foi possível carregar o painel da vitrine.'
+  );
+}
+
+export async function updateCatalogById(
+  catalogId: string,
+  formData: FormData
+): Promise<Catalog> {
+  return safeRequest<Catalog>(
+    `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}`,
+    {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: formData,
+    },
+    'Não foi possível salvar suas alterações agora. Verifique sua conexão e tente novamente.'
+  );
+}
+
+// Orders API (Public + Merchant)
+export async function createStoreOrder(
+  slug: string,
+  input: {
+    customerName: string;
+    customerPhone: string;
+    deliveryType: DeliveryType;
+    deliveryAddress?: string | null;
+    deliveryDate?: string | null;
+    paymentMethod: OrderPaymentMethod;
+    notes?: string | null;
+    items: Array<{ productId: string; quantity: number }>;
+  }
+): Promise<CreateOrderResponse> {
+  let tokenOverride: string | undefined;
+  if (typeof window !== 'undefined') {
+    const currentToken = localStorage.getItem(AUTH_TOKEN_KEY);
+    const hasSessionHint = localStorage.getItem(AUTH_SESSION_HINT_KEY) === '1';
+    if ((currentToken && isJwtTokenExpired(currentToken)) || (!currentToken && hasSessionHint)) {
+      const refreshed = await refreshAuthSession();
+      if (refreshed?.token) {
+        tokenOverride = refreshed.token;
+      }
+    }
+  }
+
+  return safeRequest<CreateOrderResponse>(
+    `${API_BASE_URL}/api/store/${encodeURIComponent(slug)}/orders`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(tokenOverride),
+      },
+      body: JSON.stringify(input),
+    },
+    'Não foi possível registrar seu pedido agora. Verifique os dados e tente novamente.'
+  );
+}
+
+export async function getMyOrders(): Promise<{ orders: MyCustomerOrder[] }> {
+  return safeRequest<{ orders: MyCustomerOrder[] }>(
+    `${API_BASE_URL}/api/orders/mine`,
+    {
+      headers: getAuthHeaders(),
+    },
+    'Não foi possível carregar seus pedidos agora.'
+  );
+}
+
+export async function trackPublicOrder(
+  trackingCode: string
+): Promise<PublicTrackedOrder> {
+  return safeRequest<PublicTrackedOrder>(
+    `${API_BASE_URL}/api/orders/track/${encodeURIComponent(trackingCode)}`,
+    undefined,
+    'Pedido não encontrado.'
+  );
+}
+
+export async function getCatalogOrders(
+  catalogId: string,
+  params?: { status?: string; period?: string }
+): Promise<{ orders: Order[] }> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set('status', params.status);
+  if (params?.period) qs.set('period', params.period);
+  const query = qs.toString() ? `?${qs.toString()}` : '';
+
+  return safeRequest<{ orders: Order[] }>(
+    `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}/orders${query}`,
+    {
+      headers: getAuthHeaders(),
+    },
+    'Não foi possível carregar os pedidos desta vitrine.'
+  );
+}
+
+export async function updateCatalogOrderStatus(
+  catalogId: string,
+  orderId: string,
+  status: OrderStatus
+): Promise<{ order: Order }> {
+  return safeRequest<{ order: Order }>(
+    `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}/orders/${encodeURIComponent(orderId)}/status`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ status }),
+    },
+    'Não foi possível atualizar o status do pedido.'
+  );
+}
+
+export async function getCatalogAnalytics(
+  catalogId: string,
+  period = '30d'
+): Promise<CatalogAnalytics> {
+  return safeRequest<CatalogAnalytics>(
+    `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}/analytics?period=${encodeURIComponent(period)}`,
+    {
+      headers: getAuthHeaders(),
+    },
+    'Não foi possível carregar os indicadores financeiros.'
+  );
+}
+
+// Super Admin API
+export async function getAdminOverview(): Promise<AdminOverviewResponse> {
+  return safeRequest<AdminOverviewResponse>(
+    `${API_BASE_URL}/api/admin/overview`,
+    {
+      headers: getAuthHeaders(),
+    },
+    'Acesso negado ou sessão expirada.'
   );
 }

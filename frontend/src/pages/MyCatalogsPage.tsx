@@ -12,6 +12,7 @@ import {
   Store,
   Calendar,
   Sparkles,
+  ShoppingBag,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -27,6 +28,7 @@ import { getStoreInitials, getTheme } from '../constants/themes';
 import { resolveImageUrl } from '../utils/format';
 import { applyPageSeo } from '../utils/seo';
 import { PixPaymentModal } from '../components/PixPaymentModal';
+import { MyCatalogsSkeleton } from '../components/Skeletons';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
 function formatExpirationDate(iso: string | null): string | null {
@@ -115,11 +117,7 @@ export function MyCatalogsPage() {
   }
 
   if (authLoading || (loading && catalogs.length === 0)) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50">
-        <Loader2 className="h-8 w-8 animate-spin text-rose-600" />
-      </div>
-    );
+    return <MyCatalogsSkeleton />;
   }
 
   const firstName = user?.name.split(' ')[0] || 'Lojista';
@@ -141,6 +139,14 @@ export function MyCatalogsPage() {
             <span className="hidden text-xs font-semibold text-zinc-600 sm:inline">
               Olá, <strong className="text-zinc-900">{firstName}</strong>
             </span>
+
+            <Link
+              to="/meus-pedidos"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-900"
+            >
+              <ShoppingBag className="h-3.5 w-3.5 text-zinc-500" />
+              <span className="hidden sm:inline">Meus Pedidos</span>
+            </Link>
 
             <Link
               to="/criar"
@@ -333,13 +339,13 @@ export function MyCatalogsPage() {
                         </a>
                       </div>
 
-                      {/* Editar Vitrine Direto */}
+                      {/* Painel de Gestão (Pedidos, Financeiro e Catálogo) */}
                       <Link
-                        to={`/editar/${cat.editToken}`}
+                        to={`/painel/${cat.id}`}
                         className="flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-zinc-300 bg-white px-3 text-xs font-bold text-zinc-800 transition hover:bg-zinc-50"
                       >
                         <PenLine className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
-                        Editar
+                        Gerenciar
                       </Link>
                     </div>
 

@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma.js';
 import { AppError } from '../middlewares/errorHandler.js';
-import { requireAuth, signAuthToken } from '../middlewares/auth.js';
+import { requireAuth, signAuthToken, type AuthUserPayload } from '../middlewares/auth.js';
 import {
   forgotPasswordSchema,
   loginSchema,
@@ -21,6 +21,61 @@ import {
 const router = Router();
 
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutos
+const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 dias
+const REFRESH_COOKIE_NAME = 'vitrimini_refresh_token';
+
+function hashToken(rawToken: string): string {
+  return crypto.createHash('sha256').update(rawToken).digest('hex');
+}
+
+function getRefreshCookieOptions(maxAge?: number) {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax' as const,
+    path: '/api/auth',
+    ...(isProd ? { domain: '.vitrimini.com.br' } : {}),
+    ...(maxAge !== undefined ? { maxAge } : {}),
+  };
+}
+
+function parseRefreshCookie(req: Request): string | null {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq === -1) continue;
+    const key = part.slice(0, eq).trim();
+    if (key === REFRESH_COOKIE_NAME) {
+      return decodeURIComponent(part.slice(eq + 1).trim());
+    }
+  }
+  return null;
+}
+
+async function issueSessionTokens(res: Response, user: AuthUserPayload) {
+  const accessToken = signAuthToken(user);
+  const rawRefresh = crypto.randomBytes(48).toString('hex');
+  const tokenHash = hashToken(rawRefresh);
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
+
+  await prisma.refreshToken.create({
+    data: {
+      tokenHash,
+      userId: user.id,
+      expiresAt,
+    },
+  });
+
+  res.cookie(
+    REFRESH_COOKIE_NAME,
+    rawRefresh,
+    getRefreshCookieOptions(REFRESH_TOKEN_TTL_MS)
+  );
+
+  return accessToken;
+}
 
 const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
@@ -35,7 +90,7 @@ const authRateLimiter = rateLimit({
 
 const passwordResetRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 8,
+  max: Number(process.env.PASSWORD_RESET_RATE_LIMIT_MAX) || 5,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -44,8 +99,30 @@ const passwordResetRateLimiter = rateLimit({
   },
 });
 
+const sessionRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error:
+      'Muitas tentativas de atualização de sessão. Aguarde alguns minutos e tente novamente.',
+  },
+});
+
+const FORGOT_PASSWORD_COOLDOWN_MS = 2 * 60 * 1000;
+const forgotPasswordCooldowns = new Map<string, number>();
+
+function pruneExpiredForgotPasswordCooldowns(now: number): void {
+  for (const [key, expiresAt] of forgotPasswordCooldowns.entries()) {
+    if (expiresAt <= now) {
+      forgotPasswordCooldowns.delete(key);
+    }
+  }
+}
+
 function hashResetToken(rawToken: string): string {
-  return crypto.createHash('sha256').update(rawToken).digest('hex');
+  return hashToken(rawToken);
 }
 
 // POST /api/auth/register
@@ -85,7 +162,7 @@ router.post(
         },
       });
 
-      const token = signAuthToken(user);
+      const token = await issueSessionTokens(res, user);
 
       // Dispara e-mail de boas-vindas em background sem bloquear a resposta do cadastro
       void sendWelcomeEmail({
@@ -118,6 +195,12 @@ router.post(
           email: true,
           phone: true,
           passwordHash: true,
+          _count: {
+            select: {
+              catalogs: true,
+              orders: true,
+            },
+          },
         },
       });
 
@@ -138,9 +221,10 @@ router.post(
         name: user.name,
         email: user.email,
         phone: user.phone,
+        _count: user._count,
       };
 
-      const token = signAuthToken(publicUser);
+      const token = await issueSessionTokens(res, publicUser);
 
       res.json({ token, user: publicUser });
     } catch (error) {
@@ -156,9 +240,29 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { email } = forgotPasswordSchema.parse(req.body);
+      const normalizedEmail = email.trim().toLowerCase();
+      const now = Date.now();
+      pruneExpiredForgotPasswordCooldowns(now);
+
+      const cooldownUntil = forgotPasswordCooldowns.get(normalizedEmail);
+      if (cooldownUntil && cooldownUntil > now) {
+        res.json({
+          message:
+            'Se este e-mail estiver cadastrado, enviamos as instruções para redefinir sua senha.',
+        });
+        return;
+      }
+
+      if (forgotPasswordCooldowns.size >= 1000) {
+        pruneExpiredForgotPasswordCooldowns(now);
+      }
+      forgotPasswordCooldowns.set(
+        normalizedEmail,
+        now + FORGOT_PASSWORD_COOLDOWN_MS
+      );
 
       const user = await prisma.user.findUnique({
-        where: { email },
+        where: { email: normalizedEmail },
         select: {
           id: true,
           name: true,
@@ -235,14 +339,20 @@ router.post(
 
       const newPasswordHash = await bcrypt.hash(password.trim(), 10);
 
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          passwordHash: newPasswordHash,
-          passwordResetTokenHash: null,
-          passwordResetExpiresAt: null,
-        },
-      });
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: user.id },
+          data: {
+            passwordHash: newPasswordHash,
+            passwordResetTokenHash: null,
+            passwordResetExpiresAt: null,
+          },
+        }),
+        prisma.refreshToken.updateMany({
+          where: { userId: user.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        }),
+      ]);
 
       // Dispara confirmação de senha alterada em background
       void sendPasswordChangedEmail({
@@ -256,6 +366,124 @@ router.post(
       res.json({
         message: 'Sua senha foi redefinida com sucesso! Você já pode entrar.',
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/auth/refresh (Rotação obrigatória + detecção de reuso)
+router.post(
+  '/refresh',
+  sessionRateLimiter,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const rawRefresh = parseRefreshCookie(req);
+      if (!rawRefresh) {
+        throw new AppError(401, 'Sessão expirada. Faça login novamente.');
+      }
+
+      const tokenHash = hashToken(rawRefresh);
+      const stored = await prisma.refreshToken.findUnique({
+        where: { tokenHash },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+            },
+          },
+        },
+      });
+
+      if (!stored) {
+        res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieOptions());
+        throw new AppError(401, 'Sessão inválida. Faça login novamente.');
+      }
+
+      // Se um token já revogado for reutilizado, revoga todas as sessões do usuário
+      if (stored.revokedAt !== null) {
+        await prisma.refreshToken.updateMany({
+          where: { userId: stored.userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieOptions());
+        throw new AppError(
+          401,
+          'Sessão encerrada por segurança. Faça login novamente.'
+        );
+      }
+
+      if (stored.expiresAt <= new Date()) {
+        await prisma.refreshToken.update({
+          where: { id: stored.id },
+          data: { revokedAt: new Date() },
+        });
+        res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieOptions());
+        throw new AppError(401, 'Sessão expirada. Faça login novamente.');
+      }
+
+      const nextRawRefresh = crypto.randomBytes(48).toString('hex');
+      const nextTokenHash = hashToken(nextRawRefresh);
+      const nextExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
+
+      const rotated = await prisma.$transaction(async (tx) => {
+        const revoked = await tx.refreshToken.updateMany({
+          where: { id: stored.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        if (revoked.count === 0) return false;
+
+        await tx.refreshToken.create({
+          data: {
+            tokenHash: nextTokenHash,
+            userId: stored.userId,
+            expiresAt: nextExpiresAt,
+          },
+        });
+        return true;
+      });
+
+      if (!rotated) {
+        res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieOptions());
+        throw new AppError(401, 'Sessão expirada. Faça login novamente.');
+      }
+
+      const accessToken = signAuthToken(stored.user);
+      res.cookie(
+        REFRESH_COOKIE_NAME,
+        nextRawRefresh,
+        getRefreshCookieOptions(REFRESH_TOKEN_TTL_MS)
+      );
+
+      res.json({ token: accessToken, user: stored.user });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/auth/logout
+router.post(
+  '/logout',
+  sessionRateLimiter,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const rawRefresh = parseRefreshCookie(req);
+      if (rawRefresh) {
+        await prisma.refreshToken.updateMany({
+          where: {
+            tokenHash: hashToken(rawRefresh),
+            revokedAt: null,
+          },
+          data: { revokedAt: new Date() },
+        });
+      }
+
+      res.clearCookie(REFRESH_COOKIE_NAME, getRefreshCookieOptions());
+      res.json({ ok: true });
     } catch (error) {
       next(error);
     }
@@ -280,6 +508,7 @@ router.get(
             select: {
               catalogs: true,
               payments: true,
+              orders: true,
             },
           },
         },

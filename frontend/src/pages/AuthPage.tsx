@@ -106,20 +106,37 @@ export function AuthPage() {
     setSubmitting(true);
 
     try {
+      let authRes;
       if (tab === 'register') {
-        await register({
+        authRes = await register({
           name: name.trim(),
           email: normalizedEmail,
           phone: phoneToDDI(phone),
           password,
         });
       } else {
-        await login({
+        authRes = await login({
           email: normalizedEmail,
           password,
         });
       }
-      navigate('/minhas-vitrines');
+      const rawRedirect = searchParams.get('redirect') || '';
+      const hasValidRedirect =
+        rawRedirect.startsWith('/') &&
+        !rawRedirect.startsWith('//') &&
+        !rawRedirect.startsWith('/\\') &&
+        !/[\r\n\u0000-\u001F\u007F]/.test(rawRedirect);
+
+      const defaultDestination =
+        authRes.user._count &&
+        authRes.user._count.catalogs === 0 &&
+        (authRes.user._count.orders || 0) > 0
+          ? '/meus-pedidos'
+          : '/minhas-vitrines';
+
+      navigate(hasValidRedirect ? rawRedirect : defaultDestination, {
+        replace: true,
+      });
     } catch (err) {
       setError(
         getSafeErrorMessage(

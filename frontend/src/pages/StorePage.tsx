@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   Info,
@@ -13,12 +13,30 @@ import {
   Calendar,
   MapPin,
   Store,
+  ShoppingBag,
 } from 'lucide-react';
-import type { Catalog } from '../types/catalog';
+import { useAuth } from '../contexts/AuthContext';
+import type {
+  Catalog,
+  CreateOrderResponse,
+  OrderPaymentMethod,
+} from '../types/catalog';
 import { getStoreInitials, getTheme } from '../constants/themes';
-import { getPublicStore, getSafeErrorMessage } from '../services/api';
-import { formatCurrency, resolveImageUrl } from '../utils/format';
+import {
+  createStoreOrder,
+  getPublicStore,
+  getSafeErrorMessage,
+} from '../services/api';
+import {
+  formatCurrency,
+  formatPhoneMask,
+  isValidBrazilianPhone,
+  phoneToDDI,
+  resolveImageUrl,
+} from '../utils/format';
 import { applyPageSeo } from '../utils/seo';
+import { filterActiveDeliverySlots } from '../utils/deliverySchedule';
+import { StorePageSkeleton } from '../components/Skeletons';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 import logoIcon from '../assets/logo-icon.png';
 
@@ -26,6 +44,7 @@ export function StorePage() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
   const isPreview = searchParams.get('preview') === 'true';
+  const { user } = useAuth();
 
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,14 +57,41 @@ export function StorePage() {
 
   // Checkout form
   const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [preferredSchedule, setPreferredSchedule] = useState('');
   const [fulfillmentType, setFulfillmentType] = useState<'pickup' | 'delivery'>(
     'pickup'
   );
+  const [paymentMethod, setPaymentMethod] = useState<OrderPaymentMethod>('PIX');
   const [address, setAddress] = useState('');
   const [customerNotes, setCustomerNotes] = useState('');
   const [copiedPix, setCopiedPix] = useState(false);
+  const [submittingOrder, setSubmittingOrder] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+
+  const wasLoggedInRef = useRef(false);
+
+  useEffect(() => {
+    if (!user) {
+      if (wasLoggedInRef.current) {
+        wasLoggedInRef.current = false;
+        setCustomerName('');
+        setCustomerPhone('');
+      }
+      return;
+    }
+    wasLoggedInRef.current = true;
+    setCustomerName((prev) => prev || user.name || '');
+    if (user.phone) {
+      setCustomerPhone((prev) => prev || formatPhoneMask(user.phone || ''));
+    }
+  }, [user]);
+  const [createdOrder, setCreatedOrder] = useState<{
+    order: CreateOrderResponse;
+    whatsappUrl: string;
+  } | null>(null);
+  const [copiedTrack, setCopiedTrack] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -94,8 +140,11 @@ export function StorePage() {
           },
         });
 
-        if (data.deliveryDates.length > 0) {
-          setSelectedDate(data.deliveryDates[0]);
+        const activeSlots = filterActiveDeliverySlots(data.deliveryDates);
+        if (activeSlots.length > 0) {
+          setSelectedDate(activeSlots[0]);
+        } else if (data.deliveryDates.length > 0) {
+          setSelectedDate('A combinar com a loja');
         }
       })
       .catch((err) => {
@@ -198,60 +247,111 @@ export function StorePage() {
     }
   }
 
+  const activeDeliveryDates = useMemo(
+    () => (catalog ? filterActiveDeliverySlots(catalog.deliveryDates) : []),
+    [catalog]
+  );
+
   async function handleSendWhatsApp(e: React.FormEvent) {
     e.preventDefault();
     if (!catalog || cartSummary.items.length === 0) return;
 
+    setOrderError(null);
+    if (!isValidBrazilianPhone(customerPhone)) {
+      setOrderError('Informe um WhatsApp válido com DDD: (99) 99999-9999.');
+      return;
+    }
+
     const ok = await verifyCartStockBeforeProceed();
     if (!ok) return;
 
-    const lines: string[] = [
-      `Olá *${catalog.storeName}*! Gostaria de fazer uma encomenda pela sua *VitriMini*:`,
-      '',
-      `*Cliente:* ${customerName.trim()}`,
-    ];
+    setSubmittingOrder(true);
+    try {
+      const chosenDate =
+        activeDeliveryDates.length > 0 && selectedDate
+          ? selectedDate
+          : catalog.deliveryDates.length > 0
+            ? 'A combinar com a loja'
+            : preferredSchedule.trim() || null;
 
-    if (catalog.deliveryDates.length > 0 && selectedDate) {
-      lines.push(`*Data/Turno:* ${selectedDate}`);
-    } else if (preferredSchedule.trim()) {
-      lines.push(`*Preferência de data/horário:* ${preferredSchedule.trim()}`);
-    }
+      const orderRes = await createStoreOrder(catalog.slug, {
+        customerName: customerName.trim(),
+        customerPhone: phoneToDDI(customerPhone),
+        deliveryType: fulfillmentType === 'delivery' ? 'DELIVERY' : 'PICKUP',
+        deliveryAddress:
+          fulfillmentType === 'delivery' ? address.trim() : null,
+        deliveryDate: chosenDate,
+        paymentMethod,
+        notes: customerNotes.trim() || null,
+        items: cartSummary.items.map((item) => ({
+          productId: item.product.id,
+          quantity: item.qty,
+        })),
+      });
 
-    lines.push(
-      fulfillmentType === 'delivery'
-        ? `*Recebimento:* Entrega — ${address.trim()}`
-        : `*Recebimento:* Retirada no local`
-    );
+      const paymentLabelMap: Record<OrderPaymentMethod, string> = {
+        PIX: 'Pix',
+        CARD: 'Cartão',
+        CASH: 'Dinheiro',
+        OTHER: 'Outro',
+      };
 
-    lines.push('', '*Itens do Pedido:*');
-    for (const item of cartSummary.items) {
+      const lines: string[] = [
+        `Olá *${catalog.storeName}*! Fiz o *Pedido #${orderRes.orderNumber}* pela sua *VitriMini*:`,
+        '',
+        `*Cliente:* ${customerName.trim()}`,
+      ];
+
+      if (chosenDate) {
+        lines.push(`*Data/Turno:* ${chosenDate}`);
+      }
+
       lines.push(
-        `• ${item.qty}x ${item.product.name} (${formatCurrency(item.subtotalCents)})`
+        fulfillmentType === 'delivery'
+          ? `*Recebimento:* Entrega — ${address.trim()}`
+          : `*Recebimento:* Retirada no local`
       );
-    }
+      lines.push(`*Pagamento:* ${paymentLabelMap[paymentMethod]}`);
 
-    lines.push('', `*Total:* ${formatCurrency(cartSummary.totalCents)}`);
+      lines.push('', '*Itens do Pedido:*');
+      for (const item of cartSummary.items) {
+        lines.push(
+          `• ${item.qty}x ${item.product.name} (${formatCurrency(item.subtotalCents)})`
+        );
+      }
 
-    if (catalog.depositPct > 0) {
-      lines.push(
-        `*Sinal (${catalog.depositPct}%):* ${formatCurrency(depositCents)}`
+      lines.push('', `*Total:* ${formatCurrency(orderRes.totalCents)}`);
+
+      if (catalog.depositPct > 0) {
+        lines.push(
+          `*Sinal (${catalog.depositPct}%):* ${formatCurrency(Math.round((orderRes.totalCents * catalog.depositPct) / 100))}`
+        );
+      }
+
+      if (customerNotes.trim()) {
+        lines.push('', `*Observações:* ${customerNotes.trim()}`);
+      }
+
+      lines.push('', `*Acompanhar pedido:* ${orderRes.trackingUrl}`);
+
+      const whatsappUrl = `https://wa.me/${catalog.whatsapp}?text=${encodeURIComponent(lines.join('\n'))}`;
+      setCreatedOrder({ order: orderRes, whatsappUrl });
+      setCart({});
+      window.open(whatsappUrl, '_blank');
+    } catch (err) {
+      setOrderError(
+        getSafeErrorMessage(
+          err,
+          'Não foi possível registrar seu pedido agora. Tente novamente.'
+        )
       );
+    } finally {
+      setSubmittingOrder(false);
     }
-
-    if (customerNotes.trim()) {
-      lines.push('', `*Observações:* ${customerNotes.trim()}`);
-    }
-
-    const message = encodeURIComponent(lines.join('\n'));
-    window.open(`https://wa.me/${catalog.whatsapp}?text=${message}`, '_blank');
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50">
-        <Loader2 className="h-8 w-8 animate-spin text-stone-700" />
-      </div>
-    );
+    return <StorePageSkeleton />;
   }
 
   if (error || !catalog) {
@@ -294,6 +394,17 @@ export function StorePage() {
       {/* Header com Logo Circular ou Avatar de Iniciais */}
       <header className={`bg-gradient-to-br ${theme.headerGradient} text-white`}>
         <div className="mx-auto max-w-xl px-4 py-7">
+          {user && (
+            <div className="mb-3 flex justify-end">
+              <Link
+                to="/meus-pedidos"
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold text-white/95 backdrop-blur-xs transition hover:bg-white/25"
+              >
+                <ShoppingBag className="h-3 w-3" />
+                Meus Pedidos
+              </Link>
+            </div>
+          )}
           <div className="flex items-center gap-4">
             {logoSrc ? (
               <img
@@ -328,15 +439,15 @@ export function StorePage() {
       </header>
 
       <main className="mx-auto max-w-xl space-y-4 px-4 py-5">
-        {/* Datas disponíveis */}
-        {catalog.deliveryDates.length > 0 && (
+        {/* Datas disponíveis (somente não vencidas) */}
+        {activeDeliveryDates.length > 0 && (
           <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-2xs">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-stone-500">
               <Calendar className={`h-4 w-4 ${theme.primaryText}`} />
               Datas e turnos disponíveis
             </div>
             <div className="mt-2.5 flex flex-wrap gap-1.5">
-              {catalog.deliveryDates.map((date, idx) => (
+              {activeDeliveryDates.map((date, idx) => (
                 <span
                   key={idx}
                   className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${theme.softBg} ${theme.softText}`}
@@ -554,17 +665,106 @@ export function StorePage() {
               </h2>
               <button
                 type="button"
-                onClick={() => setCheckoutOpen(false)}
+                onClick={() => {
+                  setCheckoutOpen(false);
+                  setCreatedOrder(null);
+                  setOrderError(null);
+                }}
+                aria-label="Fechar"
                 className="rounded-full p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
+            {createdOrder ? (
+              <div className="mt-5 space-y-4 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                  <Check className="h-7 w-7" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-extrabold text-stone-900">
+                    Pedido #{createdOrder.order.orderNumber} registrado!
+                  </h3>
+                  <p className="mt-1 text-xs text-stone-500">
+                    Acompanhe o status em tempo real pelo link abaixo ou conclua o envio no WhatsApp da loja.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5 text-left">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-stone-500">
+                    Link de acompanhamento
+                  </p>
+                  <p className="mt-1 truncate font-mono text-xs font-semibold text-stone-800">
+                    {createdOrder.order.trackingUrl}
+                  </p>
+                  <div className="mt-2.5 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(
+                          createdOrder.order.trackingUrl
+                        );
+                        setCopiedTrack(true);
+                        setTimeout(() => setCopiedTrack(false), 2000);
+                      }}
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs font-bold text-stone-700 hover:bg-stone-100"
+                    >
+                      {copiedTrack ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 text-emerald-600" />
+                          Copiado!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5" />
+                          Copiar link
+                        </>
+                      )}
+                    </button>
+                    <Link
+                      to={`/pedido/${createdOrder.order.trackingCode}`}
+                      className="flex flex-1 items-center justify-center rounded-xl bg-stone-900 px-3 py-2 text-xs font-bold text-white hover:bg-stone-800"
+                    >
+                      Acompanhar pedido
+                    </Link>
+                  </div>
+                </div>
+
+                <a
+                  href={createdOrder.whatsappUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg transition hover:bg-emerald-700"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  Abrir WhatsApp da Loja
+                </a>
+              </div>
+            ) : (
             <form onSubmit={handleSendWhatsApp} className="mt-4 space-y-4">
+              {user ? (
+                <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800">
+                  <ShoppingBag className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  <span>
+                    Pedido salvo na sua conta (<strong>{user.name.split(' ')[0]}</strong>)
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-600">
+                  <span>Quer salvar seus pedidos?</span>
+                  <Link
+                    to={`/entrar?redirect=${encodeURIComponent(`/c/${slug}`)}`}
+                    className="shrink-0 font-bold text-rose-600 hover:underline"
+                  >
+                    Entrar / Criar conta
+                  </Link>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-stone-700">
-                  Seu Nome *
+                  Nome *
                 </label>
                 <input
                   type="text"
@@ -576,14 +776,61 @@ export function StorePage() {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-stone-700">
+                  WhatsApp (com DDD) *
+                </label>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={15}
+                  required
+                  value={customerPhone}
+                  onChange={(e) =>
+                    setCustomerPhone(formatPhoneMask(e.target.value))
+                  }
+                  placeholder="(75) 99999-9999"
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm outline-none focus:border-stone-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-700">
+                  Forma de Pagamento
+                </label>
+                <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+                  {(
+                    [
+                      { id: 'PIX', label: 'Pix' },
+                      { id: 'CARD', label: 'Cartão' },
+                      { id: 'CASH', label: 'Dinheiro' },
+                      { id: 'OTHER', label: 'Outro' },
+                    ] as const
+                  ).map((pm) => (
+                    <button
+                      key={pm.id}
+                      type="button"
+                      onClick={() => setPaymentMethod(pm.id)}
+                      className={`rounded-xl border py-2 text-xs font-bold transition ${
+                        paymentMethod === pm.id
+                          ? `${theme.softBorder} ${theme.softBg} ${theme.softText}`
+                          : 'border-stone-200 text-stone-600'
+                      }`}
+                    >
+                      {pm.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Seleção Visual de Datas/Turnos em Grade (Pills) ou Fallback Opcional */}
-              {catalog.deliveryDates.length > 0 ? (
+              {activeDeliveryDates.length > 0 ? (
                 <div>
                   <label className="block text-xs font-semibold text-stone-700">
                     Escolha a Data / Turno *
                   </label>
                   <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {catalog.deliveryDates.map((date) => {
+                    {activeDeliveryDates.map((date) => {
                       const isSelected = selectedDate === date;
                       return (
                         <button
@@ -604,6 +851,13 @@ export function StorePage() {
                       );
                     })}
                   </div>
+                </div>
+              ) : catalog.deliveryDates.length > 0 ? (
+                <div className="rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-2.5 text-xs text-stone-600">
+                  <strong className="font-semibold text-stone-800">
+                    Data / Turno:
+                  </strong>{' '}
+                  A combinar com a loja
                 </div>
               ) : (
                 <div>
@@ -732,14 +986,28 @@ export function StorePage() {
                 )}
               </div>
 
+              {orderError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700">
+                  {orderError}
+                </div>
+              )}
+
               <button
                 type="submit"
-                className={`flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-bold shadow-lg transition ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText} ${theme.shadowColor}`}
+                disabled={submittingOrder}
+                className={`flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-bold shadow-lg transition disabled:opacity-60 ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText} ${theme.shadowColor}`}
               >
-                <MessageCircle className="h-5 w-5" />
-                Enviar Pedido no WhatsApp
+                {submittingOrder ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <MessageCircle className="h-5 w-5" />
+                )}
+                {submittingOrder
+                  ? 'Registrando pedido...'
+                  : 'Confirmar e Enviar no WhatsApp'}
               </button>
             </form>
+            )}
           </div>
         </div>
       )}
