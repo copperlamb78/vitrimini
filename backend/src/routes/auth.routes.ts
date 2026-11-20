@@ -20,6 +20,7 @@ import {
 
 const router = Router();
 
+const CURRENT_TERMS_VERSION = '1.0-2026-11';
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutos
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 dias
 const REFRESH_COOKIE_NAME = 'vitrimini_refresh_token';
@@ -147,12 +148,16 @@ router.post(
 
       const passwordHash = await bcrypt.hash(parsed.password.trim(), 10);
 
+      const now = new Date();
       const user = await prisma.user.create({
         data: {
           name: parsed.name,
           email: parsed.email,
           phone: parsed.phone,
           passwordHash,
+          termsAcceptedAt: now,
+          privacyAcceptedAt: now,
+          termsVersion: CURRENT_TERMS_VERSION,
         },
         select: {
           id: true,
