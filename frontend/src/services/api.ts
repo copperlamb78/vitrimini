@@ -5,6 +5,7 @@ import type {
   AuthUser,
   Catalog,
   CatalogAnalytics,
+  CatalogPlanCode,
   CatalogStatusResponse,
   CreateCatalogResponse,
   CreateOrderResponse,
@@ -12,6 +13,7 @@ import type {
   MyCatalogsResponse,
   MyCustomerOrder,
   Order,
+  OrderPaymentChannel,
   OrderPaymentMethod,
   OrderStatus,
   PublicTrackedOrder,
@@ -311,15 +313,63 @@ export async function createCatalog(
 }
 
 export async function renewCatalog(
-  catalogId: string
+  catalogId: string,
+  planCode: CatalogPlanCode = 'ESSENTIAL_90D'
 ): Promise<CreateCatalogResponse> {
   return safeRequest<CreateCatalogResponse>(
     `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}/renew`,
     {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ planCode }),
     },
     'Não foi possível gerar o Pix de renovação agora. Tente novamente em instantes.'
+  );
+}
+
+export async function getMercadoPagoConnectUrl(
+  catalogId: string
+): Promise<{ authUrl: string }> {
+  return safeRequest<{ authUrl: string }>(
+    `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}/integrations/mercadopago/connect`,
+    {
+      headers: getAuthHeaders(),
+    },
+    'Não foi possível iniciar a conexão com o Mercado Pago agora.'
+  );
+}
+
+export async function toggleMercadoPagoOnlinePayment(
+  catalogId: string,
+  enabled: boolean
+): Promise<{ onlinePaymentEnabled: boolean }> {
+  return safeRequest<{ onlinePaymentEnabled: boolean }>(
+    `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}/integrations/mercadopago/toggle`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ enabled }),
+    },
+    'Não foi possível atualizar a configuração de pagamento online.'
+  );
+}
+
+export async function disconnectMercadoPago(
+  catalogId: string
+): Promise<{ disconnected: boolean }> {
+  return safeRequest<{ disconnected: boolean }>(
+    `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}/integrations/mercadopago`,
+    {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    },
+    'Não foi possível desconectar sua conta Mercado Pago agora.'
   );
 }
 
@@ -447,6 +497,7 @@ export async function createStoreOrder(
     deliveryAddress?: string | null;
     deliveryDate?: string | null;
     paymentMethod: OrderPaymentMethod;
+    paymentChannel?: OrderPaymentChannel;
     notes?: string | null;
     items: Array<{ productId: string; quantity: number }>;
   }
