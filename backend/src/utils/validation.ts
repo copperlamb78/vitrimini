@@ -180,6 +180,18 @@ export const catalogMetadataSchema = z.object({
     .refine((val) => [0, 50, 100].includes(val), {
       message: 'Porcentagem de sinal deve ser 0, 50 ou 100.',
     }),
+  paymentNotice: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((val) => {
+      if (!val) return null;
+      const cleaned = sanitizePlainText(val);
+      return cleaned.length > 0 ? cleaned : null;
+    })
+    .refine((val) => val === null || val.length <= 140, {
+      message: 'Aviso de pagamento muito longo (máximo 140 caracteres).',
+    }),
   themeColor: z
     .enum(['rose', 'red', 'amber', 'emerald', 'purple', 'zinc'])
     .optional()

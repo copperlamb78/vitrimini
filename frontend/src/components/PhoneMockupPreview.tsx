@@ -15,6 +15,7 @@ interface PhoneMockupPreviewProps {
   notes: string;
   deliveryDates: string[];
   depositPct: number;
+  paymentNotice?: string;
   products: DraftProductItem[];
 }
 
@@ -24,7 +25,8 @@ export function PhoneMockupPreview({
   themeColor,
   notes,
   deliveryDates,
-  depositPct,
+  depositPct: _depositPct,
+  paymentNotice,
   products,
 }: PhoneMockupPreviewProps) {
   const displayTitle = storeName.trim() || 'Sua Loja de Encomendas';
@@ -62,11 +64,11 @@ export function PhoneMockupPreview({
               <h3 className="truncate text-base font-extrabold leading-tight">
                 {displayTitle}
               </h3>
-              <p className="mt-0.5 text-[11px] text-white/90">
-                {depositPct > 0
-                  ? `Encomenda com ${depositPct}% de sinal via Pix`
-                  : 'Encomenda sem sinal antecipado'}
-              </p>
+              {paymentNotice?.trim() && (
+                <p className="mt-0.5 text-[11px] text-white/90">
+                  {paymentNotice}
+                </p>
+              )}
             </div>
           </div>
         </div>

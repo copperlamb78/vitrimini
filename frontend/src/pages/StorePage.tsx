@@ -428,11 +428,11 @@ export function StorePage() {
               <h1 className="truncate text-xl font-extrabold tracking-tight sm:text-2xl">
                 {catalog.storeName}
               </h1>
-              <p className="mt-0.5 text-xs text-white/90">
-                {catalog.depositPct > 0
-                  ? `Encomenda mediante sinal de ${catalog.depositPct}% via Pix`
-                  : 'Faça sua encomenda online e envie no WhatsApp'}
-              </p>
+              {catalog.paymentNotice?.trim() && (
+                <p className="mt-0.5 text-xs text-white/90">
+                  {catalog.paymentNotice}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -610,9 +610,11 @@ export function StorePage() {
 
         {/* Assinatura Viral VitriMini */}
         <footer className="pt-6 text-center">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-stone-200/80 bg-white/80 px-3.5 py-1.5 text-xs text-stone-500 shadow-2xs transition hover:border-stone-300 hover:bg-white hover:text-stone-700"
+          <a
+            href="https://vitrimini.com.br/?ref=vitrine"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-full border border-stone-200/80 bg-white/85 px-3.5 py-1.5 text-xs text-stone-500 shadow-2xs transition hover:border-stone-300 hover:bg-white hover:text-stone-700"
           >
             <img
               src={logoIcon}
@@ -623,7 +625,7 @@ export function StorePage() {
               Vitrine criada com{' '}
               <strong className="font-bold text-stone-700">VitriMini</strong> — Crie a sua em 2 minutos
             </span>
-          </Link>
+          </a>
         </footer>
       </main>
 

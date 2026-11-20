@@ -23,6 +23,7 @@ interface CatalogLivePreviewProps {
   logoUrl: string | null;
   themeColor: ThemeId;
   depositPct: number;
+  paymentNotice?: string;
   deliveryDates: string[];
   notes: string;
   pickupAddress: string;
@@ -34,7 +35,8 @@ export const CatalogLivePreview = memo(function CatalogLivePreview({
   storeName,
   logoUrl,
   themeColor,
-  depositPct,
+  depositPct: _depositPct,
+  paymentNotice,
   deliveryDates,
   notes,
   pickupAddress,
@@ -80,11 +82,11 @@ export const CatalogLivePreview = memo(function CatalogLivePreview({
               <p className="truncate text-base font-extrabold leading-tight">
                 {displayTitle}
               </p>
-              <p className="mt-0.5 text-[11px] text-white/90">
-                {depositPct > 0
-                  ? `Encomenda mediante sinal de ${depositPct}% via Pix`
-                  : 'Faça sua encomenda online e envie no WhatsApp'}
-              </p>
+              {paymentNotice?.trim() && (
+                <p className="mt-0.5 text-[11px] text-white/90">
+                  {paymentNotice}
+                </p>
+              )}
             </div>
           </div>
         </div>

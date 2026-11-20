@@ -95,6 +95,7 @@ model Catalog {
   whatsapp            String           // Apenas números com DDI, ex: 5575999999999
   pixKey              String?          // Chave Pix do lojista para receber o sinal dos clientes
   depositPct          Int              @default(50) // Porcentagem de sinal (0, 50 ou 100)
+  paymentNotice       String?          // Aviso personalizado de pagamento exibido na vitrine
   deliveryDates       String[]         // Ex: ["24/12 (Qui) • Manhã", "24/12 (Qui) • Tarde"]
   notes               String?          // Regras gerais da loja
   pickupAddress       String?          // Endereço da loja para retirada

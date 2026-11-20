@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   Save,
@@ -13,6 +13,7 @@ import {
   BarChart3,
   Settings2,
   Eye,
+  QrCode,
   X,
 } from 'lucide-react';
 import type { Catalog } from '../types/catalog';
@@ -43,6 +44,12 @@ import { DeliveryScheduleEditor } from '../components/DeliveryScheduleEditor';
 import { CatalogOrdersTab } from '../components/CatalogOrdersTab';
 import { CatalogAnalyticsTab } from '../components/CatalogAnalyticsTab';
 import { CatalogLivePreview } from '../components/CatalogLivePreview';
+
+const ShareCatalogModal = lazy(() =>
+  import('../components/ShareCatalogModal').then((m) => ({
+    default: m.ShareCatalogModal,
+  }))
+);
 import { ManagePageSkeleton } from '../components/Skeletons';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
@@ -68,6 +75,7 @@ export function ManagePage() {
   const [activeTab, setActiveTab] = useState<ManageTab>('orders');
   const [pendingOrdersCount, setPendingOrdersCount] = useState<number>(0);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +98,7 @@ export function ManagePage() {
   const [whatsapp, setWhatsapp] = useState('');
   const [pixKey, setPixKey] = useState('');
   const [depositPct, setDepositPct] = useState(50);
+  const [paymentNotice, setPaymentNotice] = useState('');
   const [deliveryDates, setDeliveryDates] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [pickupAddress, setPickupAddress] = useState('');
@@ -98,6 +107,27 @@ export function ManagePage() {
   const [notifyOrderByEmail, setNotifyOrderByEmail] = useState(true);
   const [products, setProducts] = useState<EditableProduct[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const deferredStoreName = useDeferredValue(storeName);
+  const deferredPaymentNotice = useDeferredValue(paymentNotice);
+  const deferredNotes = useDeferredValue(notes);
+  const deferredPickupAddress = useDeferredValue(pickupAddress);
+  const deferredDeliveryEstimate = useDeferredValue(deliveryEstimate);
+  const deferredDeliveryDates = useDeferredValue(deliveryDates);
+  const deferredProducts = useDeferredValue(products);
+
+  const previewProducts = useMemo(
+    () =>
+      deferredProducts.map((p) => ({
+        localId: p.localId,
+        name: p.name,
+        description: p.description,
+        priceInput: p.priceInput,
+        available: p.available,
+        imageUrl: p.previewDataUrl || resolveImageUrl(p.imageUrl),
+      })),
+    [deferredProducts]
+  );
 
   const activeTheme = getTheme(themeColor);
 
@@ -135,6 +165,7 @@ export function ManagePage() {
         setWhatsapp(formatPhoneMask(data.whatsapp));
         setPixKey(data.pixKey || '');
         setDepositPct(data.depositPct);
+        setPaymentNotice(data.paymentNotice || '');
         setDeliveryDates(data.deliveryDates);
         setNotes(data.notes || '');
         setPickupAddress(data.pickupAddress || '');
@@ -261,6 +292,7 @@ export function ManagePage() {
       formData.append('whatsapp', phoneToDDI(whatsapp));
       formData.append('pixKey', pixKey.trim());
       formData.append('depositPct', String(depositPct));
+      formData.append('paymentNotice', paymentNotice.trim());
       formData.append('deliveryDates', JSON.stringify(deliveryDates));
       formData.append('notes', notes.trim());
       formData.append('pickupAddress', pickupAddress.trim());
@@ -354,26 +386,6 @@ export function ManagePage() {
     logoPreviewDataUrl ||
     (!removeLogo ? resolveImageUrl(existingLogoUrl) : null);
 
-  const deferredStoreName = useDeferredValue(storeName);
-  const deferredNotes = useDeferredValue(notes);
-  const deferredPickupAddress = useDeferredValue(pickupAddress);
-  const deferredDeliveryEstimate = useDeferredValue(deliveryEstimate);
-  const deferredDeliveryDates = useDeferredValue(deliveryDates);
-  const deferredProducts = useDeferredValue(products);
-
-  const previewProducts = useMemo(
-    () =>
-      deferredProducts.map((p) => ({
-        localId: p.localId,
-        name: p.name,
-        description: p.description,
-        priceInput: p.priceInput,
-        available: p.available,
-        imageUrl: p.previewDataUrl || resolveImageUrl(p.imageUrl),
-      })),
-    [deferredProducts]
-  );
-
   return (
     <div className="min-h-screen bg-stone-50 pb-20">
       <header className="border-b border-stone-200 bg-white">
@@ -400,15 +412,25 @@ export function ManagePage() {
           <div className="flex shrink-0 items-center gap-2">
             <Link
               to="/minhas-vitrines"
-              className="hidden rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100 sm:inline-block"
+              className="hidden cursor-pointer rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100 sm:inline-block"
             >
               Minhas Vitrines
             </Link>
+            {catalogMeta?.slug && (
+              <button
+                type="button"
+                onClick={() => setShareModalOpen(true)}
+                className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs font-bold text-stone-700 transition hover:bg-stone-50"
+              >
+                <QrCode className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Divulgar</span>
+              </button>
+            )}
             <a
               href={publicLink}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-xs font-bold text-stone-700 hover:bg-stone-50"
+              className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-xs font-bold text-stone-700 hover:bg-stone-50"
             >
               Ver Vitrine
               <ExternalLink className="h-3.5 w-3.5" />
@@ -757,6 +779,23 @@ export function ManagePage() {
               </div>
 
               <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-stone-700">
+                  Descrição da vitrine (opcional)
+                </label>
+                <input
+                  type="text"
+                  maxLength={140}
+                  value={paymentNotice}
+                  onChange={(e) => setPaymentNotice(e.target.value)}
+                  placeholder="Ex.: Doces artesanais sob encomenda • Retirada ou entrega"
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm outline-none focus:border-stone-900"
+                />
+                <p className="mt-1 text-[11px] text-stone-500">
+                  Aparece logo abaixo do nome da sua loja no topo da vitrine. Deixe em branco se não quiser exibir.
+                </p>
+              </div>
+
+              <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-xs font-semibold text-stone-700">
                   Datas e Turnos de Entrega / Retirada
                 </label>
@@ -879,6 +918,7 @@ export function ManagePage() {
                 logoUrl={displayedLogo}
                 themeColor={themeColor}
                 depositPct={depositPct}
+                paymentNotice={deferredPaymentNotice}
                 deliveryDates={deferredDeliveryDates}
                 notes={deferredNotes}
                 pickupAddress={deferredPickupAddress}
@@ -917,6 +957,7 @@ export function ManagePage() {
               logoUrl={displayedLogo}
               themeColor={themeColor}
               depositPct={depositPct}
+              paymentNotice={deferredPaymentNotice}
               deliveryDates={deferredDeliveryDates}
               notes={deferredNotes}
               pickupAddress={deferredPickupAddress}
@@ -925,6 +966,17 @@ export function ManagePage() {
             />
           </div>
         </div>
+      )}
+
+      {shareModalOpen && catalogMeta?.slug && (
+        <Suspense fallback={null}>
+          <ShareCatalogModal
+            storeName={storeName || 'Minha Vitrine'}
+            slug={catalogMeta.slug}
+            themeColor={themeColor}
+            onClose={() => setShareModalOpen(false)}
+          />
+        </Suspense>
       )}
     </div>
   );

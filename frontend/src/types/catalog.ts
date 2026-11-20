@@ -44,6 +44,7 @@ export interface Catalog {
   whatsapp: string;
   pixKey: string | null;
   depositPct: number;
+  paymentNotice?: string | null;
   deliveryDates: string[];
   notes: string | null;
   pickupAddress?: string | null;

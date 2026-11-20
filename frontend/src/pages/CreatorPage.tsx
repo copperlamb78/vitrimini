@@ -84,6 +84,7 @@ export function CreatorPage() {
   const [whatsapp, setWhatsapp] = useState('');
   const [pixKey, setPixKey] = useState('');
   const [depositPct, setDepositPct] = useState<number>(50);
+  const [paymentNotice, setPaymentNotice] = useState('');
   const [deliveryDates, setDeliveryDates] = useState<string[]>([
     '23/12 (Qua) • Tarde',
     '24/12 (Qui) • Manhã',
@@ -291,6 +292,7 @@ export function CreatorPage() {
         formData.append('whatsapp', digits);
         formData.append('pixKey', pixKey.trim());
         formData.append('depositPct', String(depositPct));
+        formData.append('paymentNotice', paymentNotice.trim());
         formData.append('deliveryDates', JSON.stringify(deliveryDates));
         formData.append('notes', notes.trim());
 
@@ -610,6 +612,23 @@ export function CreatorPage() {
                 </div>
 
                 <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-stone-700">
+                    Descrição da vitrine (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={140}
+                    value={paymentNotice}
+                    onChange={(e) => setPaymentNotice(e.target.value)}
+                    placeholder="Ex.: Doces artesanais sob encomenda • Retirada ou entrega"
+                    className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm outline-none focus:border-stone-900"
+                  />
+                  <p className="mt-1 text-[11px] text-stone-500">
+                    Aparece logo abaixo do nome da sua loja no topo da vitrine. Deixe em branco se não quiser exibir.
+                  </p>
+                </div>
+
+                <div className="sm:col-span-2">
                   <label className="mb-1.5 block text-xs font-semibold text-stone-700">
                     Datas e Turnos de Entrega / Retirada
                   </label>
@@ -873,6 +892,7 @@ export function CreatorPage() {
                 notes={notes}
                 deliveryDates={deliveryDates}
                 depositPct={depositPct}
+                paymentNotice={paymentNotice}
                 products={products}
               />
             </div>

@@ -245,6 +245,7 @@ router.post(
         whatsapp: req.body.whatsapp,
         pixKey: req.body.pixKey,
         depositPct: req.body.depositPct,
+        paymentNotice: req.body.paymentNotice,
         themeColor: normalizeThemeColor(req.body.themeColor),
         notes: req.body.notes,
         deliveryDates: rawDeliveryDates,
@@ -306,6 +307,7 @@ router.post(
             whatsapp: meta.whatsapp,
             pixKey: meta.pixKey,
             depositPct: meta.depositPct,
+            paymentNotice: meta.paymentNotice,
             deliveryDates: meta.deliveryDates.filter(Boolean),
             notes: meta.notes,
             products: {
@@ -753,6 +755,7 @@ router.get(
           whatsapp: true,
           pixKey: true,
           depositPct: true,
+          paymentNotice: true,
           deliveryDates: true,
           notes: true,
           expiresAt: true,
@@ -819,6 +822,7 @@ router.get(
         whatsapp: catalog.whatsapp,
         pixKey: catalog.pixKey,
         depositPct: catalog.depositPct,
+        paymentNotice: catalog.paymentNotice,
         deliveryDates: catalog.deliveryDates,
         notes: catalog.notes,
         expiresAt: catalog.expiresAt,
@@ -882,6 +886,7 @@ router.get(
           whatsapp: true,
           pixKey: true,
           depositPct: true,
+          paymentNotice: true,
           deliveryDates: true,
           notes: true,
           pickupAddress: true,
@@ -935,6 +940,7 @@ router.get(
           whatsapp: true,
           pixKey: true,
           depositPct: true,
+          paymentNotice: true,
           deliveryDates: true,
           notes: true,
           pickupAddress: true,
@@ -1040,6 +1046,13 @@ async function handleAuthenticatedCatalogUpdate(
             ? sanitizePlainText(String(req.body.pixKey)).slice(0, 140)
             : null
           : existing.pixKey;
+
+      const cleanPaymentNotice =
+        req.body.paymentNotice !== undefined
+          ? req.body.paymentNotice
+            ? sanitizePlainText(String(req.body.paymentNotice)).slice(0, 140) || null
+            : null
+          : existing.paymentNotice;
 
       const cleanNotes =
         req.body.notes !== undefined
@@ -1159,6 +1172,7 @@ async function handleAuthenticatedCatalogUpdate(
               whatsapp: cleanWhatsapp,
               pixKey: cleanPixKey,
               depositPct,
+              paymentNotice: cleanPaymentNotice,
               deliveryDates,
               notes: cleanNotes,
               pickupAddress: cleanPickupAddress,
@@ -1227,6 +1241,7 @@ async function handleAuthenticatedCatalogUpdate(
               whatsapp: true,
               pixKey: true,
               depositPct: true,
+              paymentNotice: true,
               deliveryDates: true,
               notes: true,
               notifyOrderByEmail: true,

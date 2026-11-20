@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -13,6 +13,7 @@ import {
   Calendar,
   Sparkles,
   ShoppingBag,
+  QrCode,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -30,6 +31,12 @@ import { applyPageSeo } from '../utils/seo';
 import { PixPaymentModal } from '../components/PixPaymentModal';
 import { MyCatalogsSkeleton } from '../components/Skeletons';
 import logoVitriMini from '../assets/logo-vitrimini.png';
+
+const ShareCatalogModal = lazy(() =>
+  import('../components/ShareCatalogModal').then((m) => ({
+    default: m.ShareCatalogModal,
+  }))
+);
 
 function formatExpirationDate(iso: string | null): string | null {
   if (!iso) return null;
@@ -51,6 +58,11 @@ export function MyCatalogsPage() {
   const [paymentModalData, setPaymentModalData] =
     useState<CreateCatalogResponse | null>(null);
   const [isModalRenewal, setIsModalRenewal] = useState(true);
+  const [shareCatalog, setShareCatalog] = useState<{
+    storeName: string;
+    slug: string;
+    themeColor: string;
+  } | null>(null);
 
   const fetchCatalogs = useCallback(async () => {
     setLoading(true);
@@ -349,6 +361,24 @@ export function MyCatalogsPage() {
                       </Link>
                     </div>
 
+                    {/* Botão discreto de Divulgação / QR Code para vitrines ativas */}
+                    {cat.status === 'ACTIVE' && !cat.isExpired && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShareCatalog({
+                            storeName: cat.storeName,
+                            slug: cat.slug,
+                            themeColor: cat.themeColor,
+                          })
+                        }
+                        className="flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-xs font-bold text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900"
+                      >
+                        <QrCode className="h-3.5 w-3.5 text-zinc-500" />
+                        Divulgar / QR Code
+                      </button>
+                    )}
+
                     {/* Botão de Renovação / Ativação (+90 dias — R$ 24,90) */}
                     <button
                       type="button"
@@ -390,6 +420,17 @@ export function MyCatalogsPage() {
             void fetchCatalogs();
           }}
         />
+      )}
+
+      {shareCatalog && (
+        <Suspense fallback={null}>
+          <ShareCatalogModal
+            storeName={shareCatalog.storeName}
+            slug={shareCatalog.slug}
+            themeColor={shareCatalog.themeColor}
+            onClose={() => setShareCatalog(null)}
+          />
+        </Suspense>
       )}
     </div>
   );

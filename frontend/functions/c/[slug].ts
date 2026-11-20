@@ -14,17 +14,25 @@ interface StorePayload {
   products?: StoreProduct[];
 }
 
+interface HTMLRewriterElement {
+  setInnerContent(content: string, options?: { html?: boolean }): void;
+  setAttribute(name: string, value: string): void;
+}
+
+declare class HTMLRewriter {
+  on(
+    selector: string,
+    handlers: {
+      element(element: HTMLRewriterElement): void;
+    }
+  ): HTMLRewriter;
+  transform(response: Response): Response;
+}
+
+const SLUG_REGEX = /^[a-z0-9-]{1,120}$/;
 const CRAWLER_UA_REGEX =
   /WhatsApp|facebookexternalhit|Facebot|Twitterbot|LinkedInBot|Slackbot|TelegramBot|Discordbot|Googlebot|bingbot|Applebot|Pinterest/i;
-
-function escapeHtml(raw: string): string {
-  return raw
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+const DEFAULT_OG_IMAGE = 'https://vitrimini.com.br/og-cover.png';
 
 export async function onRequestGet(context: {
   request: Request;
@@ -34,19 +42,16 @@ export async function onRequestGet(context: {
   const ua = context.request.headers.get('user-agent') || '';
   const slug = (context.params.slug || '').trim().toLowerCase();
 
-  if (!slug || !CRAWLER_UA_REGEX.test(ua)) {
+  // FinOps: visitantes humanos e slugs inválidos seguem direto para o SPA sem carga na API
+  if (!SLUG_REGEX.test(slug) || !CRAWLER_UA_REGEX.test(ua)) {
     return context.next();
   }
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3500);
-
     const apiRes = await fetch(
       `https://api.vitrimini.com.br/api/store/${encodeURIComponent(slug)}`,
-      { signal: controller.signal }
+      { signal: AbortSignal.timeout(2500) }
     );
-    clearTimeout(timeout);
 
     if (!apiRes.ok) {
       return context.next();
@@ -60,14 +65,12 @@ export async function onRequestGet(context: {
       `Confira os produtos de ${storeName} e faça sua encomenda online direto pelo WhatsApp.`;
     const canonicalUrl = `https://vitrimini.com.br/c/${encodeURIComponent(slug)}`;
 
-    const firstProductImage = store.products?.find((p) => p.imageUrl)?.imageUrl;
-    const rawImage = store.logoUrl || firstProductImage || '';
-    const isUsingDefaultCover = !rawImage.startsWith('http');
-    const ogImage = isUsingDefaultCover
-      ? 'https://vitrimini.com.br/og-cover.png'
-      : rawImage;
-    const ogImageWidth = isUsingDefaultCover ? '1200' : '900';
-    const ogImageHeight = isUsingDefaultCover ? '630' : '900';
+    const hasHttpsLogo =
+      typeof store.logoUrl === 'string' &&
+      store.logoUrl.trim().startsWith('https://');
+    const ogImage = hasHttpsLogo ? store.logoUrl!.trim() : DEFAULT_OG_IMAGE;
+    const ogImageWidth = hasHttpsLogo ? '512' : '1200';
+    const ogImageHeight = hasHttpsLogo ? '512' : '630';
 
     const jsonLd = {
       '@context': 'https://schema.org',
@@ -88,47 +91,97 @@ export async function onRequestGet(context: {
           '@type': 'Product',
           name: p.name,
           ...(p.description ? { description: p.description } : {}),
-          ...(p.imageUrl ? { image: p.imageUrl } : {}),
+          ...(p.imageUrl && p.imageUrl.startsWith('https://')
+            ? { image: p.imageUrl }
+            : {}),
         },
       })),
     };
 
-    const html = `<!doctype html>
-<html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${escapeHtml(title)}</title>
-    <meta name="description" content="${escapeHtml(description)}" />
-    <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
-    <meta name="robots" content="index, follow" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="VitriMini" />
-    <meta property="og:locale" content="pt_BR" />
-    <meta property="og:title" content="${escapeHtml(title)}" />
-    <meta property="og:description" content="${escapeHtml(description)}" />
-    <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
-    <meta property="og:image" content="${escapeHtml(ogImage)}" />
-    <meta property="og:image:width" content="${ogImageWidth}" />
-    <meta property="og:image:height" content="${ogImageHeight}" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="${escapeHtml(title)}" />
-    <meta name="twitter:description" content="${escapeHtml(description)}" />
-    <meta name="twitter:image" content="${escapeHtml(ogImage)}" />
-    <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
-  </head>
-  <body>
-    <h1>${escapeHtml(storeName)}</h1>
-    <p>${escapeHtml(description)}</p>
-  </body>
-</html>`;
+    const baseRes = await context.next();
+    const contentType = baseRes.headers.get('content-type') || '';
+    if (!baseRes.ok || !contentType.includes('text/html')) {
+      return baseRes;
+    }
 
-    return new Response(html, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, max-age=300',
-      },
+    const rewritten = new HTMLRewriter()
+      .on('title', {
+        element(el) {
+          el.setInnerContent(title);
+        },
+      })
+      .on('meta[name="description"]', {
+        element(el) {
+          el.setAttribute('content', description);
+        },
+      })
+      .on('link[rel="canonical"]', {
+        element(el) {
+          el.setAttribute('href', canonicalUrl);
+        },
+      })
+      .on('meta[property="og:title"]', {
+        element(el) {
+          el.setAttribute('content', title);
+        },
+      })
+      .on('meta[property="og:description"]', {
+        element(el) {
+          el.setAttribute('content', description);
+        },
+      })
+      .on('meta[property="og:url"]', {
+        element(el) {
+          el.setAttribute('content', canonicalUrl);
+        },
+      })
+      .on('meta[property="og:image"]', {
+        element(el) {
+          el.setAttribute('content', ogImage);
+        },
+      })
+      .on('meta[property="og:image:width"]', {
+        element(el) {
+          el.setAttribute('content', ogImageWidth);
+        },
+      })
+      .on('meta[property="og:image:height"]', {
+        element(el) {
+          el.setAttribute('content', ogImageHeight);
+        },
+      })
+      .on('meta[name="twitter:title"]', {
+        element(el) {
+          el.setAttribute('content', title);
+        },
+      })
+      .on('meta[name="twitter:description"]', {
+        element(el) {
+          el.setAttribute('content', description);
+        },
+      })
+      .on('meta[name="twitter:image"]', {
+        element(el) {
+          el.setAttribute('content', ogImage);
+        },
+      })
+      .on('script#vitrimini-jsonld', {
+        element(el) {
+          el.setInnerContent(
+            JSON.stringify(jsonLd).replace(/</g, '\\u003c'),
+            { html: true }
+          );
+        },
+      })
+      .transform(baseRes);
+
+    const headers = new Headers(rewritten.headers);
+    headers.set('Cache-Control', 'public, max-age=300');
+    headers.set('Vary', 'User-Agent');
+
+    return new Response(rewritten.body, {
+      status: rewritten.status,
+      headers,
     });
   } catch {
     return context.next();
