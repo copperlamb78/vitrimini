@@ -133,6 +133,7 @@ export function ManagePage() {
   const [whatsapp, setWhatsapp] = useState('');
   const [pixKey, setPixKey] = useState('');
   const [depositPct, setDepositPct] = useState(50);
+  const [minOrderInput, setMinOrderInput] = useState('0,00');
   const [paymentNotice, setPaymentNotice] = useState('');
   const [deliveryDates, setDeliveryDates] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
@@ -231,6 +232,7 @@ export function ManagePage() {
         setWhatsapp(formatPhoneMask(data.whatsapp));
         setPixKey(data.pixKey || '');
         setDepositPct(data.depositPct);
+        setMinOrderInput(centsToPriceInput(data.minOrderCents ?? 0));
         setPaymentNotice(data.paymentNotice || '');
         setDeliveryDates(data.deliveryDates);
         setNotes(data.notes || '');
@@ -358,6 +360,10 @@ export function ManagePage() {
       formData.append('whatsapp', phoneToDDI(whatsapp));
       formData.append('pixKey', pixKey.trim());
       formData.append('depositPct', String(depositPct));
+      formData.append(
+        'minOrderCents',
+        String(parsePriceToCents(minOrderInput))
+      );
       formData.append('paymentNotice', paymentNotice.trim());
       formData.append('deliveryDates', JSON.stringify(deliveryDates));
       formData.append('notes', notes.trim());
@@ -929,6 +935,31 @@ export function ManagePage() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-stone-700">
+                  Valor mínimo do pedido (opcional)
+                </label>
+                <div className="relative mt-1 max-w-xs">
+                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-500">
+                    R$
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={minOrderInput}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+                      setMinOrderInput(centsToPriceInput(digits ? Number(digits) : 0));
+                    }}
+                    placeholder="0,00"
+                    className="w-full rounded-xl border border-stone-300 py-2.5 pl-10 pr-3.5 text-sm outline-none focus:border-stone-900"
+                  />
+                </div>
+                <p className="mt-1 text-[11px] text-stone-500">
+                  Deixe em R$ 0,00 para não exigir valor mínimo.
+                </p>
               </div>
 
               <div className="sm:col-span-2">
