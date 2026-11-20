@@ -58,17 +58,17 @@ router.get(
         prisma.order.count(),
         prisma.catalogPayment.aggregate({
           where: { status: 'PAID', paidAt: { gte: todayStart } },
-          _sum: { amountCents: true },
+          _sum: { amountCents: true, feeCents: true, netAmountCents: true },
           _count: { _all: true },
         }),
         prisma.catalogPayment.aggregate({
           where: { status: 'PAID', paidAt: { gte: thirtyDaysAgo } },
-          _sum: { amountCents: true },
+          _sum: { amountCents: true, feeCents: true, netAmountCents: true },
           _count: { _all: true },
         }),
         prisma.catalogPayment.aggregate({
           where: { status: 'PAID' },
-          _sum: { amountCents: true },
+          _sum: { amountCents: true, feeCents: true, netAmountCents: true },
           _count: { _all: true },
         }),
         prisma.catalog.findMany({
@@ -170,6 +170,41 @@ router.get(
           payments30dCount: paid30dAgg._count._all,
           revenueTotalCents: paidTotalAgg._sum.amountCents || 0,
           paymentsTotalCount: paidTotalAgg._count._all,
+          revenue: {
+            today: {
+              grossCents: paidTodayAgg._sum.amountCents || 0,
+              feeCents: paidTodayAgg._sum.feeCents || 0,
+              netCents:
+                paidTodayAgg._sum.netAmountCents ??
+                Math.max(
+                  0,
+                  (paidTodayAgg._sum.amountCents || 0) -
+                    (paidTodayAgg._sum.feeCents || 0)
+                ),
+            },
+            last30d: {
+              grossCents: paid30dAgg._sum.amountCents || 0,
+              feeCents: paid30dAgg._sum.feeCents || 0,
+              netCents:
+                paid30dAgg._sum.netAmountCents ??
+                Math.max(
+                  0,
+                  (paid30dAgg._sum.amountCents || 0) -
+                    (paid30dAgg._sum.feeCents || 0)
+                ),
+            },
+            total: {
+              grossCents: paidTotalAgg._sum.amountCents || 0,
+              feeCents: paidTotalAgg._sum.feeCents || 0,
+              netCents:
+                paidTotalAgg._sum.netAmountCents ??
+                Math.max(
+                  0,
+                  (paidTotalAgg._sum.amountCents || 0) -
+                    (paidTotalAgg._sum.feeCents || 0)
+                ),
+            },
+          },
         },
         recentCatalogs,
         recentPayments,
