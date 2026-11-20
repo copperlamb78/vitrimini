@@ -63,6 +63,10 @@ export const registerSchema = z.object({
     .string()
     .min(6, 'A senha precisa ter pelo menos 6 caracteres.')
     .max(128, 'A senha excede o tamanho máximo permitido.'),
+  acceptTerms: z.literal(true, {
+    message:
+      'Você precisa aceitar os Termos de Uso e a Política de Privacidade para criar sua conta.',
+  }),
 });
 
 export const loginSchema = z.object({
