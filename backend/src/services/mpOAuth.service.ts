@@ -37,12 +37,16 @@ export function getMpOAuthConfig() {
   return { appId, clientSecret, redirectUri };
 }
 
-export function buildMpAuthorizationUrl(catalogId: string, userId: string): string {
+export function buildMpAuthorizationUrl(
+  catalogId: string,
+  userId: string,
+  nonce?: string
+): string {
   const { appId, redirectUri } = getMpOAuthConfig();
   if (!appId) {
     throw new Error('MP_APP_ID não configurado no servidor.');
   }
-  const state = signMpOAuthState(catalogId, userId);
+  const state = signMpOAuthState(catalogId, userId, nonce);
   const params = new URLSearchParams({
     client_id: appId,
     response_type: 'code',
@@ -51,6 +55,31 @@ export function buildMpAuthorizationUrl(catalogId: string, userId: string): stri
     redirect_uri: redirectUri,
   });
   return `https://auth.mercadopago.com/authorization?${params.toString()}`;
+}
+
+export async function fetchMpUserId(accessToken: string): Promise<string | null> {
+  const res = await fetch('https://api.mercadopago.com/users/me', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: 'application/json',
+    },
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    console.error('[MP Users Me Error]:', res.status, errBody);
+    return null;
+  }
+
+  const data = (await res.json()) as { id?: number | string };
+  if (
+    data?.id !== undefined &&
+    data?.id !== null &&
+    String(data.id).trim() !== ''
+  ) {
+    return String(data.id).trim();
+  }
+  return null;
 }
 
 interface MpOAuthTokenResponse {
@@ -297,6 +326,10 @@ export async function fetchMerchantMpPayment(
 ): Promise<{
   id: string;
   status: string;
+  status_detail?: string;
+  transaction_amount?: number;
+  currency_id?: string;
+  collector_id?: string;
   external_reference?: string;
   netReceivedCents?: number;
   feeCentsFromDetails?: number;
@@ -320,6 +353,10 @@ export async function fetchMerchantMpPayment(
   const data = (await res.json()) as {
     id: number | string;
     status: string;
+    status_detail?: string;
+    transaction_amount?: number;
+    currency_id?: string;
+    collector_id?: number | string;
     external_reference?: string;
     transaction_details?: {
       net_received_amount?: number;
@@ -353,6 +390,21 @@ export async function fetchMerchantMpPayment(
   return {
     id: String(data.id),
     status: data.status,
+    status_detail:
+      typeof data.status_detail === 'string' ? data.status_detail : undefined,
+    transaction_amount:
+      typeof data.transaction_amount === 'number' &&
+      Number.isFinite(data.transaction_amount)
+        ? data.transaction_amount
+        : undefined,
+    currency_id:
+      typeof data.currency_id === 'string' ? data.currency_id : undefined,
+    collector_id:
+      data.collector_id !== undefined &&
+      data.collector_id !== null &&
+      String(data.collector_id).trim() !== ''
+        ? String(data.collector_id).trim()
+        : undefined,
     external_reference: data.external_reference,
     netReceivedCents,
     feeCentsFromDetails,
