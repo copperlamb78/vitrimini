@@ -32,6 +32,7 @@ import { applyPageSeo } from '../utils/seo';
 import { useAuth } from '../contexts/AuthContext';
 import { PhoneMockupPreview } from '../components/PhoneMockupPreview';
 import { PixPaymentModal } from '../components/PixPaymentModal';
+import { ConnectMercadoPagoModal } from '../components/ConnectMercadoPagoModal';
 import { AuthModal } from '../components/AuthModal';
 import { LogoUploader } from '../components/LogoUploader';
 import { ThemeSelector } from '../components/ThemeSelector';
@@ -113,6 +114,7 @@ export function CreatorPage() {
     useState<CreateCatalogResponse | null>(null);
   const [trialSuccessData, setTrialSuccessData] =
     useState<CreateCatalogResponse | null>(null);
+  const [showMpInviteModal, setShowMpInviteModal] = useState(false);
 
   const activeTheme = getTheme(themeColor);
   const firstName = user?.name.split(' ')[0] || '';
@@ -336,6 +338,7 @@ export function CreatorPage() {
         if (response.activatedByTrial) {
           localStorage.removeItem(DRAFT_STORAGE_KEY);
           setTrialSuccessData(response);
+          setShowMpInviteModal(true);
         } else {
           setPaymentModalData(response);
         }
@@ -947,7 +950,15 @@ export function CreatorPage() {
         />
       )}
 
-      {trialSuccessData && (
+      {trialSuccessData && showMpInviteModal && (
+        <ConnectMercadoPagoModal
+          catalogId={trialSuccessData.catalogId}
+          badgeText="Vitrine no ar com 15 dias grátis!"
+          onClose={() => setShowMpInviteModal(false)}
+        />
+      )}
+
+      {trialSuccessData && !showMpInviteModal && (
         <div
           role="dialog"
           aria-modal="true"
