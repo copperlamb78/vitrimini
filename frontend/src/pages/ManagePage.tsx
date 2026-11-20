@@ -1,5 +1,5 @@
 import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Save,
   Plus,
@@ -14,6 +14,9 @@ import {
   Settings2,
   Eye,
   QrCode,
+  CreditCard,
+  Sparkles,
+  Unlink,
   X,
 } from 'lucide-react';
 import type { Catalog, CreateCatalogResponse } from '../types/catalog';
@@ -23,9 +26,12 @@ import {
   type ThemeId,
 } from '../constants/themes';
 import {
+  disconnectMercadoPago,
   getCatalogById,
+  getMercadoPagoConnectUrl,
   getSafeErrorMessage,
   renewCatalog,
+  toggleMercadoPagoOnlinePayment,
   updateCatalogById,
 } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -46,6 +52,7 @@ import { CatalogOrdersTab } from '../components/CatalogOrdersTab';
 import { CatalogAnalyticsTab } from '../components/CatalogAnalyticsTab';
 import { CatalogLivePreview } from '../components/CatalogLivePreview';
 import { PixPaymentModal } from '../components/PixPaymentModal';
+import { PlanSelectorModal, type PlanOption } from '../components/PlanSelectorModal';
 
 const ShareCatalogModal = lazy(() =>
   import('../components/ShareCatalogModal').then((m) => ({
@@ -71,6 +78,7 @@ type ManageTab = 'orders' | 'analytics' | 'catalog';
 
 export function ManagePage() {
   const { catalogId } = useParams<{ catalogId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
@@ -79,6 +87,13 @@ export function ManagePage() {
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [renewingTrial, setRenewingTrial] = useState(false);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PlanOption | null>(null);
+  const [mpLoading, setMpLoading] = useState(false);
+  const [mpFeedback, setMpFeedback] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [paymentModalData, setPaymentModalData] =
     useState<CreateCatalogResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,7 +103,15 @@ export function ManagePage() {
 
   const [catalogMeta, setCatalogMeta] = useState<Pick<
     Catalog,
-    'id' | 'slug' | 'status' | 'isTrial' | 'expiresAt'
+    | 'id'
+    | 'slug'
+    | 'status'
+    | 'isTrial'
+    | 'expiresAt'
+    | 'planType'
+    | 'onlinePaymentEnabled'
+    | 'mpConnected'
+    | 'hasProAccess'
   > | null>(null);
 
   const [storeName, setStoreName] = useState('');
@@ -146,6 +169,27 @@ export function ManagePage() {
   }, [catalogId]);
 
   useEffect(() => {
+    const mpStatus = searchParams.get('mp');
+    if (mpStatus === 'connected') {
+      setMpFeedback({
+        type: 'success',
+        text: 'Conta Mercado Pago conectada! Seus clientes já podem pagar online na vitrine.',
+      });
+      setActiveTab('catalog');
+      searchParams.delete('mp');
+      setSearchParams(searchParams, { replace: true });
+    } else if (mpStatus === 'error') {
+      setMpFeedback({
+        type: 'error',
+        text: 'Não foi possível concluir a conexão com o Mercado Pago. Tente novamente.',
+      });
+      setActiveTab('catalog');
+      searchParams.delete('mp');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
     if (authLoading || !catalogId) return;
     if (!user) {
       navigate(`/entrar?redirect=${encodeURIComponent(`/painel/${catalogId}`)}`, {
@@ -165,6 +209,10 @@ export function ManagePage() {
           status: data.status,
           isTrial: data.isTrial,
           expiresAt: data.expiresAt,
+          planType: data.planType,
+          onlinePaymentEnabled: data.onlinePaymentEnabled,
+          mpConnected: data.mpConnected,
+          hasProAccess: data.hasProAccess,
         });
         setStoreName(data.storeName);
         setExistingLogoUrl(data.logoUrl);
@@ -478,28 +526,32 @@ export function ManagePage() {
               <button
                 type="button"
                 disabled={renewingTrial}
-                onClick={async () => {
-                  setRenewingTrial(true);
-                  try {
-                    const payment = await renewCatalog(catalogMeta.id);
-                    setPaymentModalData(payment);
-                  } catch (err) {
-                    setError(
-                      getSafeErrorMessage(
-                        err,
-                        'Não foi possível gerar o Pix agora.'
-                      )
-                    );
-                  } finally {
-                    setRenewingTrial(false);
-                  }
-                }}
+                onClick={() => setPlanModalOpen(true)}
                 className="cursor-pointer rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {renewingTrial ? 'Gerando Pix...' : 'Garantir +90 dias por R$ 24,90'}
+                Garantir +90 dias ou Pro
               </button>
             </div>
           )}
+
+        {mpFeedback && (
+          <div
+            className={`mb-4 flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-xs font-semibold ${
+              mpFeedback.type === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-red-200 bg-red-50 text-red-700'
+            }`}
+          >
+            <span>{mpFeedback.text}</span>
+            <button
+              type="button"
+              onClick={() => setMpFeedback(null)}
+              className="cursor-pointer rounded-lg p-1 hover:bg-black/5"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
         {/* Abas de Gestão */}
         <div className="mb-5 grid grid-cols-3 gap-1.5 rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-2xs">
           {[
@@ -874,6 +926,157 @@ export function ManagePage() {
                 />
               </div>
 
+              {/* Card Pagamento Online Automático (Plano Pro) */}
+              {catalogMeta && (
+                <div className="sm:col-span-2 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-rose-600" />
+                      <h3 className="text-sm font-extrabold text-zinc-900">
+                        Pagamento Online Automático (Pix e Cartão)
+                      </h3>
+                    </div>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold uppercase text-rose-700">
+                      <Sparkles className="h-3 w-3" />
+                      Plano Pro
+                    </span>
+                  </div>
+
+                  {!catalogMeta.hasProAccess ? (
+                    <div className="mt-3 space-y-2.5">
+                      <p className="text-xs leading-relaxed text-zinc-600">
+                        Receba pagamentos automáticos no Pix e Cartão direto na sua conta Mercado Pago, com baixa automática dos pedidos pagos. Disponível no <strong>Plano Pro</strong> (R$ 39,90 por 90 dias ou R$ 99,90 por ano).
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setPlanModalOpen(true)}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-rose-700"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Fazer upgrade para o Plano Pro
+                      </button>
+                    </div>
+                  ) : !catalogMeta.mpConnected ? (
+                    <div className="mt-3 space-y-2.5">
+                      <p className="text-xs leading-relaxed text-zinc-600">
+                        Conecte sua conta Mercado Pago para que seus clientes paguem na hora por Pix ou Cartão, com o dinheiro caindo direto para você.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={mpLoading}
+                        onClick={async () => {
+                          setMpLoading(true);
+                          setMpFeedback(null);
+                          try {
+                            const { authUrl } = await getMercadoPagoConnectUrl(
+                              catalogMeta.id
+                            );
+                            window.location.assign(authUrl);
+                          } catch (err) {
+                            setMpFeedback({
+                              type: 'error',
+                              text: getSafeErrorMessage(
+                                err,
+                                'Não foi possível iniciar a conexão agora.'
+                              ),
+                            });
+                            setMpLoading(false);
+                          }
+                        }}
+                        className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {mpLoading ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CreditCard className="h-3.5 w-3.5" />
+                        )}
+                        Conectar minha conta Mercado Pago
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-3 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs">
+                        <span className="font-bold text-emerald-800">
+                          Conta Mercado Pago conectada
+                        </span>
+                        <button
+                          type="button"
+                          disabled={mpLoading}
+                          onClick={async () => {
+                            setMpLoading(true);
+                            try {
+                              await disconnectMercadoPago(catalogMeta.id);
+                              setCatalogMeta((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      mpConnected: false,
+                                      onlinePaymentEnabled: false,
+                                    }
+                                  : prev
+                              );
+                            } catch (err) {
+                              setMpFeedback({
+                                type: 'error',
+                                text: getSafeErrorMessage(
+                                  err,
+                                  'Erro ao desconectar conta.'
+                                ),
+                              });
+                            } finally {
+                              setMpLoading(false);
+                            }
+                          }}
+                          className="inline-flex cursor-pointer items-center gap-1 text-[11px] font-semibold text-red-600 hover:underline disabled:opacity-60"
+                        >
+                          <Unlink className="h-3 w-3" />
+                          Desconectar
+                        </button>
+                      </div>
+
+                      <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-zinc-800">
+                        <span>Ativar pagamento online na vitrine</span>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(catalogMeta.onlinePaymentEnabled)}
+                          disabled={mpLoading}
+                          onChange={async (e) => {
+                            const nextVal = e.target.checked;
+                            setMpLoading(true);
+                            try {
+                              const res = await toggleMercadoPagoOnlinePayment(
+                                catalogMeta.id,
+                                nextVal
+                              );
+                              setCatalogMeta((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      onlinePaymentEnabled:
+                                        res.onlinePaymentEnabled,
+                                    }
+                                  : prev
+                              );
+                            } catch (err) {
+                              setMpFeedback({
+                                type: 'error',
+                                text: getSafeErrorMessage(
+                                  err,
+                                  'Não foi possível alterar essa opção.'
+                                ),
+                              });
+                            } finally {
+                              setMpLoading(false);
+                            }
+                          }}
+                          className="h-4 w-4 accent-rose-600"
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-stone-700">
                   Endereço para retirada (opcional)
@@ -1035,15 +1238,56 @@ export function ManagePage() {
         </Suspense>
       )}
 
+      {planModalOpen && catalogMeta && (
+        <PlanSelectorModal
+          storeName={storeName || 'Minha Vitrine'}
+          initialPlan={catalogMeta.planType === 'PRO' ? 'PRO_90D' : 'PRO_90D'}
+          loading={renewingTrial}
+          onSelectPlan={async (plan) => {
+            setRenewingTrial(true);
+            try {
+              const payment = await renewCatalog(catalogMeta.id, plan.code);
+              setSelectedPlan(plan);
+              setPlanModalOpen(false);
+              setPaymentModalData(payment);
+            } catch (err) {
+              setError(
+                getSafeErrorMessage(
+                  err,
+                  'Não foi possível gerar o Pix agora.'
+                )
+              );
+            } finally {
+              setRenewingTrial(false);
+            }
+          }}
+          onClose={() => setPlanModalOpen(false)}
+        />
+      )}
+
       {paymentModalData && (
         <PixPaymentModal
           paymentData={paymentModalData}
           isRenewal={true}
+          planName={selectedPlan?.name}
+          planPriceLabel={selectedPlan?.priceLabel}
+          planDays={selectedPlan?.days}
           onCancelDraft={() => setPaymentModalData(null)}
           onCloseAfterPaid={() => setPaymentModalData(null)}
           onConfirmed={() => {
             setCatalogMeta((prev) =>
-              prev ? { ...prev, isTrial: false } : prev
+              prev
+                ? {
+                    ...prev,
+                    isTrial: false,
+                    planType:
+                      selectedPlan?.code === 'ESSENTIAL_90D'
+                        ? 'ESSENTIAL'
+                        : 'PRO',
+                    hasProAccess:
+                      selectedPlan?.code !== 'ESSENTIAL_90D' || prev.hasProAccess,
+                  }
+                : prev
             );
           }}
         />
