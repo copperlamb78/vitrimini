@@ -287,14 +287,19 @@ export function AdminDashboardPage() {
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
                     <CreditCard className="h-4 w-4 text-emerald-600" />
-                    Receita PIX (30d)
+                    Receita Líquida (30d)
                   </div>
                   <p className="mt-2 text-xl font-extrabold text-zinc-900">
-                    {formatCurrency(data.saas.revenue30dCents)}
+                    {formatCurrency(
+                      data.saas.revenue?.last30d.netCents ??
+                        data.saas.revenue30dCents
+                    )}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-emerald-700">
-                    Total: {formatCurrency(data.saas.revenueTotalCents)} (
-                    {data.saas.paymentsTotalCount} pagos)
+                  <p className="mt-0.5 text-[11px] text-emerald-800">
+                    Bruto: {formatCurrency(data.saas.revenue?.last30d.grossCents ?? data.saas.revenue30dCents)} • Taxas Pix: -{formatCurrency(data.saas.revenue?.last30d.feeCents ?? 0)}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-zinc-500">
+                    Total líquido: {formatCurrency(data.saas.revenue?.total.netCents ?? data.saas.revenueTotalCents)} (Bruto {formatCurrency(data.saas.revenue?.total.grossCents ?? data.saas.revenueTotalCents)} • {data.saas.paymentsTotalCount} pagos)
                   </p>
                 </div>
 
