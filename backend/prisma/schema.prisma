@@ -10,8 +10,24 @@ datasource db {
 
 enum CatalogStatus {
   DRAFT      // Aguardando pagamento ou prévia de demonstração
-  ACTIVE     // Pago e público (válido por 90 dias)
+  ACTIVE     // Pago e público
   EXPIRED    // Expirado
+}
+
+enum CatalogPlanType {
+  ESSENTIAL
+  PRO
+}
+
+enum OrderPaymentChannel {
+  WHATSAPP
+  MERCADO_PAGO
+}
+
+enum OrderPaymentStatus {
+  PENDING
+  PAID
+  CANCELLED
 }
 
 enum PaymentType {
@@ -90,6 +106,7 @@ model Catalog {
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   renewalCount  Int              @default(0) // Quantas vezes esta vitrine foi renovada
   isTrial       Boolean          @default(false) // Se foi ativada com 15 dias grátis iniciais
+  planType      CatalogPlanType  @default(ESSENTIAL)
 
   storeName     String
   logoUrl       String?          // Caminho relativo da foto/logo, ex: /uploads/logo-uuid.webp
@@ -104,9 +121,14 @@ model Catalog {
   pickupInstructions  String?          // Horário ou instruções de retirada
   deliveryEstimate    String?          // Previsão padrão de entrega
 
-  paymentId           String?
-  expiresAt           DateTime?
-  notifyOrderByEmail  Boolean          @default(true)
+  paymentId            String?
+  expiresAt            DateTime?
+  mpUserId             String?
+  mpAccessToken        String?
+  mpRefreshToken       String?
+  mpTokenExpiresAt     DateTime?
+  onlinePaymentEnabled Boolean          @default(false)
+  notifyOrderByEmail   Boolean          @default(true)
   notified7DaysBefore Boolean          @default(false)
   notifiedExpiration  Boolean          @default(false)
   createdAt           DateTime         @default(now())
@@ -145,6 +167,7 @@ model CatalogPayment {
   catalogId   String
   catalog     Catalog             @relation(fields: [catalogId], references: [id], onDelete: Cascade)
   type        PaymentType         @default(CREATION)
+  planCode    String              @default("ESSENTIAL_90D")
   status      PaymentRecordStatus @default(PENDING)
   amountCents Int                 // Ex: 2490
   gatewayId   String?             // ID da Order/Payment no Mercado Pago
@@ -168,7 +191,10 @@ model Order {
   deliveryType    DeliveryType       @default(PICKUP)
   deliveryAddress String?
   deliveryDate    String?
-  paymentMethod   OrderPaymentMethod @default(PIX)
+  paymentMethod   OrderPaymentMethod  @default(PIX)
+  paymentChannel  OrderPaymentChannel @default(WHATSAPP)
+  paymentStatus   OrderPaymentStatus  @default(PENDING)
+  mpPaymentId     String?
   notes           String?
   status          OrderStatus        @default(PENDING)
   totalCents      Int
@@ -182,6 +208,7 @@ model Order {
   @@index([catalogId, createdAt])
   @@index([catalogId, status])
   @@index([userId, createdAt])
+  @@index([mpPaymentId])
 }
 
 model OrderItem {
