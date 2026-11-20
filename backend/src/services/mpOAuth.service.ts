@@ -298,6 +298,8 @@ export async function fetchMerchantMpPayment(
   id: string;
   status: string;
   external_reference?: string;
+  netReceivedCents?: number;
+  feeCentsFromDetails?: number;
 }> {
   const accessToken = await getValidMerchantMpToken(catalog);
   const res = await fetch(
@@ -319,11 +321,40 @@ export async function fetchMerchantMpPayment(
     id: number | string;
     status: string;
     external_reference?: string;
+    transaction_details?: {
+      net_received_amount?: number;
+    };
+    fee_details?: Array<{
+      amount?: number;
+      fee_payer?: string;
+    }>;
   };
+
+  const rawNet = data.transaction_details?.net_received_amount;
+  const netReceivedCents =
+    typeof rawNet === 'number' && Number.isFinite(rawNet) && rawNet >= 0
+      ? Math.round(rawNet * 100)
+      : undefined;
+
+  let feeCentsFromDetails: number | undefined;
+  if (Array.isArray(data.fee_details) && data.fee_details.length > 0) {
+    const collectorFees = data.fee_details.filter(
+      (f) => !f.fee_payer || f.fee_payer === 'collector'
+    );
+    const totalFeeFloat = collectorFees.reduce(
+      (acc, f) => acc + (typeof f.amount === 'number' ? f.amount : 0),
+      0
+    );
+    if (Number.isFinite(totalFeeFloat) && totalFeeFloat >= 0) {
+      feeCentsFromDetails = Math.round(totalFeeFloat * 100);
+    }
+  }
 
   return {
     id: String(data.id),
     status: data.status,
     external_reference: data.external_reference,
+    netReceivedCents,
+    feeCentsFromDetails,
   };
 }
