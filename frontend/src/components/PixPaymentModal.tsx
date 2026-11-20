@@ -23,6 +23,9 @@ import logoVitriMini from '../assets/logo-vitrimini.png';
 interface PixPaymentModalProps {
   paymentData: CreateCatalogResponse;
   isRenewal?: boolean;
+  planName?: string;
+  planPriceLabel?: string;
+  planDays?: number;
   onCancelDraft: (catalogId: string) => void;
   onCloseAfterPaid: () => void;
   onConfirmed: (info: {
@@ -35,6 +38,9 @@ interface PixPaymentModalProps {
 export function PixPaymentModal({
   paymentData,
   isRenewal = false,
+  planName = 'VitriMini',
+  planPriceLabel = 'R$ 24,90',
+  planDays = 90,
   onCancelDraft,
   onCloseAfterPaid,
   onConfirmed,
@@ -240,13 +246,13 @@ export function PixPaymentModal({
               />
               <h2 className="text-xl font-bold text-stone-900">
                 {isRenewal
-                  ? 'Renovar Vitrine (+90 dias — R$ 24,90)'
-                  : 'Pague R$ 24,90 (taxa única)'}
+                  ? `${planName} (+${planDays} dias — ${planPriceLabel})`
+                  : `Pague ${planPriceLabel} (${planDays} dias)`}
               </h2>
               <p className="mt-1 text-xs text-stone-500">
                 {isRenewal
-                  ? 'Ao pagar o Pix, sua vitrine ganha mais 90 dias de validade automaticamente.'
-                  : 'Sua vitrine ficará ativa por 90 dias com produtos ilimitados e salva na sua conta.'}
+                  ? `Ao pagar o Pix, sua vitrine ganha mais ${planDays} dias de validade automaticamente.`
+                  : `Sua vitrine ficará ativa por ${planDays} dias com produtos ilimitados e salva na sua conta.`}
               </p>
 
               {paymentData.qrCodeBase64 && (
