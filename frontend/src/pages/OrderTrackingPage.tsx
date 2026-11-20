@@ -125,6 +125,9 @@ export function OrderTrackingPage() {
   }, [loadOrder]);
 
   const orderStatus = order?.status;
+  const isWaitingOnlinePayment =
+    order?.paymentChannel === 'MERCADO_PAGO' &&
+    order?.paymentStatus === 'PENDING';
 
   useEffect(() => {
     if (
@@ -135,11 +138,12 @@ export function OrderTrackingPage() {
       return;
     }
 
+    const pollMs = isWaitingOnlinePayment ? 5_000 : 20_000;
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         void loadOrder('silent');
       }
-    }, 20_000);
+    }, pollMs);
 
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
@@ -152,7 +156,7 @@ export function OrderTrackingPage() {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [orderStatus, loadOrder]);
+  }, [orderStatus, isWaitingOnlinePayment, loadOrder]);
 
   if (loading) {
     return <OrderTrackingSkeleton />;
@@ -243,6 +247,23 @@ export function OrderTrackingPage() {
               <h2 className="text-sm font-extrabold text-zinc-900">
                 Status do pedido
               </h2>
+              {order.paymentChannel === 'MERCADO_PAGO' && (
+                <span
+                  className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                    order.paymentStatus === 'PAID'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : order.paymentStatus === 'CANCELLED'
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {order.paymentStatus === 'PAID'
+                    ? 'Pagamento online aprovado'
+                    : order.paymentStatus === 'CANCELLED'
+                    ? 'Pagamento não aprovado'
+                    : 'Aguardando pagamento online'}
+                </span>
+              )}
               <p className="text-[11px] text-zinc-500">
                 Atualizado em{' '}
                 {new Date(order.updatedAt).toLocaleString('pt-BR', {
