@@ -30,6 +30,10 @@ import { resolveImageUrl } from '../utils/format';
 import { applyPageSeo } from '../utils/seo';
 import { PixPaymentModal } from '../components/PixPaymentModal';
 import { PlanSelectorModal, type PlanOption } from '../components/PlanSelectorModal';
+import {
+  ConnectMercadoPagoModal,
+  isMpInviteDismissed,
+} from '../components/ConnectMercadoPagoModal';
 import { MyCatalogsSkeleton } from '../components/Skeletons';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
@@ -62,6 +66,9 @@ export function MyCatalogsPage() {
     useState<PlanOption | null>(null);
   const [planTargetCatalog, setPlanTargetCatalog] =
     useState<MyCatalogItem | null>(null);
+  const [mpInviteCatalogId, setMpInviteCatalogId] = useState<string | null>(
+    null
+  );
   const [isModalRenewal, setIsModalRenewal] = useState(true);
   const [shareCatalog, setShareCatalog] = useState<{
     storeName: string;
@@ -430,6 +437,10 @@ export function MyCatalogsPage() {
           initialPlan={
             planTargetCatalog.planType === 'PRO' ? 'PRO_90D' : 'ESSENTIAL_90D'
           }
+          currentPlanType={planTargetCatalog.planType}
+          hasActiveDays={Boolean(
+            !planTargetCatalog.isExpired && planTargetCatalog.expiresAt
+          )}
           loading={renewingId === planTargetCatalog.id}
           onSelectPlan={(plan) => void handleConfirmPlanSelection(plan)}
           onClose={() => setPlanTargetCatalog(null)}
@@ -448,9 +459,24 @@ export function MyCatalogsPage() {
             setPaymentModalData(null);
             void fetchCatalogs();
           }}
-          onConfirmed={() => {
+          onConfirmed={(info) => {
             void fetchCatalogs();
+            if (
+              selectedPlanForModal?.code !== 'ESSENTIAL_90D' &&
+              !isMpInviteDismissed(info.catalogId)
+            ) {
+              setPaymentModalData(null);
+              setMpInviteCatalogId(info.catalogId);
+            }
           }}
+        />
+      )}
+
+      {mpInviteCatalogId && (
+        <ConnectMercadoPagoModal
+          catalogId={mpInviteCatalogId}
+          badgeText="Plano Pro ativado!"
+          onClose={() => setMpInviteCatalogId(null)}
         />
       )}
 
