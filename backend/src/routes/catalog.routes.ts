@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { assertValidImageMagicBytes, upload } from '../config/upload.js';
 import { generateUniqueSlug } from '../utils/slug.js';
 import {
+  calculatePixFeeFallback,
   createPixPayment,
   isMockPixEnabled,
   resolvePlanDefinition,
@@ -109,7 +110,10 @@ function normalizeThemeColor(raw: unknown): 'rose' | 'red' | 'amber' | 'emerald'
   return 'rose';
 }
 
-async function confirmCatalogPayment(paymentRecordId: string) {
+async function confirmCatalogPayment(
+  paymentRecordId: string,
+  feeOverride?: { feeCents?: number; netAmountCents?: number }
+) {
   const txResult = await prisma.$transaction(async (tx) => {
     const paymentRecord = await tx.catalogPayment.findUnique({
       where: { id: paymentRecordId },
@@ -128,12 +132,20 @@ async function confirmCatalogPayment(paymentRecordId: string) {
       throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
     }
 
+    const fallback = calculatePixFeeFallback(paymentRecord.amountCents);
+    const feeCents = feeOverride?.feeCents ?? fallback.feeCents;
+    const netAmountCents =
+      feeOverride?.netAmountCents ??
+      Math.max(0, paymentRecord.amountCents - feeCents);
+
     // Trava atômica anti-race-condition: garante transição única PENDING -> PAID
     const claimed = await tx.catalogPayment.updateMany({
       where: { id: paymentRecord.id, status: 'PENDING' },
       data: {
         status: 'PAID',
         paidAt: new Date(),
+        feeCents,
+        netAmountCents,
       },
     });
 
@@ -799,6 +811,10 @@ router.post(
           body?.data?.status === 'processed'
         : false;
 
+      let approvedFeeOverride:
+        | { feeCents?: number; netAmountCents?: number }
+        | undefined;
+
       if (mpOrderId) {
         const verification = await verifyMercadoPagoOrder(mpOrderId);
         approved = verification.approved;
@@ -806,6 +822,10 @@ router.post(
         if (verification.catalogId) {
           targetCatalogId = verification.catalogId;
         }
+        approvedFeeOverride = {
+          feeCents: verification.feeCents,
+          netAmountCents: verification.netAmountCents,
+        };
       }
 
       if (approved && (targetGatewayId || targetCatalogId)) {
@@ -820,7 +840,7 @@ router.post(
             });
 
         if (paymentRecord) {
-          await confirmCatalogPayment(paymentRecord.id);
+          await confirmCatalogPayment(paymentRecord.id, approvedFeeOverride);
         } else if (isMockPixEnabled() && targetCatalogId) {
           const catalog = await prisma.catalog.findUnique({
             where: { id: targetCatalogId },
