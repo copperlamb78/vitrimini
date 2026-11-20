@@ -1,4 +1,6 @@
+import crypto from 'node:crypto';
 import { Router, Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middlewares/auth.js';
@@ -8,16 +10,79 @@ import {
   buildMpAuthorizationUrl,
   exchangeMpCodeForTokens,
   fetchMerchantMpPayment,
+  fetchMpUserId,
   hasProFeatures,
 } from '../services/mpOAuth.service.js';
 import { getFrontendBaseUrl, sendNewOrderEmail } from '../services/email.service.js';
+import {
+  isMockPixEnabled,
+  validateMercadoPagoWebhookSignature,
+} from '../services/payment.service.js';
 
 const router = Router();
 const uuidParamSchema = z.string().uuid('Código inválido.');
+const MP_OAUTH_NONCE_COOKIE = 'mp_oauth_nonce';
+
+const mpOAuthRateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutos
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'Muitas solicitações ao Mercado Pago. Aguarde alguns instantes.',
+  },
+});
+
+const mpWebhookRateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutos
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'Muitas notificações de webhook recebidas.',
+  },
+});
+
+function getMpOAuthNonceCookieOptions(maxAge?: number) {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax' as const,
+    path: '/api/integrations/mercadopago/callback',
+    ...(maxAge !== undefined ? { maxAge } : {}),
+  };
+}
+
+function readCookieValue(req: Request, cookieName: string): string {
+  const fromReqCookies = (req as Request & { cookies?: Record<string, unknown> })
+    .cookies?.[cookieName];
+  if (typeof fromReqCookies === 'string' && fromReqCookies.trim()) {
+    return fromReqCookies.trim();
+  }
+
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return '';
+  for (const part of cookieHeader.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq === -1) continue;
+    const key = part.slice(0, eq).trim();
+    if (key === cookieName) {
+      const rawVal = part.slice(eq + 1).trim();
+      try {
+        return decodeURIComponent(rawVal);
+      } catch {
+        return rawVal;
+      }
+    }
+  }
+  return '';
+}
 
 // 1. GET /api/catalogs/:id/integrations/mercadopago/connect
 router.get(
   '/catalogs/:id/integrations/mercadopago/connect',
+  mpOAuthRateLimiter,
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -49,7 +114,14 @@ router.get(
         );
       }
 
-      const authUrl = buildMpAuthorizationUrl(catalog.id, req.user!.id);
+      const nonce = crypto.randomBytes(16).toString('hex');
+      res.cookie(
+        MP_OAUTH_NONCE_COOKIE,
+        nonce,
+        getMpOAuthNonceCookieOptions(15 * 60 * 1000)
+      );
+
+      const authUrl = buildMpAuthorizationUrl(catalog.id, req.user!.id, nonce);
       res.json({ authUrl });
     } catch (error) {
       next(error);
@@ -60,13 +132,27 @@ router.get(
 // 2. GET /api/integrations/mercadopago/callback
 router.get(
   '/integrations/mercadopago/callback',
+  mpOAuthRateLimiter,
   async (req: Request, res: Response) => {
     const frontendUrl = getFrontendBaseUrl();
     const code = typeof req.query.code === 'string' ? req.query.code.trim() : '';
     const state = typeof req.query.state === 'string' ? req.query.state.trim() : '';
+    const cookieNonce = readCookieValue(req, MP_OAUTH_NONCE_COOKIE);
+
+    res.clearCookie(MP_OAUTH_NONCE_COOKIE, getMpOAuthNonceCookieOptions());
 
     const verified = verifyMpOAuthState(state);
-    if (!verified || !code) {
+    if (!verified || !code || !cookieNonce) {
+      res.redirect(`${frontendUrl}/minhas-vitrines?mp=error`);
+      return;
+    }
+
+    const cookieBuf = Buffer.from(cookieNonce, 'utf8');
+    const stateBuf = Buffer.from(verified.nonce, 'utf8');
+    if (
+      cookieBuf.length !== stateBuf.length ||
+      !crypto.timingSafeEqual(cookieBuf, stateBuf)
+    ) {
       res.redirect(`${frontendUrl}/minhas-vitrines?mp=error`);
       return;
     }
@@ -83,6 +169,25 @@ router.get(
       }
 
       const tokens = await exchangeMpCodeForTokens(code);
+      let resolvedMpUserId =
+        tokens.user_id !== undefined &&
+        tokens.user_id !== null &&
+        String(tokens.user_id).trim() !== ''
+          ? String(tokens.user_id).trim()
+          : null;
+
+      if (!resolvedMpUserId) {
+        resolvedMpUserId = await fetchMpUserId(tokens.access_token);
+      }
+
+      if (!resolvedMpUserId) {
+        console.error(
+          '[MP OAuth Callback Error]: Conta Mercado Pago sem user_id identificável.'
+        );
+        res.redirect(`${frontendUrl}/painel/${catalog.id}?mp=error`);
+        return;
+      }
+
       const expiresAt = tokens.expires_in
         ? new Date(Date.now() + tokens.expires_in * 1000)
         : null;
@@ -90,7 +195,7 @@ router.get(
       await prisma.catalog.update({
         where: { id: catalog.id },
         data: {
-          mpUserId: tokens.user_id ? String(tokens.user_id) : 'connected',
+          mpUserId: resolvedMpUserId,
           mpAccessToken: encryptSecret(tokens.access_token),
           mpRefreshToken: tokens.refresh_token
             ? encryptSecret(tokens.refresh_token)
@@ -111,6 +216,7 @@ router.get(
 // 3. PATCH /api/catalogs/:id/integrations/mercadopago/toggle
 router.patch(
   '/catalogs/:id/integrations/mercadopago/toggle',
+  mpOAuthRateLimiter,
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -168,6 +274,7 @@ router.patch(
 // 4. DELETE /api/catalogs/:id/integrations/mercadopago
 router.delete(
   '/catalogs/:id/integrations/mercadopago',
+  mpOAuthRateLimiter,
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -206,18 +313,37 @@ router.delete(
 // 5. POST /api/webhooks/mercadopago/orders — Baixa automática de pedidos online
 router.post(
   '/webhooks/mercadopago/orders',
+  mpWebhookRateLimiter,
   async (req: Request, res: Response) => {
     try {
-      const topic = String(req.body?.type || req.body?.topic || req.query.topic || '').toLowerCase();
       const rawPaymentId =
-        req.body?.data?.id ?? req.query['data.id'] ?? req.query.id ?? req.body?.id;
+        req.query['data.id'] ?? req.body?.data?.id ?? req.query.id ?? req.body?.id;
+      const dataIdForSignature =
+        rawPaymentId !== undefined && rawPaymentId !== null
+          ? String(rawPaymentId).trim()
+          : undefined;
 
-      if (!rawPaymentId || (topic && topic !== 'payment')) {
+      const isProd = process.env.NODE_ENV === 'production';
+      if (isProd || !isMockPixEnabled()) {
+        const isSignatureValid = validateMercadoPagoWebhookSignature({
+          xSignature: req.headers['x-signature'] as string | undefined,
+          xRequestId: req.headers['x-request-id'] as string | undefined,
+          dataId: dataIdForSignature,
+        });
+        if (!isSignatureValid) {
+          res.status(401).json({ error: 'Assinatura de webhook inválida.' });
+          return;
+        }
+      }
+
+      const topic = String(req.body?.type || req.body?.topic || req.query.topic || '').toLowerCase();
+
+      if (!dataIdForSignature || (topic && topic !== 'payment')) {
         res.status(200).json({ received: true });
         return;
       }
 
-      const mpPaymentId = String(rawPaymentId).trim();
+      const mpPaymentId = dataIdForSignature;
       const queryCatalogId =
         typeof req.query.catalogId === 'string' ? req.query.catalogId.trim() : '';
 
@@ -226,6 +352,7 @@ router.post(
             where: { id: queryCatalogId },
             select: {
               id: true,
+              mpUserId: true,
               mpAccessToken: true,
               mpRefreshToken: true,
               mpTokenExpiresAt: true,
@@ -240,6 +367,7 @@ router.post(
             catalog: {
               select: {
                 id: true,
+                mpUserId: true,
                 mpAccessToken: true,
                 mpRefreshToken: true,
                 mpTokenExpiresAt: true,
@@ -256,13 +384,33 @@ router.post(
       }
 
       const mpPayment = await fetchMerchantMpPayment(catalog, mpPaymentId);
+      if (
+        catalog.mpUserId &&
+        catalog.mpUserId !== 'connected' &&
+        mpPayment.collector_id &&
+        String(mpPayment.collector_id) !== catalog.mpUserId
+      ) {
+        console.warn('[MP Order Webhook] collector_id divergente da vitrine:', {
+          catalogId: catalog.id,
+          expectedCollectorId: catalog.mpUserId,
+          receivedCollectorId: mpPayment.collector_id,
+        });
+        res.status(200).json({ received: true });
+        return;
+      }
+
       const orderId = mpPayment.external_reference?.trim();
       if (!orderId) {
         res.status(200).json({ received: true });
         return;
       }
 
-      if (mpPayment.status === 'approved') {
+      const canonicalMpPaymentId = String(mpPayment.id);
+
+      if (
+        mpPayment.status === 'approved' &&
+        (!mpPayment.status_detail || mpPayment.status_detail === 'accredited')
+      ) {
         const targetOrder = await prisma.order.findFirst({
           where: { id: orderId, catalogId: catalog.id },
           select: {
@@ -271,6 +419,7 @@ router.post(
             customerName: true,
             totalCents: true,
             deliveryType: true,
+            paymentChannel: true,
             items: {
               select: {
                 productName: true,
@@ -292,6 +441,43 @@ router.post(
         });
 
         if (targetOrder) {
+          const isCurrencyValid = mpPayment.currency_id === 'BRL';
+          const isAmountValid =
+            typeof mpPayment.transaction_amount === 'number' &&
+            Math.round(mpPayment.transaction_amount * 100) >= targetOrder.totalCents;
+          const isChannelValid = targetOrder.paymentChannel === 'MERCADO_PAGO';
+
+          if (!isCurrencyValid || !isAmountValid || !isChannelValid) {
+            console.warn('[MP Order Webhook] Pagamento rejeitado na validação:', {
+              orderId: targetOrder.id,
+              currencyId: mpPayment.currency_id,
+              amount: mpPayment.transaction_amount,
+              expectedCents: targetOrder.totalCents,
+              paymentChannel: targetOrder.paymentChannel,
+            });
+            res.status(200).json({ received: true });
+            return;
+          }
+
+          const existingPaidReplay = await prisma.order.findFirst({
+            where: {
+              mpPaymentId: canonicalMpPaymentId,
+              paymentStatus: 'PAID',
+              id: { not: targetOrder.id },
+            },
+            select: { id: true },
+          });
+
+          if (existingPaidReplay) {
+            console.warn('[MP Order Webhook] Replay de mpPaymentId bloqueado:', {
+              mpPaymentId: canonicalMpPaymentId,
+              existingOrderId: existingPaidReplay.id,
+              targetOrderId: targetOrder.id,
+            });
+            res.status(200).json({ received: true });
+            return;
+          }
+
           const netAmountCents =
             mpPayment.netReceivedCents !== undefined
               ? Math.min(targetOrder.totalCents, mpPayment.netReceivedCents)
@@ -308,12 +494,13 @@ router.post(
             where: {
               id: targetOrder.id,
               catalogId: catalog.id,
+              paymentChannel: 'MERCADO_PAGO',
               paymentStatus: { not: 'PAID' },
             },
             data: {
               paymentStatus: 'PAID',
               status: 'PENDING',
-              mpPaymentId,
+              mpPaymentId: canonicalMpPaymentId,
               mpFeeCents,
               netAmountCents,
             },
@@ -347,11 +534,12 @@ router.post(
           where: {
             id: orderId,
             catalogId: catalog.id,
+            paymentChannel: 'MERCADO_PAGO',
             paymentStatus: 'PENDING',
           },
           data: {
             paymentStatus: 'CANCELLED',
-            mpPaymentId,
+            mpPaymentId: canonicalMpPaymentId,
           },
         });
       }
