@@ -58,6 +58,17 @@ const publicStoreRateLimiter = rateLimit({
   },
 });
 
+const catalogStatusRateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutos
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error:
+      'Muitas consultas de pagamento em sequência. Aguarde alguns instantes e tente novamente.',
+  },
+});
+
 const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 const ALLOWED_THEMES = new Set([
@@ -108,6 +119,26 @@ function normalizeThemeColor(raw: unknown): 'rose' | 'red' | 'amber' | 'emerald'
     return raw.trim() as 'rose' | 'red' | 'amber' | 'emerald' | 'purple' | 'zinc';
   }
   return 'rose';
+}
+
+function resolveNextPlanType(
+  catalog: {
+    planType: 'ESSENTIAL' | 'PRO';
+    expiresAt: Date | null;
+  },
+  purchasedPlanType: 'ESSENTIAL' | 'PRO',
+  nowMs: number
+): 'ESSENTIAL' | 'PRO' {
+  const hasActiveRemainingDays =
+    catalog.expiresAt !== null && catalog.expiresAt.getTime() > nowMs;
+  if (
+    hasActiveRemainingDays &&
+    catalog.planType === 'PRO' &&
+    purchasedPlanType === 'ESSENTIAL'
+  ) {
+    return 'PRO';
+  }
+  return purchasedPlanType;
 }
 
 async function confirmCatalogPayment(
@@ -162,6 +193,11 @@ async function confirmCatalogPayment(
     const currentExpires = paymentRecord.catalog.expiresAt;
     const planDef = resolvePlanDefinition(paymentRecord.planCode);
     const planDurationMs = planDef.days * 24 * 60 * 60 * 1000;
+    const nextPlanType = resolveNextPlanType(
+      paymentRecord.catalog,
+      planDef.planType,
+      now
+    );
 
     if (paymentRecord.type === 'RENEWAL') {
       const baseTime =
@@ -174,7 +210,7 @@ async function confirmCatalogPayment(
         data: {
           status: 'ACTIVE',
           isTrial: false,
-          planType: planDef.planType,
+          planType: nextPlanType,
           renewalCount: { increment: 1 },
           expiresAt: new Date(baseTime + planDurationMs),
           notified7DaysBefore: false,
@@ -200,7 +236,7 @@ async function confirmCatalogPayment(
       data: {
         status: 'ACTIVE',
         isTrial: false,
-        planType: planDef.planType,
+        planType: nextPlanType,
         expiresAt: new Date(creationBaseTime + planDurationMs),
         notified7DaysBefore: false,
         notifiedExpiration: false,
@@ -302,7 +338,7 @@ router.post(
               ? fileByField.get(p.imageField)
               : undefined;
 
-            let imageUrl: string | null = p.imageUrl || null;
+            let imageUrl: string | null = null;
             if (uploadedFile?.buffer) {
               imageUrl = await uploadImageToR2(uploadedFile.buffer);
               uploadedUrls.push(imageUrl);
@@ -616,6 +652,7 @@ router.get(
 // GET /api/catalogs/:id/status (Protegida com requireAuth + anti-IDOR)
 router.get(
   '/catalogs/:id/status',
+  catalogStatusRateLimiter,
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -663,10 +700,23 @@ router.get(
       ) {
         try {
           const verification = await verifyMercadoPagoOrder(
-            targetPayment.gatewayId
+            targetPayment.gatewayId,
+            targetPayment.amountCents
           );
-          if (verification.approved) {
-            const updatedCatalog = await confirmCatalogPayment(targetPayment.id);
+          if (
+            verification.approved &&
+            typeof verification.paidCents === 'number' &&
+            verification.paidCents >= targetPayment.amountCents &&
+            (!verification.catalogId ||
+              verification.catalogId === targetPayment.catalogId)
+          ) {
+            const updatedCatalog = await confirmCatalogPayment(
+              targetPayment.id,
+              {
+                feeCents: verification.feeCents,
+                netAmountCents: verification.netAmountCents,
+              }
+            );
             res.json({
               status: updatedCatalog.status,
               slug: updatedCatalog.slug,
@@ -755,7 +805,7 @@ router.post(
         data: {
           status: 'ACTIVE',
           isTrial: false,
-          planType: planDef.planType,
+          planType: resolveNextPlanType(existing, planDef.planType, now),
           expiresAt,
         },
         select: {
@@ -802,49 +852,101 @@ router.post(
         }
       }
 
-      let targetCatalogId: string | undefined = isMockPixEnabled()
-        ? body.catalogId || body?.data?.external_reference
-        : undefined;
-      let targetGatewayId: string | undefined = isMockPixEnabled()
-        ? body.paymentId || mpOrderId
-        : mpOrderId;
-      let approved = isMockPixEnabled()
-        ? body.status === 'approved' ||
-          body.action === 'order.processed' ||
-          body?.data?.status === 'processed'
-        : false;
+      if (mpOrderId && !isMockPixEnabled()) {
+        const paymentRecord = await prisma.catalogPayment.findFirst({
+          where: { gatewayId: mpOrderId },
+          orderBy: { createdAt: 'desc' },
+        });
 
-      let approvedFeeOverride:
-        | { feeCents?: number; netAmountCents?: number }
-        | undefined;
-
-      if (mpOrderId) {
-        const verification = await verifyMercadoPagoOrder(mpOrderId);
-        approved = verification.approved;
-        targetGatewayId = mpOrderId;
-        if (verification.catalogId) {
-          targetCatalogId = verification.catalogId;
+        if (paymentRecord) {
+          const verification = await verifyMercadoPagoOrder(
+            mpOrderId,
+            paymentRecord.amountCents
+          );
+          if (
+            verification.approved &&
+            typeof verification.paidCents === 'number' &&
+            verification.paidCents >= paymentRecord.amountCents &&
+            (!verification.catalogId ||
+              verification.catalogId === paymentRecord.catalogId)
+          ) {
+            await confirmCatalogPayment(paymentRecord.id, {
+              feeCents: verification.feeCents,
+              netAmountCents: verification.netAmountCents,
+            });
+          }
+        } else {
+          const verification = await verifyMercadoPagoOrder(mpOrderId);
+          if (verification.approved && verification.catalogId) {
+            const fallbackRecord = await prisma.catalogPayment.findFirst({
+              where: {
+                catalogId: verification.catalogId,
+                status: 'PENDING',
+                OR: [{ gatewayId: null }, { gatewayId: mpOrderId }],
+              },
+              orderBy: { createdAt: 'desc' },
+            });
+            if (
+              fallbackRecord &&
+              typeof verification.paidCents === 'number' &&
+              verification.paidCents >= fallbackRecord.amountCents &&
+              (!verification.catalogId ||
+                verification.catalogId === fallbackRecord.catalogId)
+            ) {
+              await confirmCatalogPayment(fallbackRecord.id, {
+                feeCents: verification.feeCents,
+                netAmountCents: verification.netAmountCents,
+              });
+            }
+          }
         }
-        approvedFeeOverride = {
-          feeCents: verification.feeCents,
-          netAmountCents: verification.netAmountCents,
-        };
+
+        res.status(200).json({ received: true });
+        return;
       }
 
-      if (approved && (targetGatewayId || targetCatalogId)) {
+      if (isMockPixEnabled()) {
+        let targetCatalogId: string | undefined =
+          body.catalogId || body?.data?.external_reference;
+        const targetGatewayId: string | undefined = body.paymentId || mpOrderId;
+        let approved =
+          body.status === 'approved' ||
+          body.action === 'order.processed' ||
+          body?.data?.status === 'processed';
+        let approvedFeeOverride:
+          | { feeCents?: number; netAmountCents?: number }
+          | undefined;
+
         const paymentRecord = targetGatewayId
           ? await prisma.catalogPayment.findFirst({
               where: { gatewayId: targetGatewayId },
               orderBy: { createdAt: 'desc' },
             })
-          : await prisma.catalogPayment.findFirst({
-              where: { catalogId: targetCatalogId, status: 'PENDING' },
-              orderBy: { createdAt: 'desc' },
-            });
+          : targetCatalogId
+            ? await prisma.catalogPayment.findFirst({
+                where: { catalogId: targetCatalogId, status: 'PENDING' },
+                orderBy: { createdAt: 'desc' },
+              })
+            : null;
 
-        if (paymentRecord) {
+        if (mpOrderId) {
+          const verification = await verifyMercadoPagoOrder(
+            mpOrderId,
+            paymentRecord?.amountCents
+          );
+          approved = verification.approved;
+          if (verification.catalogId) {
+            targetCatalogId = verification.catalogId;
+          }
+          approvedFeeOverride = {
+            feeCents: verification.feeCents,
+            netAmountCents: verification.netAmountCents,
+          };
+        }
+
+        if (approved && paymentRecord) {
           await confirmCatalogPayment(paymentRecord.id, approvedFeeOverride);
-        } else if (isMockPixEnabled() && targetCatalogId) {
+        } else if (approved && targetCatalogId) {
           const catalog = await prisma.catalog.findUnique({
             where: { id: targetCatalogId },
           });
@@ -1299,6 +1401,12 @@ async function handleAuthenticatedCatalogUpdate(
           }
         }
 
+        const allowedExistingImageUrls = new Set(
+          existing.products
+            .map((ep) => ep.imageUrl)
+            .filter((url): url is string => typeof url === 'string' && url.length > 0)
+        );
+
         const preparedProducts = incomingProducts
           ? await Promise.all(
               incomingProducts.map(async (p, index) => {
@@ -1309,10 +1417,15 @@ async function handleAuthenticatedCatalogUpdate(
                   ? fileByField.get(p.imageField)
                   : undefined;
 
-                let imageUrl: string | null =
-                  p.imageUrl !== undefined
-                    ? p.imageUrl
-                    : existingProduct?.imageUrl ?? null;
+                let imageUrl: string | null = existingProduct?.imageUrl ?? null;
+                if (p.imageUrl === null) {
+                  imageUrl = null;
+                } else if (
+                  typeof p.imageUrl === 'string' &&
+                  allowedExistingImageUrls.has(p.imageUrl)
+                ) {
+                  imageUrl = p.imageUrl;
+                }
 
                 if (uploadedFile?.buffer) {
                   imageUrl = await uploadImageToR2(uploadedFile.buffer);
@@ -1440,7 +1553,21 @@ async function handleAuthenticatedCatalogUpdate(
 
         // Remove imagens substituídas ou de produtos excluídos em um único lote no R2
         if (oldUrlsToDelete.length > 0) {
-          void deleteImagesFromR2(oldUrlsToDelete);
+          const retainedUrls = new Set<string>();
+          if (updatedCatalog?.logoUrl) {
+            retainedUrls.add(updatedCatalog.logoUrl);
+          }
+          for (const prod of updatedCatalog?.products || []) {
+            if (prod.imageUrl) {
+              retainedUrls.add(prod.imageUrl);
+            }
+          }
+          const safeUrlsToDelete = oldUrlsToDelete.filter(
+            (url) => !retainedUrls.has(url)
+          );
+          if (safeUrlsToDelete.length > 0) {
+            void deleteImagesFromR2(safeUrlsToDelete);
+          }
         }
 
         res.json(updatedCatalog);
