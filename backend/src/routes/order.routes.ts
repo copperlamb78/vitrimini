@@ -13,6 +13,10 @@ import {
   getFrontendBaseUrl,
   sendNewOrderEmail,
 } from '../services/email.service.js';
+import {
+  createMerchantOnlinePayment,
+  hasProFeatures,
+} from '../services/mpOAuth.service.js';
 
 const router = Router();
 
@@ -177,6 +181,26 @@ router.post(
         });
       }
 
+      const isOnlinePayment = parsed.paymentChannel === 'MERCADO_PAGO';
+      if (isOnlinePayment) {
+        if (
+          !hasProFeatures(catalog) ||
+          !catalog.onlinePaymentEnabled ||
+          !catalog.mpAccessToken
+        ) {
+          throw new AppError(
+            400,
+            'O pagamento online automático não está disponível nesta vitrine.'
+          );
+        }
+        if (parsed.paymentMethod !== 'PIX' && parsed.paymentMethod !== 'CARD') {
+          throw new AppError(
+            400,
+            'Escolha Pix ou Cartão para pagar online.'
+          );
+        }
+      }
+
       let createdOrder;
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
@@ -203,6 +227,8 @@ router.post(
                   parsed.deliveryType === 'DELIVERY' ? parsed.deliveryAddress : null,
                 deliveryDate: parsed.deliveryDate,
                 paymentMethod: parsed.paymentMethod,
+                paymentChannel: parsed.paymentChannel,
+                paymentStatus: 'PENDING',
                 notes: parsed.notes,
                 status: 'PENDING',
                 totalCents,
@@ -234,6 +260,42 @@ router.post(
         );
       }
 
+      let onlinePaymentResult: {
+        mpPaymentId: string;
+        qrCodeBase64?: string;
+        pixCopyPaste?: string;
+        checkoutUrl?: string;
+      } | null = null;
+
+      if (isOnlinePayment) {
+        try {
+          onlinePaymentResult = await createMerchantOnlinePayment({
+            catalog,
+            order: {
+              id: createdOrder.id,
+              orderNumber: createdOrder.orderNumber,
+              trackingCode: createdOrder.trackingCode,
+              totalCents: createdOrder.totalCents,
+              customerName: createdOrder.customerName,
+            },
+            paymentMethod: parsed.paymentMethod === 'CARD' ? 'CARD' : 'PIX',
+          });
+
+          await prisma.order.update({
+            where: { id: createdOrder.id },
+            data: { mpPaymentId: onlinePaymentResult.mpPaymentId },
+          });
+        } catch (mpErr) {
+          await prisma.order.delete({ where: { id: createdOrder.id } }).catch(() => {});
+          throw new AppError(
+            502,
+            mpErr instanceof Error
+              ? mpErr.message
+              : 'Não foi possível iniciar o pagamento online agora. Tente novamente.'
+          );
+        }
+      }
+
       // E-mail assíncrono protegido: falha na Brevo nunca impede o pedido
       if (catalog.notifyOrderByEmail && catalog.user?.email) {
         void sendNewOrderEmail({
@@ -258,7 +320,16 @@ router.post(
         trackingCode: createdOrder.trackingCode,
         totalCents: createdOrder.totalCents,
         status: createdOrder.status,
+        paymentChannel: createdOrder.paymentChannel,
+        paymentStatus: createdOrder.paymentStatus,
         trackingUrl,
+        ...(onlinePaymentResult
+          ? {
+              mpQrCodeBase64: onlinePaymentResult.qrCodeBase64,
+              mpPixCopyPaste: onlinePaymentResult.pixCopyPaste,
+              mpCheckoutUrl: onlinePaymentResult.checkoutUrl,
+            }
+          : {}),
       });
     } catch (error) {
       next(error);
@@ -285,6 +356,8 @@ router.get(
           deliveryType: true,
           deliveryDate: true,
           paymentMethod: true,
+          paymentChannel: true,
+          paymentStatus: true,
           totalCents: true,
           createdAt: true,
           catalog: {
@@ -337,6 +410,8 @@ router.get(
           deliveryType: true,
           deliveryDate: true,
           paymentMethod: true,
+          paymentChannel: true,
+          paymentStatus: true,
           totalCents: true,
           createdAt: true,
           updatedAt: true,
@@ -378,6 +453,8 @@ router.get(
         deliveryType: order.deliveryType,
         deliveryDate: order.deliveryDate,
         paymentMethod: order.paymentMethod,
+        paymentChannel: order.paymentChannel,
+        paymentStatus: order.paymentStatus,
         totalCents: order.totalCents,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
