@@ -540,6 +540,23 @@ export function CatalogOrdersTab({
                   <span className="rounded-lg bg-zinc-100 px-2 py-1 font-semibold">
                     {PAYMENT_LABELS[order.paymentMethod] || order.paymentMethod}
                   </span>
+                  {order.paymentChannel === 'MERCADO_PAGO' && (
+                    <span
+                      className={`rounded-lg px-2 py-1 font-bold ${
+                        order.paymentStatus === 'PAID'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : order.paymentStatus === 'CANCELLED'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {order.paymentStatus === 'PAID'
+                        ? 'Pago online'
+                        : order.paymentStatus === 'CANCELLED'
+                        ? 'Pgto cancelado'
+                        : 'Aguardando pgto'}
+                    </span>
+                  )}
                   {order.deliveryDate && (
                     <span className="rounded-lg bg-zinc-100 px-2 py-1 font-semibold">
                       {order.deliveryDate}
