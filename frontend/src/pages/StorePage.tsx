@@ -35,6 +35,7 @@ import {
   isValidBrazilianPhone,
   phoneToDDI,
   resolveImageUrl,
+  safeRedirect,
 } from '../utils/format';
 import { applyPageSeo } from '../utils/seo';
 import { filterActiveDeliverySlots } from '../utils/deliverySchedule';
@@ -407,7 +408,11 @@ export function StorePage() {
       setOnlinePaid(orderRes.paymentStatus === 'PAID');
       setCart({});
       if (orderRes.paymentChannel === 'MERCADO_PAGO' && orderRes.mpCheckoutUrl) {
-        window.location.assign(orderRes.mpCheckoutUrl);
+        if (!safeRedirect(orderRes.mpCheckoutUrl)) {
+          setOrderError(
+            'Não foi possível abrir a página de pagamento com segurança. Tente novamente.'
+          );
+        }
         return;
       }
       setCreatedOrder({ order: orderRes, whatsappUrl });
