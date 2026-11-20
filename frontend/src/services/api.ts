@@ -19,10 +19,48 @@ import type {
   PublicTrackedOrder,
 } from '../types/catalog';
 
-export const AUTH_TOKEN_KEY = 'vitrimini_auth_token';
-export const AUTH_USER_KEY = 'vitrimini_auth_user';
+const LEGACY_AUTH_TOKEN_KEY = 'vitrimini_auth_token';
+const LEGACY_AUTH_USER_KEY = 'vitrimini_auth_user';
 export const AUTH_SESSION_HINT_KEY = 'vitrimini_has_session';
 const LEGACY_SAVED_CATALOGS_KEY = 'vitrimini_saved_catalogs';
+
+let inMemoryAccessToken: string | null = null;
+
+export function getAccessToken(): string | null {
+  return inMemoryAccessToken;
+}
+
+export function setAccessToken(token: string | null): void {
+  inMemoryAccessToken = token;
+}
+
+export function hasStoredSessionHint(): boolean {
+  try {
+    return localStorage.getItem(AUTH_SESSION_HINT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function markStoredSessionHint(): void {
+  try {
+    localStorage.setItem(AUTH_SESSION_HINT_KEY, '1');
+  } catch {
+    // Ignora falhas de storage
+  }
+}
+
+export function clearLegacyAuthStorage(): void {
+  try {
+    localStorage.removeItem(LEGACY_AUTH_TOKEN_KEY);
+    localStorage.removeItem(LEGACY_AUTH_USER_KEY);
+    localStorage.removeItem(LEGACY_SAVED_CATALOGS_KEY);
+    sessionStorage.removeItem(LEGACY_AUTH_TOKEN_KEY);
+    sessionStorage.removeItem(LEGACY_AUTH_USER_KEY);
+  } catch {
+    // Ignora falhas de storage
+  }
+}
 
 export function isJwtTokenExpired(token: string): boolean {
   try {
@@ -39,16 +77,13 @@ export function isJwtTokenExpired(token: string): boolean {
 }
 
 export function clearStoredAuthSession(): void {
+  inMemoryAccessToken = null;
   try {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-    localStorage.removeItem(AUTH_USER_KEY);
     localStorage.removeItem(AUTH_SESSION_HINT_KEY);
-    localStorage.removeItem(LEGACY_SAVED_CATALOGS_KEY);
-    sessionStorage.removeItem(AUTH_TOKEN_KEY);
-    sessionStorage.removeItem(AUTH_USER_KEY);
   } catch {
     // Ignora falhas de storage
   }
+  clearLegacyAuthStorage();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('auth:logout'));
   }
@@ -74,9 +109,9 @@ export async function refreshAuthSession(): Promise<AuthResponse | null> {
       if (!data?.token || !data?.user) {
         return null;
       }
-      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
-      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(data.user));
-      localStorage.setItem(AUTH_SESSION_HINT_KEY, '1');
+      inMemoryAccessToken = data.token;
+      markStoredSessionHint();
+      clearLegacyAuthStorage();
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('auth:refreshed', { detail: data }));
       }
@@ -140,8 +175,24 @@ export function getSafeErrorMessage(
 }
 
 function getAuthHeaders(tokenOverride?: string): Record<string, string> {
-  const token = tokenOverride || localStorage.getItem(AUTH_TOKEN_KEY);
+  const token = tokenOverride || inMemoryAccessToken;
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function resolveSessionTokenForRequest(): Promise<string | undefined> {
+  if (typeof window === 'undefined') return undefined;
+  const currentToken = getAccessToken();
+  const hasSessionHint = hasStoredSessionHint();
+  if (
+    (currentToken && isJwtTokenExpired(currentToken)) ||
+    (!currentToken && hasSessionHint)
+  ) {
+    const refreshed = await refreshAuthSession();
+    if (refreshed?.token) {
+      return refreshed.token;
+    }
+  }
+  return undefined;
 }
 
 async function safeRequest<T>(
@@ -230,7 +281,7 @@ export async function registerUser(input: {
   password: string;
   acceptTerms: boolean;
 }): Promise<AuthResponse> {
-  return safeRequest<AuthResponse>(
+  const res = await safeRequest<AuthResponse>(
     `${API_BASE_URL}/api/auth/register`,
     {
       method: 'POST',
@@ -239,13 +290,17 @@ export async function registerUser(input: {
     },
     'Não foi possível criar sua conta agora. Verifique sua conexão e tente novamente.'
   );
+  inMemoryAccessToken = res.token;
+  markStoredSessionHint();
+  clearLegacyAuthStorage();
+  return res;
 }
 
 export async function loginUser(input: {
   email: string;
   password: string;
 }): Promise<AuthResponse> {
-  return safeRequest<AuthResponse>(
+  const res = await safeRequest<AuthResponse>(
     `${API_BASE_URL}/api/auth/login`,
     {
       method: 'POST',
@@ -254,6 +309,10 @@ export async function loginUser(input: {
     },
     'Não foi possível entrar agora. Verifique seus dados e tente novamente.'
   );
+  inMemoryAccessToken = res.token;
+  markStoredSessionHint();
+  clearLegacyAuthStorage();
+  return res;
 }
 
 export async function getMe(
@@ -418,9 +477,12 @@ export async function getPublicStore(
   preview = false
 ): Promise<Catalog> {
   const query = preview ? '?preview=true' : '';
+  const tokenOverride = preview
+    ? await resolveSessionTokenForRequest()
+    : undefined;
   return safeRequest<Catalog>(
     `${API_BASE_URL}/api/store/${encodeURIComponent(slug)}${query}`,
-    preview ? { headers: getAuthHeaders() } : undefined,
+    preview ? { headers: getAuthHeaders(tokenOverride) } : undefined,
     'Vitrine não encontrada ou indisponível no momento.'
   );
 }
@@ -503,17 +565,7 @@ export async function createStoreOrder(
     items: Array<{ productId: string; quantity: number }>;
   }
 ): Promise<CreateOrderResponse> {
-  let tokenOverride: string | undefined;
-  if (typeof window !== 'undefined') {
-    const currentToken = localStorage.getItem(AUTH_TOKEN_KEY);
-    const hasSessionHint = localStorage.getItem(AUTH_SESSION_HINT_KEY) === '1';
-    if ((currentToken && isJwtTokenExpired(currentToken)) || (!currentToken && hasSessionHint)) {
-      const refreshed = await refreshAuthSession();
-      if (refreshed?.token) {
-        tokenOverride = refreshed.token;
-      }
-    }
-  }
+  const tokenOverride = await resolveSessionTokenForRequest();
 
   return safeRequest<CreateOrderResponse>(
     `${API_BASE_URL}/api/store/${encodeURIComponent(slug)}/orders`,
