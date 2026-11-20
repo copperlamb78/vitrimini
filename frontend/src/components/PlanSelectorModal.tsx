@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, Loader2, Sparkles, X } from 'lucide-react';
-import type { CatalogPlanCode } from '../types/catalog';
+import type { CatalogPlanCode, CatalogPlanType } from '../types/catalog';
 
 export interface PlanOption {
   code: CatalogPlanCode;
@@ -56,6 +56,8 @@ export const VITRIMINI_PLANS: PlanOption[] = [
 interface PlanSelectorModalProps {
   storeName: string;
   initialPlan?: CatalogPlanCode;
+  currentPlanType?: CatalogPlanType;
+  hasActiveDays?: boolean;
   loading?: boolean;
   onSelectPlan: (plan: PlanOption) => void;
   onClose: () => void;
@@ -64,6 +66,8 @@ interface PlanSelectorModalProps {
 export function PlanSelectorModal({
   storeName,
   initialPlan = 'PRO_90D',
+  currentPlanType,
+  hasActiveDays = false,
   loading = false,
   onSelectPlan,
   onClose,
@@ -105,6 +109,11 @@ export function PlanSelectorModal({
         </div>
 
         <div className="mt-4 space-y-2.5">
+          {currentPlanType === 'ESSENTIAL' && hasActiveDays && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs font-medium text-emerald-900">
+              Seus dias restantes do plano Essencial serão somados automaticamente ao novo prazo do Plano Pro.
+            </div>
+          )}
           {VITRIMINI_PLANS.map((plan) => {
             const isSelected = selected === plan.code;
             return (
