@@ -258,6 +258,7 @@ export const createOrderSchema = z
         message: 'Data de entrega muito longa.',
       }),
     paymentMethod: z.enum(['PIX', 'CARD', 'CASH', 'OTHER']).default('PIX'),
+    paymentChannel: z.enum(['WHATSAPP', 'MERCADO_PAGO']).optional().default('WHATSAPP'),
     notes: z
       .string()
       .nullable()
