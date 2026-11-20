@@ -3,7 +3,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { getOptionalAuthUserId, requireAuth } from '../middlewares/auth.js';
+import { requireAuth } from '../middlewares/auth.js';
 import { AppError, FRIENDLY_ERRORS } from '../middlewares/errorHandler.js';
 import {
   createOrderSchema,
@@ -90,10 +90,11 @@ async function assertCatalogOwnership(catalogId: string, userId: string) {
   return catalog;
 }
 
-// 1. POST /api/store/:slug/orders — Criação de pedido público
+// 1. POST /api/store/:slug/orders — Criação de pedido (exige conta cadastrada)
 router.post(
   '/store/:slug/orders',
   orderCreationRateLimiter,
+  requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const slug = String(req.params.slug || '').trim().toLowerCase();
@@ -102,7 +103,7 @@ router.post(
       }
 
       const parsed = createOrderSchema.parse(req.body);
-      const optionalUserId = getOptionalAuthUserId(req);
+      const authUserId = req.user!.id;
 
       const [catalog, validUser] = await Promise.all([
         prisma.catalog.findUnique({
@@ -114,15 +115,16 @@ router.post(
             products: true,
           },
         }),
-        optionalUserId
-          ? prisma.user.findUnique({
-              where: { id: optionalUserId },
-              select: { id: true },
-            })
-          : Promise.resolve(null),
+        prisma.user.findUnique({
+          where: { id: authUserId },
+          select: { id: true },
+        }),
       ]);
 
-      const verifiedUserId = validUser?.id ?? null;
+      if (!validUser) {
+        throw new AppError(401, 'Conta não encontrada. Entre novamente.');
+      }
+      const verifiedUserId = validUser.id;
 
       if (!catalog) {
         throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
@@ -296,8 +298,8 @@ router.post(
         }
       }
 
-      // E-mail assíncrono protegido: falha na Brevo nunca impede o pedido
-      if (catalog.notifyOrderByEmail && catalog.user?.email) {
+      // E-mail assíncrono protegido: para pagamento online, só dispara após confirmação no webhook
+      if (!isOnlinePayment && catalog.notifyOrderByEmail && catalog.user?.email) {
         void sendNewOrderEmail({
           to: catalog.user.email,
           merchantName: catalog.user.name,
@@ -500,19 +502,36 @@ router.get(
         'CANCELLED',
       ]);
 
+      const isAwaitingOnlinePaymentFilter = statusFilter === 'AWAITING_PAYMENT';
+
       const orders = await prisma.order.findMany({
         where: {
           catalogId,
-          ...(statusFilter && allowedStatuses.has(statusFilter)
+          ...(isAwaitingOnlinePaymentFilter
             ? {
-                status: statusFilter as
-                  | 'PENDING'
-                  | 'PREPARING'
-                  | 'OUT_FOR_DELIVERY'
-                  | 'COMPLETED'
-                  | 'CANCELLED',
+                paymentChannel: 'MERCADO_PAGO',
+                paymentStatus: 'PENDING',
+                status: { not: 'CANCELLED' },
               }
-            : {}),
+            : {
+                OR: [
+                  { paymentChannel: 'WHATSAPP' },
+                  { paymentChannel: 'MERCADO_PAGO', paymentStatus: 'PAID' },
+                  ...(statusFilter === 'CANCELLED'
+                    ? [{ status: 'CANCELLED' as const }]
+                    : []),
+                ],
+                ...(statusFilter && allowedStatuses.has(statusFilter)
+                  ? {
+                      status: statusFilter as
+                        | 'PENDING'
+                        | 'PREPARING'
+                        | 'OUT_FOR_DELIVERY'
+                        | 'COMPLETED'
+                        | 'CANCELLED',
+                    }
+                  : {}),
+              }),
           ...(periodStart ? { createdAt: { gte: periodStart } } : {}),
         },
         include: {
@@ -595,6 +614,10 @@ router.get(
           select: {
             status: true,
             totalCents: true,
+            paymentChannel: true,
+            paymentStatus: true,
+            mpFeeCents: true,
+            netAmountCents: true,
             customerPhone: true,
             customerName: true,
             createdAt: true,
@@ -623,6 +646,9 @@ router.get(
       let completedOrdersCount = 0;
       let pendingOrdersCount = 0;
       let cancelledOrdersCount = 0;
+      let onlineGrossRevenueCents = 0;
+      let onlineMpFeesCents = 0;
+      let onlineNetRevenueCents = 0;
 
       const productStats = new Map<
         string,
@@ -641,9 +667,26 @@ router.get(
       >();
 
       for (const order of orders) {
+        if (
+          order.paymentChannel === 'MERCADO_PAGO' &&
+          order.paymentStatus !== 'PAID'
+        ) {
+          continue;
+        }
         if (order.status === 'COMPLETED') {
           confirmedRevenueCents += order.totalCents;
           completedOrdersCount += 1;
+          if (
+            order.paymentChannel === 'MERCADO_PAGO' &&
+            order.paymentStatus === 'PAID'
+          ) {
+            const fee = order.mpFeeCents ?? 0;
+            const net =
+              order.netAmountCents ?? Math.max(0, order.totalCents - fee);
+            onlineGrossRevenueCents += order.totalCents;
+            onlineMpFeesCents += fee;
+            onlineNetRevenueCents += net;
+          }
         } else if (order.status === 'CANCELLED') {
           cancelledOrdersCount += 1;
         } else {
@@ -709,6 +752,9 @@ router.get(
         period: periodFilter,
         confirmedRevenueCents,
         pendingRevenueCents,
+        onlineGrossRevenueCents,
+        onlineMpFeesCents,
+        onlineNetRevenueCents,
         completedOrdersCount,
         pendingOrdersCount,
         cancelledOrdersCount,
