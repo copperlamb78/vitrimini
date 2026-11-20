@@ -160,6 +160,13 @@ router.post(
       let totalCents = 0;
 
       for (const [productId, quantity] of qtyByProductId.entries()) {
+        if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
+          throw new AppError(
+            400,
+            'A quantidade máxima por produto em um pedido é de 100 unidades.'
+          );
+        }
+
         const product = productMap.get(productId);
         if (!product) {
           throw new AppError(
@@ -175,6 +182,13 @@ router.post(
         }
 
         totalCents += product.priceCents * quantity;
+        if (!Number.isSafeInteger(totalCents) || totalCents > 100_000_000) {
+          throw new AppError(
+            400,
+            'O valor total do pedido excede o limite permitido.'
+          );
+        }
+
         orderItemsData.push({
           productId: product.id,
           productName: product.name,
@@ -304,12 +318,11 @@ router.post(
             data: { mpPaymentId: onlinePaymentResult.mpPaymentId },
           });
         } catch (mpErr) {
+          console.error('[Order Online Payment Error]:', mpErr);
           await prisma.order.delete({ where: { id: createdOrder.id } }).catch(() => {});
           throw new AppError(
             502,
-            mpErr instanceof Error
-              ? mpErr.message
-              : 'Não foi possível iniciar o pagamento online agora. Tente novamente.'
+            'Não foi possível iniciar o pagamento online agora. Tente novamente.'
           );
         }
       }
@@ -580,11 +593,35 @@ router.patch(
 
       const existing = await prisma.order.findFirst({
         where: { id: orderId, catalogId },
-        select: { id: true, deliveryType: true },
+        select: {
+          id: true,
+          status: true,
+          deliveryType: true,
+          paymentChannel: true,
+          paymentStatus: true,
+        },
       });
 
       if (!existing) {
         throw new AppError(404, 'Pedido não encontrado nesta vitrine.');
+      }
+
+      if (existing.status === 'CANCELLED' && status !== 'CANCELLED') {
+        throw new AppError(
+          400,
+          'Pedidos cancelados não podem ser reabertos.'
+        );
+      }
+
+      if (
+        existing.paymentChannel === 'MERCADO_PAGO' &&
+        existing.paymentStatus !== 'PAID' &&
+        status !== 'CANCELLED'
+      ) {
+        throw new AppError(
+          400,
+          'Este pedido aguarda confirmação do pagamento online antes de avançar.'
+        );
       }
 
       if (existing.deliveryType === 'PICKUP' && status === 'OUT_FOR_DELIVERY') {
@@ -614,48 +651,37 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const catalogId = uuidParamSchema.parse(req.params.id);
+      await assertCatalogOwnership(catalogId, req.user!.id);
+
       const periodFilter = req.query.period ? String(req.query.period) : '30d';
       const periodStart = getPeriodStartDate(periodFilter);
 
-      const [catalog, orders] = await Promise.all([
-        prisma.catalog.findUnique({
-          where: { id: catalogId },
-          select: { id: true, userId: true },
-        }),
-        prisma.order.findMany({
-          where: {
-            catalogId,
-            ...(periodStart ? { createdAt: { gte: periodStart } } : {}),
-          },
-          select: {
-            status: true,
-            totalCents: true,
-            paymentChannel: true,
-            paymentStatus: true,
-            mpFeeCents: true,
-            netAmountCents: true,
-            customerPhone: true,
-            customerName: true,
-            createdAt: true,
-            items: {
-              select: {
-                productId: true,
-                productName: true,
-                unitPriceCents: true,
-                quantity: true,
-              },
+      const orders = await prisma.order.findMany({
+        where: {
+          catalogId,
+          ...(periodStart ? { createdAt: { gte: periodStart } } : {}),
+        },
+        select: {
+          status: true,
+          totalCents: true,
+          paymentChannel: true,
+          paymentStatus: true,
+          mpFeeCents: true,
+          netAmountCents: true,
+          customerPhone: true,
+          customerName: true,
+          createdAt: true,
+          items: {
+            select: {
+              productId: true,
+              productName: true,
+              unitPriceCents: true,
+              quantity: true,
             },
           },
-          orderBy: { createdAt: 'desc' },
-        }),
-      ]);
-
-      if (!catalog) {
-        throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
-      }
-      if (catalog.userId !== req.user!.id) {
-        throw new AppError(403, 'Você não tem permissão para acessar esta vitrine.');
-      }
+        },
+        orderBy: { createdAt: 'desc' },
+      });
 
       let confirmedRevenueCents = 0;
       let pendingRevenueCents = 0;
