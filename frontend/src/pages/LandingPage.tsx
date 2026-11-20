@@ -726,51 +726,120 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* G. Seção de Preço Único */}
+        {/* G. Seção de Planos */}
         <section
           id="valor"
           className="border-t border-zinc-200 bg-white py-14 sm:py-18"
         >
-          <div className="mx-auto max-w-6xl px-4">
-            <Reveal className="mx-auto max-w-lg rounded-2xl border border-rose-200 bg-rose-50/30 p-7 text-center shadow-sm sm:p-9">
+          <div className="mx-auto max-w-5xl px-4">
+            <Reveal className="mx-auto max-w-2xl text-center">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-700">
                 <Store className="h-3.5 w-3.5" />
-                15 Dias Grátis na 1ª Vitrine • Depois 90 Dias por R$ 24,90
+                15 Dias Grátis na 1ª Vitrine • 0% de Comissão
               </span>
-
-              <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-zinc-900">
-                Comece grátis hoje. Sem cartão e sem surpresas.
+              <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-zinc-900 sm:text-3xl">
+                Comece grátis hoje. Escolha seu plano quando quiser continuar.
               </h2>
-
-              <div className="mt-5 flex items-baseline justify-center gap-1">
-                <span className="text-sm font-bold text-zinc-500">R$</span>
-                <span className="text-5xl font-black tracking-tight text-zinc-900">
-                  24,90
-                </span>
-              </div>
-              <p className="mt-1 text-xs font-semibold text-rose-700">
-                após os 15 dias grátis • pagamento único no Pix por 90 dias
+              <p className="mt-2 text-sm text-zinc-600">
+                Sem cartão de crédito, sem cobrança automática e todo o valor das vendas vai direto para você.
               </p>
-
-              <ul className="mt-6 space-y-3 text-left text-sm text-zinc-700">
-                {VALUE_BENEFITS.map((benefit) => (
-                  <li key={benefit} className="flex items-start gap-2.5">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white">
-                      <Check className="h-3 w-3 stroke-[3]" />
-                    </span>
-                    <span>{benefit}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <Link
-                to="/criar"
-                className="mt-7 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-rose-600 px-6 py-4 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:-translate-y-0.5 hover:bg-rose-700"
-              >
-                Criar vitrine com 15 dias grátis
-                <ArrowRight className="h-4 w-4" />
-              </Link>
             </Reveal>
+
+            <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2">
+              {/* Plano Essencial */}
+              <Reveal className="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-zinc-50/40 p-7 shadow-2xs">
+                <div>
+                  <span className="inline-block rounded-full bg-zinc-200/80 px-3 py-1 text-xs font-bold text-zinc-700">
+                    Essencial • 90 dias
+                  </span>
+                  <div className="mt-4 flex items-baseline gap-1">
+                    <span className="text-sm font-bold text-zinc-500">R$</span>
+                    <span className="text-4xl font-black tracking-tight text-zinc-900">
+                      24,90
+                    </span>
+                    <span className="text-xs font-semibold text-zinc-500">
+                      / 90 dias no Pix
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-zinc-600">
+                    Ideal para quem quer catálogo online leve e pedidos organizados no WhatsApp.
+                  </p>
+                  <ul className="mt-5 space-y-2.5 text-sm text-zinc-700">
+                    {VALUE_BENEFITS.map((benefit) => (
+                      <li key={benefit} className="flex items-start gap-2.5">
+                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-white">
+                          <Check className="h-3 w-3 stroke-[3]" />
+                        </span>
+                        <span>{benefit}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <Link
+                  to="/criar"
+                  className="mt-7 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-zinc-300 bg-white px-6 py-3.5 text-sm font-bold text-zinc-900 transition hover:bg-zinc-50"
+                >
+                  Começar 15 dias grátis
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Reveal>
+
+              {/* Plano Pro */}
+              <Reveal className="flex flex-col justify-between rounded-2xl border-2 border-rose-500 bg-rose-50/30 p-7 shadow-sm">
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-block rounded-full bg-rose-600 px-3 py-1 text-xs font-bold text-white">
+                      Plano Pro • Pagamento Automático
+                    </span>
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
+                      Anual: economize R$ 59,70
+                    </span>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm font-bold text-zinc-500">R$</span>
+                      <span className="text-4xl font-black tracking-tight text-zinc-900">
+                        39,90
+                      </span>
+                      <span className="text-xs font-semibold text-rose-700">
+                        / 90 dias
+                      </span>
+                    </div>
+                    <span className="text-xs font-bold text-zinc-500">
+                      ou <strong className="text-zinc-900">R$ 99,90 / ano</strong> (365 dias)
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-zinc-600">
+                    Para quem quer receber Pix e Cartão automaticamente direto na sua conta Mercado Pago.
+                  </p>
+                  <ul className="mt-5 space-y-2.5 text-sm text-zinc-700">
+                    {[
+                      'Tudo do Plano Essencial incluso',
+                      'Pagamento online automático via Pix e Cartão',
+                      'Dinheiro cai direto na sua conta Mercado Pago',
+                      'Baixa automática dos pedidos pagos no painel',
+                      '0% de comissão da VitriMini sobre suas vendas',
+                    ].map((benefit) => (
+                      <li key={benefit} className="flex items-start gap-2.5">
+                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white">
+                          <Check className="h-3 w-3 stroke-[3]" />
+                        </span>
+                        <span>{benefit}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <Link
+                  to="/criar"
+                  className="mt-7 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-rose-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:-translate-y-0.5 hover:bg-rose-700"
+                >
+                  Testar Pro por 15 dias grátis
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Reveal>
+            </div>
           </div>
         </section>
 
