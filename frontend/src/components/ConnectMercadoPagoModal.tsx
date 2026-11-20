@@ -4,6 +4,7 @@ import {
   getMercadoPagoConnectUrl,
   getSafeErrorMessage,
 } from '../services/api';
+import { safeRedirect } from '../utils/format';
 
 export function getMpInviteDismissedKey(catalogId: string): string {
   return `vitrimini_mp_invite_dismissed_${catalogId}`;
@@ -44,7 +45,11 @@ export function ConnectMercadoPagoModal({
     setError(null);
     try {
       const { authUrl } = await getMercadoPagoConnectUrl(catalogId);
-      window.location.assign(authUrl);
+      if (!safeRedirect(authUrl)) {
+        throw new Error(
+          'Não foi possível abrir a página de conexão com segurança.'
+        );
+      }
     } catch (err) {
       setError(
         getSafeErrorMessage(
