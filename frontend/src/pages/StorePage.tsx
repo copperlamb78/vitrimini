@@ -19,6 +19,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type {
   Catalog,
   CreateOrderResponse,
+  OrderPaymentChannel,
   OrderPaymentMethod,
 } from '../types/catalog';
 import { getStoreInitials, getTheme } from '../constants/themes';
@@ -26,6 +27,7 @@ import {
   createStoreOrder,
   getPublicStore,
   getSafeErrorMessage,
+  trackPublicOrder,
 } from '../services/api';
 import {
   formatCurrency,
@@ -64,6 +66,10 @@ export function StorePage() {
     'pickup'
   );
   const [paymentMethod, setPaymentMethod] = useState<OrderPaymentMethod>('PIX');
+  const [paymentChannel, setPaymentChannel] =
+    useState<OrderPaymentChannel>('WHATSAPP');
+  const [onlinePaid, setOnlinePaid] = useState(false);
+  const [copiedOnlinePix, setCopiedOnlinePix] = useState(false);
   const [address, setAddress] = useState('');
   const [customerNotes, setCustomerNotes] = useState('');
   const [copiedPix, setCopiedPix] = useState(false);
@@ -94,12 +100,40 @@ export function StorePage() {
   const [copiedTrack, setCopiedTrack] = useState(false);
 
   useEffect(() => {
+    const order = createdOrder?.order;
+    if (
+      !order ||
+      order.paymentChannel !== 'MERCADO_PAGO' ||
+      onlinePaid ||
+      order.paymentStatus === 'PAID'
+    ) {
+      if (order?.paymentStatus === 'PAID') setOnlinePaid(true);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      void trackPublicOrder(order.trackingCode)
+        .then((res) => {
+          if (res.paymentStatus === 'PAID') {
+            setOnlinePaid(true);
+          }
+        })
+        .catch(() => {});
+    }, 4000);
+
+    return () => clearInterval(timer);
+  }, [createdOrder, onlinePaid]);
+
+  useEffect(() => {
     if (!slug) return;
     setLoading(true);
     setError(null);
     getPublicStore(slug, isPreview)
       .then((data) => {
         setCatalog(data);
+        setPaymentChannel(
+          data.onlinePaymentAvailable ? 'MERCADO_PAGO' : 'WHATSAPP'
+        );
 
         const storeDescription =
           data.notes?.trim().slice(0, 155) ||
@@ -282,6 +316,7 @@ export function StorePage() {
           fulfillmentType === 'delivery' ? address.trim() : null,
         deliveryDate: chosenDate,
         paymentMethod,
+        paymentChannel: catalog.onlinePaymentAvailable ? paymentChannel : 'WHATSAPP',
         notes: customerNotes.trim() || null,
         items: cartSummary.items.map((item) => ({
           productId: item.product.id,
@@ -335,9 +370,12 @@ export function StorePage() {
       lines.push('', `*Acompanhar pedido:* ${orderRes.trackingUrl}`);
 
       const whatsappUrl = `https://wa.me/${catalog.whatsapp}?text=${encodeURIComponent(lines.join('\n'))}`;
+      setOnlinePaid(orderRes.paymentStatus === 'PAID');
       setCreatedOrder({ order: orderRes, whatsappUrl });
       setCart({});
-      window.open(whatsappUrl, '_blank');
+      if (orderRes.paymentChannel !== 'MERCADO_PAGO') {
+        window.open(whatsappUrl, '_blank');
+      }
     } catch (err) {
       setOrderError(
         getSafeErrorMessage(
@@ -681,17 +719,92 @@ export function StorePage() {
 
             {createdOrder ? (
               <div className="mt-5 space-y-4 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                  <Check className="h-7 w-7" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-extrabold text-stone-900">
-                    Pedido #{createdOrder.order.orderNumber} registrado!
-                  </h3>
-                  <p className="mt-1 text-xs text-stone-500">
-                    Acompanhe o status em tempo real pelo link abaixo ou conclua o envio no WhatsApp da loja.
-                  </p>
-                </div>
+                {createdOrder.order.paymentChannel === 'MERCADO_PAGO' &&
+                !onlinePaid ? (
+                  <>
+                    <div>
+                      <h3 className="text-lg font-extrabold text-stone-900">
+                        Pedido #{createdOrder.order.orderNumber} — Pague para confirmar
+                      </h3>
+                      <p className="mt-1 text-xs text-stone-500">
+                        Total:{' '}
+                        <strong>
+                          {formatCurrency(createdOrder.order.totalCents)}
+                        </strong>
+                        . Assim que o pagamento cair, seu pedido é confirmado na hora.
+                      </p>
+                    </div>
+
+                    {createdOrder.order.mpQrCodeBase64 &&
+                      createdOrder.order.mpPixCopyPaste && (
+                        <div className="space-y-3 rounded-2xl border border-stone-200 bg-stone-50 p-4">
+                          <div className="mx-auto inline-block rounded-xl border border-stone-200 bg-white p-2.5">
+                            <img
+                              src={createdOrder.order.mpQrCodeBase64}
+                              alt="QR Code Pix"
+                              className="h-44 w-44 object-contain"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await navigator.clipboard.writeText(
+                                createdOrder.order.mpPixCopyPaste || ''
+                              );
+                              setCopiedOnlinePix(true);
+                              setTimeout(() => setCopiedOnlinePix(false), 2000);
+                            }}
+                            className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-bold shadow-xs transition ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText}`}
+                          >
+                            {copiedOnlinePix ? (
+                              <>
+                                <Check className="h-4 w-4" />
+                                Código Pix copiado!
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-4 w-4" />
+                                Copiar código Pix
+                              </>
+                            )}
+                          </button>
+                          <p className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-stone-500">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Aguardando confirmação automática...
+                          </p>
+                        </div>
+                      )}
+
+                    {createdOrder.order.mpCheckoutUrl && (
+                      <a
+                        href={createdOrder.order.mpCheckoutUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-bold shadow-lg transition ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText}`}
+                      >
+                        Pagar com Cartão no Mercado Pago
+                      </a>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                      <Check className="h-7 w-7" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-extrabold text-stone-900">
+                        {onlinePaid
+                          ? `Pagamento confirmado! Pedido #${createdOrder.order.orderNumber}`
+                          : `Pedido #${createdOrder.order.orderNumber} registrado!`}
+                      </h3>
+                      <p className="mt-1 text-xs text-stone-500">
+                        {onlinePaid
+                          ? 'Seu pagamento foi aprovado e a loja já recebeu seu pedido.'
+                          : 'Acompanhe o status em tempo real pelo link abaixo ou conclua o envio no WhatsApp da loja.'}
+                      </p>
+                    </div>
+                  </>
+                )}
 
                 <div className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5 text-left">
                   <p className="text-[11px] font-bold uppercase tracking-wide text-stone-500">
@@ -796,24 +909,72 @@ export function StorePage() {
                 />
               </div>
 
+              {catalog.onlinePaymentAvailable && (
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700">
+                    Como deseja pagar?
+                  </label>
+                  <div className="mt-1.5 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentChannel('MERCADO_PAGO');
+                        if (paymentMethod !== 'PIX' && paymentMethod !== 'CARD') {
+                          setPaymentMethod('PIX');
+                        }
+                      }}
+                      className={`cursor-pointer rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
+                        paymentChannel === 'MERCADO_PAGO'
+                          ? `${theme.softBorder} ${theme.softBg} ${theme.softText}`
+                          : 'border-stone-200 text-stone-600'
+                      }`}
+                    >
+                      Pagar agora (Pix / Cartão)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentChannel('WHATSAPP')}
+                      className={`cursor-pointer rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
+                        paymentChannel === 'WHATSAPP'
+                          ? `${theme.softBorder} ${theme.softBg} ${theme.softText}`
+                          : 'border-stone-200 text-stone-600'
+                      }`}
+                    >
+                      Combinar no WhatsApp
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-stone-700">
                   Forma de Pagamento
                 </label>
-                <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+                <div
+                  className={`mt-1.5 grid gap-1.5 ${
+                    paymentChannel === 'MERCADO_PAGO'
+                      ? 'grid-cols-2'
+                      : 'grid-cols-4'
+                  }`}
+                >
                   {(
-                    [
-                      { id: 'PIX', label: 'Pix' },
-                      { id: 'CARD', label: 'Cartão' },
-                      { id: 'CASH', label: 'Dinheiro' },
-                      { id: 'OTHER', label: 'Outro' },
-                    ] as const
+                    paymentChannel === 'MERCADO_PAGO'
+                      ? ([
+                          { id: 'PIX', label: 'Pix na hora' },
+                          { id: 'CARD', label: 'Cartão' },
+                        ] as const)
+                      : ([
+                          { id: 'PIX', label: 'Pix' },
+                          { id: 'CARD', label: 'Cartão' },
+                          { id: 'CASH', label: 'Dinheiro' },
+                          { id: 'OTHER', label: 'Outro' },
+                        ] as const)
                   ).map((pm) => (
                     <button
                       key={pm.id}
                       type="button"
                       onClick={() => setPaymentMethod(pm.id)}
-                      className={`rounded-xl border py-2 text-xs font-bold transition ${
+                      className={`cursor-pointer rounded-xl border py-2 text-xs font-bold transition ${
                         paymentMethod === pm.id
                           ? `${theme.softBorder} ${theme.softBg} ${theme.softText}`
                           : 'border-stone-200 text-stone-600'
