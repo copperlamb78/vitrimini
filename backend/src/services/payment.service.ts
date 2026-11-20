@@ -232,7 +232,7 @@ export async function verifyMercadoPagoOrder(
   };
 }
 
-const WEBHOOK_MAX_AGE_SECONDS = 5 * 60; // 5 minutos contra replay attack
+const WEBHOOK_MAX_AGE_SECONDS = 15 * 60; // 15 minutos contra replay attack
 
 export function validateMercadoPagoWebhookSignature(params: {
   xSignature?: string;
@@ -247,25 +247,31 @@ export function validateMercadoPagoWebhookSignature(params: {
 
   const { xSignature, xRequestId, dataId } = params;
   if (!xSignature || !xRequestId || !dataId) {
+    console.warn('[MP Webhook Signature] Cabeçalhos ausentes:', {
+      hasSignature: Boolean(xSignature),
+      hasRequestId: Boolean(xRequestId),
+      hasDataId: Boolean(dataId),
+    });
     return false;
   }
 
   let ts = '';
   let v1 = '';
   for (const part of xSignature.split(',')) {
-    const [key, value] = part.split('=');
-    if (!key || !value) continue;
-    const trimmedKey = key.trim();
-    const trimmedValue = value.trim();
+    const eqIdx = part.indexOf('=');
+    if (eqIdx === -1) continue;
+    const trimmedKey = part.slice(0, eqIdx).trim();
+    const trimmedValue = part.slice(eqIdx + 1).trim();
     if (trimmedKey === 'ts') ts = trimmedValue;
-    if (trimmedKey === 'v1') v1 = trimmedValue;
+    if (trimmedKey === 'v1') v1 = trimmedValue.toLowerCase();
   }
 
   if (!ts || !v1) {
+    console.warn('[MP Webhook Signature] ts ou v1 ausente em x-signature');
     return false;
   }
 
-  // Proteção contra replay attack: aceita ts em segundos ou milissegundos dentro de +-5 min
+  // Proteção contra replay attack: aceita ts em segundos ou milissegundos
   const numericTs = Number(ts);
   if (!Number.isFinite(numericTs) || numericTs <= 0) {
     return false;
@@ -273,20 +279,30 @@ export function validateMercadoPagoWebhookSignature(params: {
   const tsSeconds = numericTs > 1e12 ? Math.floor(numericTs / 1000) : numericTs;
   const nowSeconds = Math.floor(Date.now() / 1000);
   if (Math.abs(nowSeconds - tsSeconds) > WEBHOOK_MAX_AGE_SECONDS) {
+    console.warn('[MP Webhook Signature] Timestamp fora da janela:', {
+      diffSeconds: Math.abs(nowSeconds - tsSeconds),
+    });
     return false;
   }
 
-  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+  // Especificação oficial Mercado Pago: data.id alfanumérico deve ir em minúsculas no manifest
+  const normalizedDataId = dataId.trim().toLowerCase();
+  const manifest = `id:${normalizedDataId};request-id:${xRequestId.trim()};ts:${ts};`;
   const calculatedHash = crypto
     .createHmac('sha256', secret)
     .update(manifest)
-    .digest('hex');
+    .digest('hex')
+    .toLowerCase();
 
   try {
     const v1Buf = Buffer.from(v1, 'utf8');
     const calcBuf = Buffer.from(calculatedHash, 'utf8');
     if (v1Buf.length !== calcBuf.length) return false;
-    return crypto.timingSafeEqual(v1Buf, calcBuf);
+    const ok = crypto.timingSafeEqual(v1Buf, calcBuf);
+    if (!ok) {
+      console.warn('[MP Webhook Signature] Hash divergente — verifique MP_WEBHOOK_SECRET no Render');
+    }
+    return ok;
   } catch {
     return false;
   }
