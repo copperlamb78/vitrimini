@@ -52,7 +52,7 @@ export function AdminDashboardPage() {
       setDataError(
         getSafeErrorMessage(
           err,
-          'Acesso restrito. Verifique se seu e-mail está em ADMIN_EMAILS.'
+          'Acesso restrito a administradores.'
         )
       );
       setData(null);
