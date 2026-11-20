@@ -221,8 +221,20 @@ async function sendEmail(params: {
   }
 }
 
+export function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function getFrontendBaseUrl(): string {
-  const configured = process.env.FRONTEND_URL?.trim().replace(/\/+$/, '');
+  const configured = process.env.FRONTEND_URL
+    ?.split(',')[0]
+    ?.trim()
+    .replace(/\/+$/, '');
   return configured || OFFICIAL_SITE_URL;
 }
 
@@ -258,6 +270,10 @@ function renderBaseEmailLayout({
   afterCtaHtml,
   securityNoteHtml,
 }: EmailLayoutOptions): string {
+  const safeTitle = escapeHtml(title);
+  const safeCtaLabel = escapeHtml(ctaLabel);
+  const safeCtaUrl = escapeHtml(ctaUrl);
+
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #fafafa; padding: 32px 16px; color: #18181b;">
       <div style="max-width: 480px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e4e4e7; border-radius: 16px; padding: 32px 24px;">
@@ -265,12 +281,12 @@ function renderBaseEmailLayout({
           VitriMini
         </p>
         <h1 style="margin: 0 0 16px 0; font-size: 20px; font-weight: 800; color: #18181b;">
-          ${title}
+          ${safeTitle}
         </h1>
         ${bodyHtml}
         <div style="text-align: center; margin: 28px 0;">
-          <a href="${ctaUrl}" style="display: inline-block; background-color: #e11d48; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 28px; border-radius: 12px;">
-            ${ctaLabel}
+          <a href="${safeCtaUrl}" style="display: inline-block; background-color: #e11d48; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 28px; border-radius: 12px;">
+            ${safeCtaLabel}
           </a>
         </div>
         ${
@@ -278,7 +294,7 @@ function renderBaseEmailLayout({
             ? `
         <p style="margin: 0 0 20px 0; font-size: 11px; line-height: 1.5; color: #71717a; word-break: break-all;">
           Caso o botão acima não funcione, copie e cole este link no seu navegador:<br />
-          <a href="${ctaUrl}" style="color: #e11d48;">${ctaUrl}</a>
+          <a href="${safeCtaUrl}" style="color: #e11d48;">${safeCtaUrl}</a>
         </p>`
             : ''
         }
@@ -302,6 +318,7 @@ export async function sendWelcomeEmail({
   name,
 }: SendWelcomeEmailInput): Promise<void> {
   const firstName = name.split(' ')[0] || 'Lojista';
+  const safeFirstName = escapeHtml(firstName);
   const appUrl = getFrontendBaseUrl();
 
   if (!isEmailConfigured()) {
@@ -313,7 +330,7 @@ export async function sendWelcomeEmail({
 
   const bodyHtml = `
     <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
-      Olá, <strong>${firstName}</strong>! Agradecemos pelo seu cadastro na <strong>VitriMini</strong>. Sua conta já está ativa e pronta para uso.
+      Olá, <strong>${safeFirstName}</strong>! Agradecemos pelo seu cadastro na <strong>VitriMini</strong>. Sua conta já está ativa e pronta para uso.
     </p>
     <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
       Você já pode personalizar sua vitrine digital com fotos, datas de entrega, cálculo automático de sinal no Pix e produtos ilimitados.
@@ -359,6 +376,7 @@ export async function sendPasswordResetEmail({
   resetUrl,
 }: SendPasswordResetEmailInput): Promise<void> {
   const firstName = name.split(' ')[0] || 'Lojista';
+  const safeFirstName = escapeHtml(firstName);
 
   if (!isEmailConfigured()) {
     console.log(
@@ -369,7 +387,7 @@ export async function sendPasswordResetEmail({
 
   const bodyHtml = `
     <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
-      Olá, <strong>${firstName}</strong>. Recebemos uma solicitação para redefinir a senha da sua conta na <strong>VitriMini</strong>.
+      Olá, <strong>${safeFirstName}</strong>. Recebemos uma solicitação para redefinir a senha da sua conta na <strong>VitriMini</strong>.
     </p>
     <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
       Clique no botão abaixo para criar sua nova senha. Por segurança, este link expira em <strong>30 minutos</strong>:
@@ -424,7 +442,9 @@ export async function sendPasswordChangedEmail({
   changedAt = new Date(),
 }: SendPasswordChangedEmailInput): Promise<void> {
   const firstName = name.split(' ')[0] || 'Lojista';
+  const safeFirstName = escapeHtml(firstName);
   const formattedDateTime = formatDateTimeBR(changedAt);
+  const safeFormattedDateTime = escapeHtml(formattedDateTime);
   const loginUrl = `${getFrontendBaseUrl()}/entrar`;
 
   if (!isEmailConfigured()) {
@@ -436,7 +456,7 @@ export async function sendPasswordChangedEmail({
 
   const bodyHtml = `
     <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
-      Olá, <strong>${firstName}</strong>. Confirmamos que a senha da sua conta na <strong>VitriMini</strong> foi alterada com sucesso em <strong>${formattedDateTime}</strong>.
+      Olá, <strong>${safeFirstName}</strong>. Confirmamos que a senha da sua conta na <strong>VitriMini</strong> foi alterada com sucesso em <strong>${safeFormattedDateTime}</strong>.
     </p>
     <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
       Se foi você quem realizou a alteração, nenhuma outra ação é necessária e você já pode acessar suas vitrines normalmente.
@@ -496,6 +516,12 @@ export async function sendCatalogPublishedEmail({
   const editUrl = `${baseUrl}/editar/${editToken}`;
   const formattedExpires = formatDateBR(expiresAt);
 
+  const safeFirstName = escapeHtml(firstName);
+  const safeStoreName = escapeHtml(storeName);
+  const safePublicUrl = escapeHtml(publicUrl);
+  const safeEditUrl = escapeHtml(editUrl);
+  const safeFormattedExpires = escapeHtml(formattedExpires);
+
   if (!isEmailConfigured()) {
     console.log(
       `[Email Dev Fallback] Vitrine publicada (${storeName}) para ${to}: Público=${publicUrl} | Edição=${editUrl}`
@@ -505,7 +531,7 @@ export async function sendCatalogPublishedEmail({
 
   const bodyHtml = `
     <p style="margin: 0 0 14px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
-      Olá, <strong>${firstName}</strong>! O pagamento Pix de <strong>R$ 24,90</strong> foi confirmado e a vitrine <strong>${storeName}</strong> já está no ar por 90 dias (válida até <strong>${formattedExpires}</strong>).
+      Olá, <strong>${safeFirstName}</strong>! O pagamento Pix de <strong>R$ 24,90</strong> foi confirmado e a vitrine <strong>${safeStoreName}</strong> já está no ar por 90 dias (válida até <strong>${safeFormattedExpires}</strong>).
     </p>
     <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
       Guarde este e-mail: abaixo estão os dois links essenciais da sua vitrine:
@@ -514,8 +540,8 @@ export async function sendCatalogPublishedEmail({
       <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #059669;">
         1. Link Público da Vitrine (Divulgue no Instagram e WhatsApp)
       </p>
-      <a href="${publicUrl}" style="font-size: 13px; font-weight: 700; color: #18181b; word-break: break-all;">
-        ${publicUrl}
+      <a href="${safePublicUrl}" style="font-size: 13px; font-weight: 700; color: #18181b; word-break: break-all;">
+        ${safePublicUrl}
       </a>
     </div>
     <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 14px 16px;">
@@ -525,15 +551,15 @@ export async function sendCatalogPublishedEmail({
       <p style="margin: 0 0 6px 0; font-size: 12px; line-height: 1.4; color: #78350f;">
         Use este link para editar produtos, alterar preços, trocar fotos e pausar itens esgotados:
       </p>
-      <a href="${editUrl}" style="font-size: 12px; font-family: monospace; font-weight: 700; color: #b45309; word-break: break-all;">
-        ${editUrl}
+      <a href="${safeEditUrl}" style="font-size: 12px; font-family: monospace; font-weight: 700; color: #b45309; word-break: break-all;">
+        ${safeEditUrl}
       </a>
     </div>
   `;
 
   const afterCtaHtml = `
     <div style="text-align: center; margin-bottom: 12px;">
-      <a href="${editUrl}" style="display: inline-block; background-color: #f4f4f5; color: #18181b; border: 1px solid #d4d4d8; text-decoration: none; font-size: 13px; font-weight: 700; padding: 10px 22px; border-radius: 10px;">
+      <a href="${safeEditUrl}" style="display: inline-block; background-color: #f4f4f5; color: #18181b; border: 1px solid #d4d4d8; text-decoration: none; font-size: 13px; font-weight: 700; padding: 10px 22px; border-radius: 10px;">
         Abrir Painel de Edição
       </a>
     </div>
@@ -588,6 +614,12 @@ export async function sendCatalogRenewedEmail({
   const editUrl = `${baseUrl}/editar/${editToken}`;
   const formattedExpires = formatDateBR(expiresAt);
 
+  const safeFirstName = escapeHtml(firstName);
+  const safeStoreName = escapeHtml(storeName);
+  const safePublicUrl = escapeHtml(publicUrl);
+  const safeEditUrl = escapeHtml(editUrl);
+  const safeFormattedExpires = escapeHtml(formattedExpires);
+
   if (!isEmailConfigured()) {
     console.log(
       `[Email Dev Fallback] Vitrine renovada (${storeName}) para ${to} até ${formattedExpires}`
@@ -597,22 +629,22 @@ export async function sendCatalogRenewedEmail({
 
   const bodyHtml = `
     <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
-      Olá, <strong>${firstName}</strong>! O pagamento Pix de renovação (<strong>R$ 24,90</strong>) foi aprovado e a vitrine <strong>${storeName}</strong> ganhou mais 90 dias no ar.
+      Olá, <strong>${safeFirstName}</strong>! O pagamento Pix de renovação (<strong>R$ 24,90</strong>) foi aprovado e a vitrine <strong>${safeStoreName}</strong> ganhou mais 90 dias no ar.
     </p>
     <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;">
       <p style="margin: 0; font-size: 13px; color: #065f46;">
-        Nova data de validade: <strong>${formattedExpires}</strong>
+        Nova data de validade: <strong>${safeFormattedExpires}</strong>
       </p>
     </div>
     <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #52525b;">
-      Link público: <a href="${publicUrl}" style="color: #e11d48; font-weight: 600;">${publicUrl}</a><br />
-      Link de edição: <a href="${editUrl}" style="color: #e11d48; font-weight: 600;">${editUrl}</a>
+      Link público: <a href="${safePublicUrl}" style="color: #e11d48; font-weight: 600;">${safePublicUrl}</a><br />
+      Link de edição: <a href="${safeEditUrl}" style="color: #e11d48; font-weight: 600;">${safeEditUrl}</a>
     </p>
   `;
 
   const afterCtaHtml = `
     <div style="text-align: center; margin-bottom: 12px;">
-      <a href="${editUrl}" style="display: inline-block; background-color: #f4f4f5; color: #18181b; border: 1px solid #d4d4d8; text-decoration: none; font-size: 13px; font-weight: 700; padding: 10px 22px; border-radius: 10px;">
+      <a href="${safeEditUrl}" style="display: inline-block; background-color: #f4f4f5; color: #18181b; border: 1px solid #d4d4d8; text-decoration: none; font-size: 13px; font-weight: 700; padding: 10px 22px; border-radius: 10px;">
         Editar Produtos da Vitrine
       </a>
     </div>
@@ -663,6 +695,11 @@ export async function sendCatalogExpiringSoonEmail({
   const dashboardUrl = `${baseUrl}/minhas-vitrines`;
   const formattedExpires = formatDateBR(expiresAt);
 
+  const safeFirstName = escapeHtml(firstName);
+  const safeStoreName = escapeHtml(storeName);
+  const safeSlug = escapeHtml(slug);
+  const safeFormattedExpires = escapeHtml(formattedExpires);
+
   if (!isEmailConfigured()) {
     console.log(
       `[Email Dev Fallback] Alerta de vencimento em 7 dias (${storeName}) para ${to}`
@@ -672,7 +709,7 @@ export async function sendCatalogExpiringSoonEmail({
 
   const bodyHtml = `
     <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
-      Olá, <strong>${firstName}</strong>. O ciclo de 90 dias da sua vitrine <strong>${storeName}</strong> (<code>/c/${slug}</code>) vence em <strong>${formattedExpires}</strong>.
+      Olá, <strong>${safeFirstName}</strong>. O ciclo de 90 dias da sua vitrine <strong>${safeStoreName}</strong> (<code>/c/${safeSlug}</code>) vence em <strong>${safeFormattedExpires}</strong>.
     </p>
     <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
       Após essa data, a vitrine pausa o recebimento de novas encomendas até ser renovada. Para continuar recebendo pedidos sem interrupção, renove por mais 90 dias no seu painel:
@@ -722,6 +759,11 @@ export async function sendCatalogExpiredEmail({
   const dashboardUrl = `${baseUrl}/minhas-vitrines`;
   const formattedExpires = formatDateBR(expiresAt);
 
+  const safeFirstName = escapeHtml(firstName);
+  const safeStoreName = escapeHtml(storeName);
+  const safeSlug = escapeHtml(slug);
+  const safeFormattedExpires = escapeHtml(formattedExpires);
+
   if (!isEmailConfigured()) {
     console.log(
       `[Email Dev Fallback] Aviso de vitrine expirada (${storeName}) para ${to}`
@@ -731,7 +773,7 @@ export async function sendCatalogExpiredEmail({
 
   const bodyHtml = `
     <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
-      Olá, <strong>${firstName}</strong>. O prazo de 90 dias da sua vitrine <strong>${storeName}</strong> (<code>/c/${slug}</code>) encerrou em <strong>${formattedExpires}</strong> e ela foi pausada temporariamente.
+      Olá, <strong>${safeFirstName}</strong>. O prazo de 90 dias da sua vitrine <strong>${safeStoreName}</strong> (<code>/c/${safeSlug}</code>) encerrou em <strong>${safeFormattedExpires}</strong> e ela foi pausada temporariamente.
     </p>
     <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 14px 16px; margin-bottom: 20px;">
       <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #78350f;">
@@ -803,6 +845,13 @@ export async function sendNewOrderEmail({
   });
   const deliveryLabel = deliveryType === 'DELIVERY' ? 'Entrega' : 'Retirada';
 
+  const safeFirstName = escapeHtml(firstName);
+  const safeStoreName = escapeHtml(storeName);
+  const safeCustomerName = escapeHtml(customerName);
+  const safeOrderNumber = escapeHtml(String(orderNumber));
+  const safeDeliveryLabel = escapeHtml(deliveryLabel);
+  const safeFormattedTotal = escapeHtml(formattedTotal);
+
   if (!isEmailConfigured()) {
     console.log(
       `[Email Dev Fallback] Novo pedido #${orderNumber} (${storeName}) para ${to}`
@@ -811,28 +860,35 @@ export async function sendNewOrderEmail({
   }
 
   const itemsHtml = items
-    .map(
-      (item) =>
-        `<li style="margin-bottom: 6px; font-size: 13px; color: #3f3f46;"><strong>${item.quantity}x</strong> ${item.productName} — ${((item.unitPriceCents * item.quantity) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</li>`
-    )
+    .map((item) => {
+      const safeQty = escapeHtml(String(item.quantity));
+      const safeProdName = escapeHtml(item.productName);
+      const safeItemPrice = escapeHtml(
+        ((item.unitPriceCents * item.quantity) / 100).toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        })
+      );
+      return `<li style="margin-bottom: 6px; font-size: 13px; color: #3f3f46;"><strong>${safeQty}x</strong> ${safeProdName} — ${safeItemPrice}</li>`;
+    })
     .join('');
 
   const bodyHtml = `
     <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
-      Olá, <strong>${firstName}</strong>! Você recebeu um novo pedido na vitrine <strong>${storeName}</strong>.
+      Olá, <strong>${safeFirstName}</strong>! Você recebeu um novo pedido na vitrine <strong>${safeStoreName}</strong>.
     </p>
     <div style="background-color: #fafafa; border: 1px solid #e4e4e7; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;">
       <p style="margin: 0 0 6px 0; font-size: 13px; color: #18181b;">
-        <strong>Pedido #${orderNumber}</strong> • ${deliveryLabel}
+        <strong>Pedido #${safeOrderNumber}</strong> • ${safeDeliveryLabel}
       </p>
       <p style="margin: 0 0 10px 0; font-size: 13px; color: #52525b;">
-        Cliente: <strong>${customerName}</strong>
+        Cliente: <strong>${safeCustomerName}</strong>
       </p>
       <ul style="margin: 0 0 10px 0; padding-left: 18px;">
         ${itemsHtml}
       </ul>
       <p style="margin: 0; font-size: 14px; font-weight: 800; color: #e11d48;">
-        Total: ${formattedTotal}
+        Total: ${safeFormattedTotal}
       </p>
     </div>
   `;
