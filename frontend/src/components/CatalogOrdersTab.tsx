@@ -113,6 +113,8 @@ export function CatalogOrdersTab({
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [confirmPaidCancelOrder, setConfirmPaidCancelOrder] =
+    useState<Order | null>(null);
   const [printOrder, setPrintOrder] = useState<Order | null>(null);
 
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
@@ -345,6 +347,7 @@ export function CatalogOrdersTab({
             { id: 'OUT_FOR_DELIVERY', label: 'Entrega' },
             { id: 'COMPLETED', label: 'Concluídos' },
             { id: 'CANCELLED', label: 'Cancelados' },
+            { id: 'AWAITING_PAYMENT', label: 'Aguardando pgto' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -623,10 +626,17 @@ export function CatalogOrdersTab({
                         <button
                           type="button"
                           disabled={isUpdating}
-                          onClick={() =>
-                            handleChangeStatus(order.id, 'CANCELLED')
-                          }
-                          className="rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                          onClick={() => {
+                            if (
+                              order.paymentChannel === 'MERCADO_PAGO' &&
+                              order.paymentStatus === 'PAID'
+                            ) {
+                              setConfirmPaidCancelOrder(order);
+                            } else {
+                              void handleChangeStatus(order.id, 'CANCELLED');
+                            }
+                          }}
+                          className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           Cancelar
                         </button>
@@ -656,6 +666,50 @@ export function CatalogOrdersTab({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {confirmPaidCancelOrder && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+          onClick={() => setConfirmPaidCancelOrder(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-extrabold text-zinc-900">
+              Cancelar pedido #{confirmPaidCancelOrder.orderNumber}?
+            </h3>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-600">
+              Este pedido já foi pago online. Ao cancelar aqui na VitriMini,
+              lembre-se de fazer o estorno diretamente no seu aplicativo do
+              Mercado Pago.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmPaidCancelOrder(null)}
+                className="flex-1 cursor-pointer rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-bold text-zinc-700 transition hover:bg-zinc-50"
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                disabled={updatingId === confirmPaidCancelOrder.id}
+                onClick={() => {
+                  const targetId = confirmPaidCancelOrder.id;
+                  setConfirmPaidCancelOrder(null);
+                  void handleChangeStatus(targetId, 'CANCELLED');
+                }}
+                className="flex-1 cursor-pointer rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Confirmar cancelamento
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
