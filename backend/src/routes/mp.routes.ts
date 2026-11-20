@@ -10,7 +10,7 @@ import {
   fetchMerchantMpPayment,
   hasProFeatures,
 } from '../services/mpOAuth.service.js';
-import { getFrontendBaseUrl } from '../services/email.service.js';
+import { getFrontendBaseUrl, sendNewOrderEmail } from '../services/email.service.js';
 
 const router = Router();
 const uuidParamSchema = z.string().uuid('Código inválido.');
@@ -263,17 +263,82 @@ router.post(
       }
 
       if (mpPayment.status === 'approved') {
-        await prisma.order.updateMany({
-          where: {
-            id: orderId,
-            catalogId: catalog.id,
-            paymentStatus: { not: 'PAID' },
-          },
-          data: {
-            paymentStatus: 'PAID',
-            mpPaymentId,
+        const targetOrder = await prisma.order.findFirst({
+          where: { id: orderId, catalogId: catalog.id },
+          select: {
+            id: true,
+            orderNumber: true,
+            customerName: true,
+            totalCents: true,
+            deliveryType: true,
+            items: {
+              select: {
+                productName: true,
+                unitPriceCents: true,
+                quantity: true,
+              },
+            },
+            catalog: {
+              select: {
+                id: true,
+                storeName: true,
+                notifyOrderByEmail: true,
+                user: {
+                  select: { name: true, email: true },
+                },
+              },
+            },
           },
         });
+
+        if (targetOrder) {
+          const netAmountCents =
+            mpPayment.netReceivedCents !== undefined
+              ? Math.min(targetOrder.totalCents, mpPayment.netReceivedCents)
+              : Math.max(
+                  0,
+                  targetOrder.totalCents - (mpPayment.feeCentsFromDetails ?? 0)
+                );
+          const mpFeeCents = Math.max(
+            0,
+            targetOrder.totalCents - netAmountCents
+          );
+
+          const promoted = await prisma.order.updateMany({
+            where: {
+              id: targetOrder.id,
+              catalogId: catalog.id,
+              paymentStatus: { not: 'PAID' },
+            },
+            data: {
+              paymentStatus: 'PAID',
+              status: 'PENDING',
+              mpPaymentId,
+              mpFeeCents,
+              netAmountCents,
+            },
+          });
+
+          if (
+            promoted.count > 0 &&
+            targetOrder.catalog.notifyOrderByEmail &&
+            targetOrder.catalog.user?.email
+          ) {
+            void sendNewOrderEmail({
+              to: targetOrder.catalog.user.email,
+              merchantName: targetOrder.catalog.user.name,
+              storeName: targetOrder.catalog.storeName,
+              catalogId: targetOrder.catalog.id,
+              orderNumber: targetOrder.orderNumber,
+              customerName: targetOrder.customerName,
+              totalCents: targetOrder.totalCents,
+              deliveryType: targetOrder.deliveryType,
+              items: targetOrder.items,
+            }).catch((mailErr) => {
+              console.error('[New Order Email Error]:', mailErr);
+            });
+          }
+        }
       } else if (
         mpPayment.status === 'cancelled' ||
         mpPayment.status === 'rejected'
