@@ -148,6 +148,45 @@ export function CatalogAnalyticsTab({
             </div>
           </div>
 
+          {(data.onlineGrossRevenueCents || 0) > 0 && (
+            <section className="rounded-2xl border border-sky-200 bg-sky-50/40 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-sky-900">
+                  Detalhamento das Vendas Pagas Online (Mercado Pago)
+                </h3>
+                <span className="text-[11px] font-semibold text-sky-700">
+                  VitriMini cobra 0% de comissão
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-sky-100 bg-white p-3">
+                  <p className="text-[11px] font-semibold text-zinc-500">
+                    Vendas Online (Bruto)
+                  </p>
+                  <p className="mt-1 text-base font-extrabold text-zinc-900">
+                    {formatCurrency(data.onlineGrossRevenueCents || 0)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-sky-100 bg-white p-3">
+                  <p className="text-[11px] font-semibold text-zinc-500">
+                    Taxas Mercado Pago
+                  </p>
+                  <p className="mt-1 text-base font-extrabold text-red-600">
+                    - {formatCurrency(data.onlineMpFeesCents || 0)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
+                  <p className="text-[11px] font-semibold text-emerald-800">
+                    Líquido na sua conta
+                  </p>
+                  <p className="mt-1 text-base font-extrabold text-emerald-900">
+                    {formatCurrency(data.onlineNetRevenueCents || 0)}
+                  </p>
+                </div>
+              </div>
+            </section>
+          )}
+
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {/* Ranking de Produtos */}
             <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xs">
