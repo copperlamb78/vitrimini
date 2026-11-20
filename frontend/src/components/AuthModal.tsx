@@ -51,6 +51,7 @@ export function AuthModal({
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,11 +110,18 @@ export function AuthModal({
 
     try {
       if (tab === 'register') {
+        if (!acceptTerms) {
+          setError(
+            'Você precisa aceitar os Termos de Uso e a Política de Privacidade para criar sua conta.'
+          );
+          return;
+        }
         const res = await register({
           name: name.trim(),
           email: normalizedEmail,
           phone: phoneToDDI(phone),
           password,
+          acceptTerms: true,
         });
         onSuccess(res);
       } else {
@@ -232,7 +240,7 @@ export function AuthModal({
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:bg-rose-700 disabled:opacity-60"
+                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? (
                   <>
@@ -413,6 +421,38 @@ export function AuthModal({
                 </div>
               </div>
 
+              {tab === 'register' && (
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-stone-200 bg-stone-50/70 p-3 text-xs leading-relaxed text-stone-600">
+                  <input
+                    type="checkbox"
+                    checked={acceptTerms}
+                    onChange={(e) => setAcceptTerms(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-stone-300 text-rose-600 focus:ring-rose-500"
+                  />
+                  <span>
+                    Li e aceito os{' '}
+                    <a
+                      href="/termos"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-rose-600 underline hover:text-rose-700"
+                    >
+                      Termos de Uso
+                    </a>{' '}
+                    e a{' '}
+                    <a
+                      href="/privacidade"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-rose-600 underline hover:text-rose-700"
+                    >
+                      Política de Privacidade
+                    </a>{' '}
+                    da VitriMini.
+                  </span>
+                </label>
+              )}
+
               {error && (
                 <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700">
                   {error}
@@ -421,8 +461,8 @@ export function AuthModal({
 
               <button
                 type="submit"
-                disabled={submitting}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:bg-rose-700 disabled:opacity-60"
+                disabled={submitting || (tab === 'register' && !acceptTerms)}
+                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? (
                   <>
