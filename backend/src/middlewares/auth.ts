@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { prisma } from '../lib/prisma.js';
 import { AppError } from './errorHandler.js';
 
 export interface AuthUserPayload {
@@ -19,17 +20,53 @@ declare global {
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET?.trim();
-  if (secret && secret.length >= 16) {
+  const isProd = process.env.NODE_ENV === 'production';
+
+  if (isProd) {
+    if (!secret || secret.length < 32) {
+      throw new Error(
+        'JWT_SECRET não configurado ou muito curto em produção (mínimo 32 caracteres).'
+      );
+    }
     return secret;
   }
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET não configurado ou muito curto em produção.');
+
+  if (secret) {
+    if (secret.length < 16) {
+      throw new Error(
+        'JWT_SECRET muito curto em desenvolvimento (mínimo 16 caracteres).'
+      );
+    }
+    return secret;
   }
-  return secret || 'vitrimini-default-jwt-secret-2026';
+
+  return 'vitrimini-default-jwt-secret-2026';
 }
 
 export function validateJwtSecretConfig(): void {
   getJwtSecret();
+}
+
+export function getAllowedOrigins(): Set<string> {
+  const configuredFrontend = (process.env.FRONTEND_URL || '')
+    .split(',')
+    .map((url) => url.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
+  return new Set<string>([
+    'https://vitrimini.com.br',
+    'https://www.vitrimini.com.br',
+    'https://painel.vitrimini.com.br',
+    ...configuredFrontend,
+    ...(process.env.NODE_ENV !== 'production'
+      ? ['http://localhost:5173', 'http://127.0.0.1:5173']
+      : []),
+  ]);
+}
+
+export function isAllowedOrigin(origin: string): boolean {
+  const normalized = origin.trim().replace(/\/+$/, '');
+  return Boolean(normalized) && getAllowedOrigins().has(normalized);
 }
 
 export function signAuthToken(user: AuthUserPayload): string {
@@ -41,8 +78,31 @@ export function signAuthToken(user: AuthUserPayload): string {
       phone: user.phone,
     },
     getJwtSecret(),
-    { expiresIn: '15m' }
+    { expiresIn: '15m', algorithm: 'HS256' }
   );
+}
+
+function parseVerifiedAuthPayload(token: string): AuthUserPayload | null {
+  const decoded = jwt.verify(token, getJwtSecret(), {
+    algorithms: ['HS256'],
+  });
+  if (
+    !decoded ||
+    typeof decoded !== 'object' ||
+    typeof decoded.id !== 'string' ||
+    !decoded.id.trim() ||
+    typeof decoded.email !== 'string' ||
+    !decoded.email.trim()
+  ) {
+    return null;
+  }
+
+  return {
+    id: decoded.id,
+    email: decoded.email,
+    name: typeof decoded.name === 'string' ? decoded.name : '',
+    phone: typeof decoded.phone === 'string' ? decoded.phone : '',
+  };
 }
 
 export function requireAuth(
@@ -63,13 +123,12 @@ export function requireAuth(
   }
 
   try {
-    const decoded = jwt.verify(token, getJwtSecret()) as AuthUserPayload;
-    req.user = {
-      id: decoded.id,
-      email: decoded.email,
-      name: decoded.name,
-      phone: decoded.phone,
-    };
+    const user = parseVerifiedAuthPayload(token);
+    if (!user) {
+      next(new AppError(401, 'Sua conexão expirou. Entre novamente.'));
+      return;
+    }
+    req.user = user;
     next();
   } catch {
     next(new AppError(401, 'Sua conexão expirou. Entre novamente.'));
@@ -85,14 +144,14 @@ export function getOptionalAuthUserId(req: Request): string | null {
   if (!token) return null;
 
   try {
-    const decoded = jwt.verify(token, getJwtSecret()) as AuthUserPayload;
-    return decoded.id || null;
+    const user = parseVerifiedAuthPayload(token);
+    return user?.id || null;
   } catch {
     return null;
   }
 }
 
-function getAllowedAdminEmails(): Set<string> {
+export function getAllowedAdminEmails(): Set<string> {
   return new Set(
     (process.env.ADMIN_EMAILS || '')
       .split(',')
@@ -106,20 +165,38 @@ export function requireAdmin(
   res: Response,
   next: NextFunction
 ): void {
-  requireAuth(req, res, (authErr?: unknown) => {
+  requireAuth(req, res, async (authErr?: unknown) => {
     if (authErr) {
       next(authErr);
       return;
     }
 
-    const email = req.user?.email?.trim().toLowerCase();
-    const allowedAdmins = getAllowedAdminEmails();
+    try {
+      const email = req.user?.email?.trim().toLowerCase();
+      const allowedAdmins = getAllowedAdminEmails();
 
-    if (!email || allowedAdmins.size === 0 || !allowedAdmins.has(email)) {
-      next(new AppError(403, 'Acesso restrito a administradores.'));
-      return;
+      if (!email || allowedAdmins.size === 0 || !allowedAdmins.has(email)) {
+        next(new AppError(403, 'Acesso restrito a administradores.'));
+        return;
+      }
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { id: true, email: true },
+      });
+
+      if (
+        !dbUser ||
+        dbUser.email.trim().toLowerCase() !== email ||
+        !allowedAdmins.has(dbUser.email.trim().toLowerCase())
+      ) {
+        next(new AppError(403, 'Acesso restrito a administradores.'));
+        return;
+      }
+
+      next();
+    } catch (err) {
+      next(err);
     }
-
-    next();
   });
 }
