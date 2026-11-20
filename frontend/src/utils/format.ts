@@ -19,20 +19,51 @@ export function centsToPriceInput(cents: number): string {
   return (cents / 100).toFixed(2).replace('.', ',');
 }
 
+const SAFE_DATA_IMAGE_REGEX = /^data:image\/(png|jpeg|webp|avif);base64,/i;
+
 export function resolveImageUrl(imageUrl: string | null | undefined): string | null {
   if (!imageUrl) return null;
   if (
     imageUrl.startsWith('https://') ||
     imageUrl.startsWith('http://') ||
-    imageUrl.startsWith('data:image/') ||
+    SAFE_DATA_IMAGE_REGEX.test(imageUrl) ||
     imageUrl.startsWith('blob:')
   ) {
     return imageUrl;
   }
-  if (imageUrl.startsWith('/')) {
+  if (imageUrl.startsWith('/') && !imageUrl.startsWith('//')) {
     return `${API_BASE_URL}${imageUrl}`;
   }
   return null;
+}
+
+export function isSafeExternalUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'https:' && trimmed.startsWith('https://')) {
+      return true;
+    }
+    if (
+      import.meta.env.DEV &&
+      parsed.protocol === 'http:' &&
+      parsed.hostname === 'localhost' &&
+      trimmed.startsWith('http://localhost')
+    ) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export function safeRedirect(url: string | null | undefined): boolean {
+  if (!isSafeExternalUrl(url)) return false;
+  window.location.assign(url!.trim());
+  return true;
 }
 
 /**
