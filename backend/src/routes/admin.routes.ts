@@ -1,8 +1,19 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma.js';
 import { requireAdmin } from '../middlewares/auth.js';
 
 const router = Router();
+
+const adminOverviewRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'Muitas consultas ao painel administrativo. Aguarde alguns minutos.',
+  },
+});
 
 const BREVO_DAILY_LIMIT = 300;
 
@@ -18,6 +29,7 @@ function getSaoPauloDayStart(date: Date): Date {
 // GET /api/admin/overview (Protegida por requireAdmin)
 router.get(
   '/overview',
+  adminOverviewRateLimiter,
   requireAdmin,
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
