@@ -73,6 +73,9 @@ export function getCatalogPriceCents(): number {
 }
 
 export function isMockPixEnabled(): boolean {
+  if (process.env.NODE_ENV === 'production') {
+    return false;
+  }
   return process.env.MOCK_PIX === 'true';
 }
 
@@ -196,16 +199,22 @@ export function calculatePixFeeFallback(amountCents: number): {
 }
 
 export async function verifyMercadoPagoOrder(
-  orderId: string
+  orderId: string,
+  expectedAmountCents?: number
 ): Promise<{
   approved: boolean;
   status?: string;
   catalogId?: string;
+  paidCents?: number;
   feeCents?: number;
   netAmountCents?: number;
 }> {
   if (isMockPixEnabled()) {
-    return { approved: true, status: 'processed' };
+    return {
+      approved: true,
+      status: 'processed',
+      paidCents: expectedAmountCents ?? getCatalogPriceCents(),
+    };
   }
 
   const accessToken = getAccessToken();
@@ -237,13 +246,23 @@ export async function verifyMercadoPagoOrder(
     };
   };
 
-  const expectedCents = getCatalogPriceCents();
-  const paidCents =
-    data.total_amount !== undefined
-      ? Math.round(Number(data.total_amount) * 100)
-      : expectedCents;
+  const expectedCents = expectedAmountCents ?? getCatalogPriceCents();
+  const rawTotal = data.total_amount;
+  const parsedTotalAmount =
+    typeof rawTotal === 'number'
+      ? rawTotal
+      : typeof rawTotal === 'string' && rawTotal.trim() !== ''
+        ? Number(rawTotal.trim())
+        : Number.NaN;
 
-  const isAmountValid = Number.isFinite(paidCents) && paidCents >= expectedCents;
+  const hasValidTotal =
+    Number.isFinite(parsedTotalAmount) && parsedTotalAmount > 0;
+  const paidCents = hasValidTotal
+    ? Math.round(parsedTotalAmount * 100)
+    : undefined;
+
+  const isAmountValid =
+    paidCents !== undefined && paidCents >= expectedCents;
   const isProcessed =
     data.status === 'processed' &&
     (!data.status_detail || data.status_detail === 'accredited') &&
@@ -254,25 +273,28 @@ export async function verifyMercadoPagoOrder(
   let feeCents: number | undefined;
   let netAmountCents: number | undefined;
 
-  if (typeof rawNet === 'number' && Number.isFinite(rawNet) && rawNet >= 0) {
-    netAmountCents = Math.min(paidCents, Math.round(rawNet * 100));
-    feeCents = Math.max(0, paidCents - netAmountCents);
-  } else if (Array.isArray(firstTx?.fee_details) && firstTx.fee_details.length > 0) {
-    const sumFee = firstTx.fee_details
-      .filter((f) => !f.fee_payer || f.fee_payer === 'collector')
-      .reduce((acc, f) => acc + (typeof f.amount === 'number' ? f.amount : 0), 0);
-    feeCents = Math.max(0, Math.round(sumFee * 100));
-    netAmountCents = Math.max(0, paidCents - feeCents);
-  } else if (isProcessed) {
-    const fallback = calculatePixFeeFallback(paidCents);
-    feeCents = fallback.feeCents;
-    netAmountCents = fallback.netAmountCents;
+  if (paidCents !== undefined) {
+    if (typeof rawNet === 'number' && Number.isFinite(rawNet) && rawNet >= 0) {
+      netAmountCents = Math.min(paidCents, Math.round(rawNet * 100));
+      feeCents = Math.max(0, paidCents - netAmountCents);
+    } else if (Array.isArray(firstTx?.fee_details) && firstTx.fee_details.length > 0) {
+      const sumFee = firstTx.fee_details
+        .filter((f) => !f.fee_payer || f.fee_payer === 'collector')
+        .reduce((acc, f) => acc + (typeof f.amount === 'number' ? f.amount : 0), 0);
+      feeCents = Math.max(0, Math.round(sumFee * 100));
+      netAmountCents = Math.max(0, paidCents - feeCents);
+    } else if (isProcessed) {
+      const fallback = calculatePixFeeFallback(paidCents);
+      feeCents = fallback.feeCents;
+      netAmountCents = fallback.netAmountCents;
+    }
   }
 
   return {
     approved: isProcessed,
     status: data.status,
     catalogId: data.external_reference,
+    paidCents,
     feeCents,
     netAmountCents,
   };
@@ -287,6 +309,9 @@ export function validateMercadoPagoWebhookSignature(params: {
 }): boolean {
   const secret = process.env.MP_WEBHOOK_SECRET?.trim();
   if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      return false;
+    }
     // Em modo real (não-mock), nunca aceita webhook sem MP_WEBHOOK_SECRET configurado
     return isMockPixEnabled();
   }
