@@ -23,3 +23,6 @@ backend/uploads/*
 npm-debug.log*
 .DS_Store
 Thumbs.db
+
+# Capturas de tela locais (portfólio/divulgação)
+screenshots/
