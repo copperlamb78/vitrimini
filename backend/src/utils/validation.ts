@@ -184,6 +184,13 @@ export const catalogMetadataSchema = z.object({
     .refine((val) => [0, 50, 100].includes(val), {
       message: 'Porcentagem de sinal deve ser 0, 50 ou 100.',
     }),
+  minOrderCents: z
+    .union([z.number(), z.string()])
+    .optional()
+    .transform((val) => (val === undefined || val === '' ? 0 : Number(val)))
+    .refine((val) => Number.isInteger(val) && val >= 0 && val <= 10000000, {
+      message: 'Valor mínimo do pedido inválido.',
+    }),
   paymentNotice: z
     .string()
     .nullable()
