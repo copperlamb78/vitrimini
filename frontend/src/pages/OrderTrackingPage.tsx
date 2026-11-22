@@ -217,7 +217,7 @@ export function OrderTrackingPage() {
             {logoSrc ? (
               <img
                 src={logoSrc}
-                alt={order.store.storeName}
+                alt={`Logo da vitrine ${order.store.storeName}`}
                 className="h-12 w-12 shrink-0 rounded-full border-2 border-white/90 bg-white object-cover"
               />
             ) : (

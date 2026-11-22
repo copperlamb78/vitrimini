@@ -95,7 +95,7 @@ export function AdminDashboardPage() {
           <div className="text-center">
             <img
               src={logoVitriMini}
-              alt="VitriMini"
+              alt="Logo da VitriMini"
               className="mx-auto h-8 w-auto object-contain"
             />
             <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-bold text-zinc-700">
@@ -176,7 +176,7 @@ export function AdminDashboardPage() {
           <div className="flex items-center gap-3">
             <img
               src={logoVitriMini}
-              alt="VitriMini"
+              alt="Logo da VitriMini"
               className="h-7 w-auto object-contain"
             />
             <span className="inline-flex items-center gap-1 rounded-full bg-zinc-900 px-2.5 py-0.5 text-[11px] font-bold text-white">

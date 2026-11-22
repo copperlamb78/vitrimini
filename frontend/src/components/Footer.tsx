@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { LEGAL_DOCS } from '../data/legalDocs';
+import { NICHE_LINKS_LIST } from '../data/nichePages';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
 type LegalDocType = 'terms' | 'privacy' | null;
@@ -42,7 +43,7 @@ export function Footer() {
               <div className="flex items-center gap-2.5">
                 <img
                   src={logoVitriMini}
-                  alt="VitriMini"
+                  alt="Logo da VitriMini"
                   className="h-9 w-auto object-contain"
                 />
               </div>
@@ -135,8 +136,41 @@ export function Footer() {
             </div>
           </div>
 
+          {/* Links Discretos de Soluções por Segmento (SEO Internal Linking) */}
+          <div className="mt-8 border-t border-zinc-100 pt-6">
+            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-zinc-500">
+              <Link
+                to="/"
+                className="transition hover:text-[#E11D48] hover:underline"
+              >
+                VitriMini — Catálogo Online
+              </Link>
+              {NICHE_LINKS_LIST.map((niche) => (
+                <Link
+                  key={niche.slug}
+                  to={niche.path}
+                  className="transition hover:text-[#E11D48] hover:underline"
+                >
+                  {niche.navLabel}
+                </Link>
+              ))}
+              <Link
+                to="/termos"
+                className="transition hover:text-[#E11D48] hover:underline"
+              >
+                Termos de Uso
+              </Link>
+              <Link
+                to="/privacidade"
+                className="transition hover:text-[#E11D48] hover:underline"
+              >
+                Política de Privacidade
+              </Link>
+            </div>
+          </div>
+
           {/* Barra Inferior — Copyright e Autoria */}
-          <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-zinc-200 pt-6 text-xs text-zinc-500 sm:flex-row">
+          <div className="mt-6 flex flex-col items-center justify-between gap-3 border-t border-zinc-200 pt-6 text-xs text-zinc-500 sm:flex-row">
             <p>© 2026 VitriMini. Todos os direitos reservados.</p>
             <p className="flex items-center gap-1">
               <span>Desenvolvido por</span>

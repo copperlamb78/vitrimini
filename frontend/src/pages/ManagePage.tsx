@@ -490,7 +490,7 @@ export function ManagePage() {
             <Link to="/" className="shrink-0">
               <img
                 src={logoVitriMini}
-                alt="VitriMini"
+                alt="Logo da VitriMini"
                 className="h-8 w-auto object-contain"
               />
             </Link>
@@ -791,7 +791,11 @@ export function ManagePage() {
                         {displayImg ? (
                           <img
                             src={displayImg}
-                            alt={product.name}
+                            alt={
+                              product.name.trim()
+                                ? `Foto do produto ${product.name.trim()}`
+                                : 'Foto do produto cadastrado'
+                            }
                             loading="lazy"
                             decoding="async"
                             className="h-full w-full object-cover"

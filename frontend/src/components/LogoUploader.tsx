@@ -24,7 +24,11 @@ export function LogoUploader({
         {imageSrc ? (
           <img
             src={imageSrc}
-            alt="Logo do estabelecimento"
+            alt={
+              storeName.trim()
+                ? `Logo da vitrine ${storeName.trim()}`
+                : 'Logo do estabelecimento'
+            }
             className="h-full w-full object-cover"
           />
         ) : (

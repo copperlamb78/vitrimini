@@ -440,7 +440,7 @@ export function StorePage() {
       <div className="flex min-h-screen flex-col items-center justify-center bg-stone-50 px-4 text-center">
         <img
           src={logoVitriMini}
-          alt="VitriMini"
+          alt="Logo da VitriMini"
           className="mb-5 h-9 w-auto object-contain"
         />
         <AlertCircle className="h-10 w-10 text-stone-400" />
@@ -490,7 +490,7 @@ export function StorePage() {
             {logoSrc ? (
               <img
                 src={logoSrc}
-                alt={`Logo de ${catalog.storeName}`}
+                alt={`Logo da vitrine ${catalog.storeName}`}
                 decoding="async"
                 fetchPriority="high"
                 className="h-16 w-16 shrink-0 rounded-full border-2 border-white/90 bg-white object-cover shadow-lg"
@@ -603,7 +603,7 @@ export function StorePage() {
                   {imgSrc ? (
                     <img
                       src={imgSrc}
-                      alt={product.name}
+                      alt={`${product.name} — ${catalog.storeName}`}
                       loading="lazy"
                       decoding="async"
                       className={`h-full w-full object-cover ${
@@ -704,7 +704,7 @@ export function StorePage() {
         {/* Assinatura Viral VitriMini */}
         <footer className="pt-6 text-center">
           <a
-            href="https://vitrimini.com.br/?ref=vitrine"
+            href="https://vitrimini.com.br"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-full border border-stone-200/80 bg-white/85 px-3.5 py-1.5 text-xs text-stone-500 shadow-2xs transition hover:border-stone-300 hover:bg-white hover:text-stone-700"
@@ -715,8 +715,8 @@ export function StorePage() {
               className="h-4 w-4 object-contain"
             />
             <span>
-              Vitrine criada com{' '}
-              <strong className="font-bold text-stone-700">VitriMini</strong> — Crie a sua em 2 minutos
+              Vitrine digital criada com{' '}
+              <strong className="font-bold text-stone-700">VitriMini</strong>
             </span>
           </a>
         </footer>
@@ -803,7 +803,7 @@ export function StorePage() {
                           <div className="mx-auto inline-block rounded-xl border border-stone-200 bg-white p-2.5">
                             <img
                               src={createdOrder.order.mpQrCodeBase64}
-                              alt="QR Code Pix"
+                              alt={`QR Code Pix do Pedido #${createdOrder.order.orderNumber} em ${catalog.storeName}`}
                               className="h-44 w-44 object-contain"
                             />
                           </div>

@@ -168,7 +168,7 @@ export function AuthModal({
         <div className="text-center">
           <img
             src={logoVitriMini}
-            alt="VitriMini"
+            alt="Logo da VitriMini"
             className="mx-auto mb-3 h-8 w-auto object-contain"
           />
           <h2 className="text-lg font-extrabold text-zinc-900">

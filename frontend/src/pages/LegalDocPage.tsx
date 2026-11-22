@@ -27,7 +27,7 @@ export function LegalDocPage({ type }: LegalDocPageProps) {
           <Link to="/" className="flex items-center gap-2.5">
             <img
               src={logoVitriMini}
-              alt="VitriMini"
+              alt="Logo da VitriMini"
               className="h-8 w-auto object-contain sm:h-9"
             />
           </Link>

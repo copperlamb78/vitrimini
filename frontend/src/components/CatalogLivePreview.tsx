@@ -66,7 +66,7 @@ export const CatalogLivePreview = memo(function CatalogLivePreview({
             {logoUrl ? (
               <img
                 src={logoUrl}
-                alt={displayTitle}
+                alt={`Logo da vitrine ${displayTitle}`}
                 className="h-12 w-12 shrink-0 rounded-full border-2 border-white/85 bg-white object-cover shadow-md"
               />
             ) : (
@@ -169,7 +169,11 @@ export const CatalogLivePreview = memo(function CatalogLivePreview({
                       {product.imageUrl ? (
                         <img
                           src={product.imageUrl}
-                          alt={product.name}
+                          alt={
+                            product.name.trim()
+                              ? `Foto de ${product.name.trim()} na vitrine ${displayTitle}`
+                              : `Foto de produto da vitrine ${displayTitle}`
+                          }
                           loading="lazy"
                           decoding="async"
                           className={`h-full w-full object-cover ${

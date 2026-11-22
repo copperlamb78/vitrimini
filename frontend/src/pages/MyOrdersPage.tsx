@@ -105,7 +105,7 @@ export function MyOrdersPage() {
           <Link to="/" className="flex items-center gap-2.5">
             <img
               src={logoVitriMini}
-              alt="VitriMini"
+              alt="Logo da VitriMini"
               className="h-8 w-auto object-contain sm:h-9"
             />
           </Link>
@@ -202,7 +202,7 @@ export function MyOrdersPage() {
                       {logoSrc ? (
                         <img
                           src={logoSrc}
-                          alt={order.catalog.storeName}
+                          alt={`Logo da vitrine ${order.catalog.storeName}`}
                           loading="lazy"
                           decoding="async"
                           className="h-11 w-11 shrink-0 rounded-full border border-zinc-200 object-cover"

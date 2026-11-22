@@ -241,7 +241,7 @@ export function PixPaymentModal({
             <div className="text-center">
               <img
                 src={logoVitriMini}
-                alt="VitriMini"
+                alt="Logo da VitriMini"
                 className="mx-auto mb-2 h-7 w-auto object-contain"
               />
               <h2 className="text-xl font-bold text-stone-900">
@@ -260,7 +260,7 @@ export function PixPaymentModal({
                   <div className="rounded-2xl border border-stone-200 bg-white p-3 shadow-xs">
                     <img
                       src={paymentData.qrCodeBase64}
-                      alt="QR Code Pix VitriMini"
+                      alt={`QR Code Pix para ativação do ${planName} na VitriMini`}
                       className="h-44 w-44 object-contain"
                     />
                   </div>

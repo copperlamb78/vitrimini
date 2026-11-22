@@ -6,6 +6,11 @@ import { PageSuspenseSkeleton } from './components/Skeletons';
 const LandingPage = lazy(() =>
   import('./pages/LandingPage').then((m) => ({ default: m.LandingPage }))
 );
+const NicheLandingPage = lazy(() =>
+  import('./pages/NicheLandingPage').then((m) => ({
+    default: m.NicheLandingPage,
+  }))
+);
 const CreatorPage = lazy(() =>
   import('./pages/CreatorPage').then((m) => ({ default: m.CreatorPage }))
 );
@@ -66,6 +71,30 @@ export function App() {
           ) : (
             <Routes>
               <Route path="/" element={<LandingPage />} />
+              <Route
+                path="/cardapio-digital-whatsapp"
+                element={
+                  <NicheLandingPage nicheKey="cardapio-digital-whatsapp" />
+                }
+              />
+              <Route
+                path="/catalogo-online-roupas"
+                element={
+                  <NicheLandingPage nicheKey="catalogo-online-roupas" />
+                }
+              />
+              <Route
+                path="/vitrine-digital-confeitaria"
+                element={
+                  <NicheLandingPage nicheKey="vitrine-digital-confeitaria" />
+                }
+              />
+              <Route
+                path="/link-pedidos-instagram"
+                element={
+                  <NicheLandingPage nicheKey="link-pedidos-instagram" />
+                }
+              />
               <Route path="/criar" element={<CreatorPage />} />
               <Route path="/entrar" element={<AuthPage />} />
               <Route path="/redefinir-senha" element={<ResetPasswordPage />} />

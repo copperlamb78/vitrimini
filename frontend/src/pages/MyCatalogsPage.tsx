@@ -157,7 +157,7 @@ export function MyCatalogsPage() {
           <Link to="/" className="flex items-center gap-2.5">
             <img
               src={logoVitriMini}
-              alt="VitriMini"
+              alt="Logo da VitriMini"
               className="h-8 w-auto object-contain sm:h-9"
             />
           </Link>
@@ -258,7 +258,7 @@ export function MyCatalogsPage() {
                         {logoSrc ? (
                           <img
                             src={logoSrc}
-                            alt={cat.storeName}
+                            alt={`Logo da vitrine ${cat.storeName}`}
                             className="h-12 w-12 shrink-0 rounded-full border border-zinc-200 object-cover"
                           />
                         ) : (

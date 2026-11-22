@@ -122,7 +122,13 @@ app.get('/sitemap.xml', sitemapRateLimiter, async (_req: Request, res: Response,
 
     const staticEntries = [
       { loc: `${baseUrl}/`, changefreq: 'weekly', priority: '1.0' },
+      { loc: `${baseUrl}/cardapio-digital-whatsapp`, changefreq: 'weekly', priority: '0.9' },
+      { loc: `${baseUrl}/catalogo-online-roupas`, changefreq: 'weekly', priority: '0.9' },
+      { loc: `${baseUrl}/vitrine-digital-confeitaria`, changefreq: 'weekly', priority: '0.9' },
+      { loc: `${baseUrl}/link-pedidos-instagram`, changefreq: 'weekly', priority: '0.9' },
       { loc: `${baseUrl}/criar`, changefreq: 'monthly', priority: '0.8' },
+      { loc: `${baseUrl}/termos`, changefreq: 'monthly', priority: '0.4' },
+      { loc: `${baseUrl}/privacidade`, changefreq: 'monthly', priority: '0.4' },
     ];
 
     const urlNodes = [

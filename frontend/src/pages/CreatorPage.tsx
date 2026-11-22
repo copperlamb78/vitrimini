@@ -421,7 +421,7 @@ export function CreatorPage() {
             <Link to="/" className="shrink-0">
               <img
                 src={logoVitriMini}
-                alt="VitriMini"
+                alt="Logo da VitriMini"
                 className="h-8 w-auto object-contain sm:h-9"
               />
             </Link>
@@ -787,7 +787,11 @@ export function CreatorPage() {
                         {product.previewDataUrl ? (
                           <img
                             src={product.previewDataUrl}
-                            alt={product.name}
+                            alt={
+                              product.name.trim()
+                                ? `Foto do produto ${product.name.trim()}`
+                                : 'Foto do produto cadastrado'
+                            }
                             className="h-full w-full object-cover"
                           />
                         ) : (
