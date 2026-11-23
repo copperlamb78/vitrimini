@@ -6,6 +6,40 @@ export type CatalogPlanCode = 'ESSENTIAL_90D' | 'PRO_90D' | 'PRO_365D';
 export type OrderPaymentChannel = 'WHATSAPP' | 'MERCADO_PAGO';
 export type OrderPaymentStatus = 'PENDING' | 'PAID' | 'CANCELLED';
 
+export type BioLinkIcon =
+  | 'whatsapp'
+  | 'instagram'
+  | 'tiktok'
+  | 'maps'
+  | 'catalog'
+  | 'vip'
+  | 'link';
+
+export type BioLinksTheme = 'minimal' | 'brand-soft' | 'dark-glass';
+export type BioLinksButtonStyle = 'pill' | 'card' | 'outline';
+
+export interface BioLinkItem {
+  id: string;
+  title: string;
+  subtitle?: string;
+  url: string;
+  icon: BioLinkIcon;
+  highlighted?: boolean;
+}
+
+export interface BioLinksConfig {
+  enabled: boolean;
+  theme: BioLinksTheme;
+  buttonStyle: BioLinksButtonStyle;
+  showFeaturedProducts: boolean;
+  socials: {
+    instagram?: string;
+    tiktok?: string;
+    whatsapp?: string;
+  };
+  links: BioLinkItem[];
+}
+
 export interface AuthUser {
   id: string;
   name: string;
@@ -64,6 +98,7 @@ export interface Catalog {
   pickupInstructions?: string | null;
   deliveryEstimate?: string | null;
   notifyOrderByEmail?: boolean;
+  bioLinksConfig?: BioLinksConfig | null;
   expiresAt: string | null;
   createdAt?: string;
   updatedAt?: string;
