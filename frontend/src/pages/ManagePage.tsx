@@ -18,8 +18,9 @@ import {
   Sparkles,
   Unlink,
   X,
+  Link2,
 } from 'lucide-react';
-import type { Catalog, CreateCatalogResponse } from '../types/catalog';
+import type { BioLinksConfig, Catalog, CreateCatalogResponse } from '../types/catalog';
 import {
   getTheme,
   THEMES,
@@ -52,6 +53,8 @@ import { DeliveryScheduleEditor } from '../components/DeliveryScheduleEditor';
 import { CatalogOrdersTab } from '../components/CatalogOrdersTab';
 import { CatalogAnalyticsTab } from '../components/CatalogAnalyticsTab';
 import { CatalogLivePreview } from '../components/CatalogLivePreview';
+import { BioLinksTab } from '../components/BioLinksTab';
+import { normalizeBioLinksConfig } from '../utils/bioLinks';
 import { PixPaymentModal } from '../components/PixPaymentModal';
 import { PlanSelectorModal, type PlanOption } from '../components/PlanSelectorModal';
 import {
@@ -79,7 +82,7 @@ interface EditableProduct {
   blob?: Blob;
 }
 
-type ManageTab = 'orders' | 'analytics' | 'catalog';
+type ManageTab = 'orders' | 'analytics' | 'catalog' | 'biolink';
 
 export function ManagePage() {
   const { catalogId } = useParams<{ catalogId: string }>();
@@ -138,6 +141,9 @@ export function ManagePage() {
   const [paymentNotice, setPaymentNotice] = useState('');
   const [deliveryDates, setDeliveryDates] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
+  const [bioLinksConfig, setBioLinksConfig] = useState<BioLinksConfig>(() =>
+    normalizeBioLinksConfig(null)
+  );
   const [pickupAddress, setPickupAddress] = useState('');
   const [pickupInstructions, setPickupInstructions] = useState('');
   const [deliveryEstimate, setDeliveryEstimate] = useState('');
@@ -241,6 +247,7 @@ export function ManagePage() {
         setPickupInstructions(data.pickupInstructions || '');
         setDeliveryEstimate(data.deliveryEstimate || '');
         setNotifyOrderByEmail(data.notifyOrderByEmail ?? true);
+        setBioLinksConfig(normalizeBioLinksConfig(data.bioLinksConfig));
         setProducts(
           data.products.map((p) => ({
             id: p.id,
@@ -537,7 +544,7 @@ export function ManagePage() {
 
       <main
         className={`mx-auto mt-6 px-4 ${
-          activeTab === 'catalog' ? 'max-w-6xl' : 'max-w-4xl'
+          activeTab === 'catalog' || activeTab === 'biolink' ? 'max-w-6xl' : 'max-w-4xl'
         }`}
       >
         {catalogMeta?.isTrial &&
@@ -610,11 +617,12 @@ export function ManagePage() {
         )}
 
         {/* Abas de Gestão */}
-        <div className="mb-5 grid grid-cols-3 gap-1.5 rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-2xs">
+        <div className="mb-5 grid grid-cols-2 gap-1.5 rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-2xs sm:grid-cols-4">
           {[
             { id: 'orders' as const, label: 'Pedidos', icon: ClipboardList },
             { id: 'analytics' as const, label: 'Financeiro', icon: BarChart3 },
             { id: 'catalog' as const, label: 'Catálogo', icon: Settings2 },
+            { id: 'biolink' as const, label: 'Links da Bio', icon: Link2 },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -658,6 +666,28 @@ export function ManagePage() {
 
         {activeTab === 'analytics' && catalogId && (
           <CatalogAnalyticsTab catalogId={catalogId} theme={activeTheme} />
+        )}
+
+        {activeTab === 'biolink' && catalogId && catalogMeta && (
+          <BioLinksTab
+            catalogId={catalogId}
+            slug={catalogMeta.slug}
+            storeName={storeName}
+            logoUrl={logoPreviewDataUrl || existingLogoUrl}
+            themeColor={themeColor}
+            notes={notes}
+            hasProAccess={Boolean(catalogMeta.hasProAccess)}
+            initialConfig={bioLinksConfig}
+            products={products.map((p) => ({
+              id: p.id || p.localId,
+              name: p.name,
+              priceCents: parsePriceToCents(p.priceInput),
+              imageUrl: p.previewDataUrl || p.imageUrl,
+              available: p.available,
+            }))}
+            onConfigSaved={setBioLinksConfig}
+            onRequestUpgrade={() => setPlanModalOpen(true)}
+          />
         )}
 
         {activeTab === 'catalog' && (
