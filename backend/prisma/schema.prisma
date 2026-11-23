@@ -135,6 +135,7 @@ model Catalog {
   notifyOrderByEmail   Boolean          @default(true)
   notified7DaysBefore Boolean          @default(false)
   notifiedExpiration  Boolean          @default(false)
+  bioLinksConfig      Json?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 
