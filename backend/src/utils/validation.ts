@@ -326,3 +326,80 @@ export const updateOrderStatusSchema = z.object({
     'CANCELLED',
   ]),
 });
+
+function isSafeHttpUrl(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export const bioLinkItemSchema = z.object({
+  id: z.string().trim().min(1, 'ID do link inválido.').max(64),
+  title: z
+    .string()
+    .transform(sanitizePlainText)
+    .pipe(
+      z
+        .string()
+        .min(1, 'Informe o título do link.')
+        .max(40, 'O título do link deve ter no máximo 40 caracteres.')
+    ),
+  subtitle: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => {
+      if (!val) return undefined;
+      const cleaned = sanitizePlainText(val);
+      return cleaned.length > 0 ? cleaned : undefined;
+    })
+    .refine((val) => val === undefined || val.length <= 60, {
+      message: 'O subtítulo do link deve ter no máximo 60 caracteres.',
+    }),
+  url: z
+    .string()
+    .trim()
+    .max(500, 'URL muito longa (máximo 500 caracteres).')
+    .refine(isSafeHttpUrl, {
+      message: 'URL inválida: use apenas links iniciados por http:// ou https://.',
+    }),
+  icon: z
+    .enum(['whatsapp', 'instagram', 'tiktok', 'maps', 'catalog', 'vip', 'link'])
+    .default('link'),
+  highlighted: z.boolean().optional().default(false),
+});
+
+function sanitizeOptionalSocial(maxLen: number) {
+  return z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => {
+      if (!val) return undefined;
+      const cleaned = sanitizePlainText(val);
+      return cleaned.length > 0 ? cleaned.slice(0, maxLen) : undefined;
+    });
+}
+
+export const bioLinksConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  theme: z.enum(['minimal', 'brand-soft', 'dark-glass']).default('minimal'),
+  buttonStyle: z.enum(['pill', 'card', 'outline']).default('card'),
+  showFeaturedProducts: z.boolean().default(true),
+  socials: z
+    .object({
+      instagram: sanitizeOptionalSocial(160),
+      tiktok: sanitizeOptionalSocial(160),
+      whatsapp: sanitizeOptionalSocial(30),
+    })
+    .default({ instagram: undefined, tiktok: undefined, whatsapp: undefined }),
+  links: z
+    .array(bioLinkItemSchema)
+    .max(8, 'Você pode adicionar no máximo 8 links personalizados.')
+    .default([]),
+});
