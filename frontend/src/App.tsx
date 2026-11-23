@@ -31,6 +31,9 @@ const MyOrdersPage = lazy(() =>
 const StorePage = lazy(() =>
   import('./pages/StorePage').then((m) => ({ default: m.StorePage }))
 );
+const BioLinksPage = lazy(() =>
+  import('./pages/BioLinksPage').then((m) => ({ default: m.BioLinksPage }))
+);
 const ManagePage = lazy(() =>
   import('./pages/ManagePage').then((m) => ({ default: m.ManagePage }))
 );
@@ -101,6 +104,7 @@ export function App() {
               <Route path="/minhas-vitrines" element={<MyCatalogsPage />} />
               <Route path="/meus-pedidos" element={<MyOrdersPage />} />
               <Route path="/c/:slug" element={<StorePage />} />
+              <Route path="/:slug/links" element={<BioLinksPage />} />
               <Route path="/pedido/:trackingCode" element={<OrderTrackingPage />} />
               <Route path="/painel/:catalogId" element={<ManagePage />} />
               <Route
