@@ -28,6 +28,7 @@ import {
   uploadImageToR2,
 } from '../services/r2.service.js';
 import {
+  bioLinksConfigSchema,
   brazilianPhoneSchema,
   catalogMetadataSchema,
   productInputSchema,
@@ -1003,6 +1004,7 @@ router.get(
           paymentNotice: true,
           deliveryDates: true,
           notes: true,
+          bioLinksConfig: true,
           expiresAt: true,
           products: {
             orderBy: { orderIndex: 'asc' },
@@ -1076,6 +1078,11 @@ router.get(
           hasProFeatures(catalog) &&
           catalog.onlinePaymentEnabled &&
           Boolean(catalog.mpAccessToken),
+        bioLinksConfig:
+          hasProFeatures(catalog) &&
+          (catalog.bioLinksConfig as { enabled?: boolean } | null)?.enabled === true
+            ? catalog.bioLinksConfig
+            : null,
         products: catalog.products,
       });
     } catch (error) {
@@ -1148,6 +1155,7 @@ router.get(
           pickupInstructions: true,
           deliveryEstimate: true,
           notifyOrderByEmail: true,
+          bioLinksConfig: true,
           expiresAt: true,
           createdAt: true,
           updatedAt: true,
@@ -1211,6 +1219,7 @@ router.get(
           pickupInstructions: true,
           deliveryEstimate: true,
           notifyOrderByEmail: true,
+          bioLinksConfig: true,
           expiresAt: true,
           createdAt: true,
           updatedAt: true,
@@ -1371,6 +1380,21 @@ async function handleAuthenticatedCatalogUpdate(
             )
           : undefined;
 
+      let nextBioLinksConfig: z.infer<typeof bioLinksConfigSchema> | undefined;
+      if (req.body.bioLinksConfig !== undefined) {
+        const rawBioLinks = parseJsonField<unknown>(req.body.bioLinksConfig, null);
+        if (rawBioLinks !== null) {
+          const parsedBioLinks = bioLinksConfigSchema.parse(rawBioLinks);
+          if (parsedBioLinks.enabled && !hasProFeatures(existing)) {
+            throw new AppError(
+              403,
+              'A publicação da Página de Links da Bio é exclusiva do Plano Pro.'
+            );
+          }
+          nextBioLinksConfig = parsedBioLinks;
+        }
+      }
+
       // Todas as validações passaram — agora processamos uploads ao R2 e mapeamos fotos antigas para exclusão em lote
       const files = (req.files as Express.Multer.File[]) || [];
       const fileByField = new Map<string, Express.Multer.File>();
@@ -1473,6 +1497,9 @@ async function handleAuthenticatedCatalogUpdate(
               pickupInstructions: cleanPickupInstructions,
               deliveryEstimate: cleanDeliveryEstimate,
               notifyOrderByEmail,
+              ...(nextBioLinksConfig !== undefined
+                ? { bioLinksConfig: nextBioLinksConfig }
+                : {}),
             },
           });
 
@@ -1541,6 +1568,8 @@ async function handleAuthenticatedCatalogUpdate(
               deliveryDates: true,
               notes: true,
               notifyOrderByEmail: true,
+              bioLinksConfig: true,
+              planType: true,
               expiresAt: true,
               createdAt: true,
               updatedAt: true,
