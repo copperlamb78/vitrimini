@@ -338,6 +338,29 @@ function isSafeHttpUrl(raw: string): boolean {
   }
 }
 
+function isSafeBioImageUrl(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (!trimmed) return true;
+  if (trimmed.startsWith('/uploads/') && !trimmed.startsWith('//')) {
+    return !trimmed.includes('..');
+  }
+  return isSafeHttpUrl(trimmed);
+}
+
+const optionalSafeImageUrlSchema = z
+  .string()
+  .max(500, 'Link de imagem muito longo (máximo 500 caracteres).')
+  .optional()
+  .nullable()
+  .transform((val) => {
+    if (!val) return undefined;
+    const trimmed = val.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  })
+  .refine((val) => val === undefined || isSafeBioImageUrl(val), {
+    message: 'Link de imagem inválido.',
+  });
+
 export const bioLinkItemSchema = z.object({
   id: z.string().trim().min(1, 'ID do link inválido.').max(64),
   title: z
@@ -372,6 +395,8 @@ export const bioLinkItemSchema = z.object({
     .enum(['whatsapp', 'instagram', 'tiktok', 'maps', 'catalog', 'vip', 'link'])
     .default('link'),
   highlighted: z.boolean().optional().default(false),
+  layout: z.enum(['compact', 'featured-card']).optional().default('compact'),
+  imageUrl: optionalSafeImageUrlSchema,
 });
 
 function sanitizeOptionalSocial(maxLen: number) {
@@ -390,6 +415,15 @@ export const bioLinksConfigSchema = z.object({
   enabled: z.boolean().default(false),
   theme: z.enum(['minimal', 'brand-soft', 'dark-glass']).default('minimal'),
   buttonStyle: z.enum(['pill', 'card', 'outline']).default('card'),
+  nichePreset: z
+    .enum(['default', 'bakery', 'petshop', 'fashion', 'delivery'])
+    .optional()
+    .default('default'),
+  bannerUrl: optionalSafeImageUrlSchema,
+  bannerStyle: z
+    .enum(['none', 'brand-gradient', 'image'])
+    .optional()
+    .default('none'),
   showFeaturedProducts: z.boolean().default(true),
   socials: z
     .object({
