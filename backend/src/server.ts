@@ -14,6 +14,7 @@ import {
   isAllowedOrigin,
   validateJwtSecretConfig,
 } from './middlewares/auth.js';
+import { scanGuard } from './middlewares/rateLimitGuard.js';
 import { startCleanupScheduler } from './services/cleanup.service.js';
 import { prisma } from './lib/prisma.js';
 import { getFrontendBaseUrl } from './services/email.service.js';
@@ -167,6 +168,7 @@ ${urlNodes.join('\n')}
   }
 });
 
+app.use('/api', scanGuard);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api', orderRoutes);
