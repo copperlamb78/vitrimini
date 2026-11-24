@@ -19,6 +19,11 @@ export function centsToPriceInput(cents: number): string {
   return (cents / 100).toFixed(2).replace('.', ',');
 }
 
+export function formatPriceInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  return centsToPriceInput(digits ? Number(digits) : 0);
+}
+
 const SAFE_DATA_IMAGE_REGEX = /^data:image\/(png|jpeg|webp|avif);base64,/i;
 
 export function resolveImageUrl(imageUrl: string | null | undefined): string | null {
