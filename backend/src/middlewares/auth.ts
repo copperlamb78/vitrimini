@@ -200,3 +200,70 @@ export function requireAdmin(
     }
   });
 }
+
+const MERCHANT_CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_MERCHANT_CACHE = 5_000;
+const merchantCache = new Map<string, number>();
+
+export function markMerchantCache(userId: string): void {
+  if (!userId) return;
+  const now = Date.now();
+
+  if (merchantCache.has(userId)) {
+    merchantCache.delete(userId);
+  } else if (merchantCache.size >= MAX_MERCHANT_CACHE) {
+    const oldestKey = merchantCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      merchantCache.delete(oldestKey);
+    }
+  }
+
+  merchantCache.set(userId, now + MERCHANT_CACHE_TTL_MS);
+}
+
+export function requireMerchant(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  requireAuth(req, res, async (err?: unknown) => {
+    if (err) {
+      next(err);
+      return;
+    }
+
+    try {
+      const userId = req.user!.id;
+      const now = Date.now();
+      const cachedExpiresAt = merchantCache.get(userId);
+
+      if (cachedExpiresAt !== undefined) {
+        if (cachedExpiresAt > now) {
+          next();
+          return;
+        }
+        merchantCache.delete(userId);
+      }
+
+      const catalog = await prisma.catalog.findFirst({
+        where: { userId },
+        select: { id: true },
+      });
+
+      if (catalog) {
+        markMerchantCache(userId);
+        next();
+        return;
+      }
+
+      next(
+        new AppError(
+          403,
+          'Área exclusiva para lojistas. Crie sua primeira vitrine para acessar o painel.'
+        )
+      );
+    } catch (dbErr) {
+      next(dbErr);
+    }
+  });
+}
