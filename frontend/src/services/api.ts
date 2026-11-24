@@ -24,14 +24,15 @@ const LEGACY_AUTH_USER_KEY = 'vitrimini_auth_user';
 export const AUTH_SESSION_HINT_KEY = 'vitrimini_has_session';
 const LEGACY_SAVED_CATALOGS_KEY = 'vitrimini_saved_catalogs';
 
-let inMemoryAccessToken: string | null = null;
+const GLOBAL_TOKEN_KEY = '__vitriminiAccessToken';
 
 export function getAccessToken(): string | null {
-  return inMemoryAccessToken;
+  const val = (globalThis as Record<string, unknown>)[GLOBAL_TOKEN_KEY];
+  return typeof val === 'string' ? val : null;
 }
 
 export function setAccessToken(token: string | null): void {
-  inMemoryAccessToken = token;
+  (globalThis as Record<string, unknown>)[GLOBAL_TOKEN_KEY] = token;
 }
 
 export function hasStoredSessionHint(): boolean {
@@ -77,7 +78,7 @@ export function isJwtTokenExpired(token: string): boolean {
 }
 
 export function clearStoredAuthSession(): void {
-  inMemoryAccessToken = null;
+  setAccessToken(null);
   try {
     localStorage.removeItem(AUTH_SESSION_HINT_KEY);
   } catch {
@@ -109,7 +110,7 @@ export async function refreshAuthSession(): Promise<AuthResponse | null> {
       if (!data?.token || !data?.user) {
         return null;
       }
-      inMemoryAccessToken = data.token;
+      setAccessToken(data.token);
       markStoredSessionHint();
       clearLegacyAuthStorage();
       if (typeof window !== 'undefined') {
@@ -175,7 +176,7 @@ export function getSafeErrorMessage(
 }
 
 function getAuthHeaders(tokenOverride?: string): Record<string, string> {
-  const token = tokenOverride || inMemoryAccessToken;
+  const token = tokenOverride || getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -290,7 +291,7 @@ export async function registerUser(input: {
     },
     'Não foi possível criar sua conta agora. Verifique sua conexão e tente novamente.'
   );
-  inMemoryAccessToken = res.token;
+  setAccessToken(res.token);
   markStoredSessionHint();
   clearLegacyAuthStorage();
   return res;
@@ -309,7 +310,7 @@ export async function loginUser(input: {
     },
     'Não foi possível entrar agora. Verifique seus dados e tente novamente.'
   );
-  inMemoryAccessToken = res.token;
+  setAccessToken(res.token);
   markStoredSessionHint();
   clearLegacyAuthStorage();
   return res;
