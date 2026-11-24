@@ -5,14 +5,19 @@ import {
   ArrowUp,
   Check,
   CheckCircle2,
+  ChevronDown,
   Copy,
   Crown,
   ExternalLink,
   Eye,
+  ImagePlus,
+  LayoutGrid,
   Link2,
   Loader2,
+  Palette,
   Plus,
   Save,
+  Share2,
   Sparkles,
   Trash2,
   X,
@@ -20,15 +25,23 @@ import {
 import type {
   BioLinkIcon,
   BioLinkItem,
+  BioLinksBannerStyle,
   BioLinksButtonStyle,
   BioLinksConfig,
+  BioLinksNichePreset,
   BioLinksTheme,
   Product,
 } from '../types/catalog';
 import { getTheme } from '../constants/themes';
 import { getSafeErrorMessage, updateCatalogById } from '../services/api';
-import { isSafeHttpUrl } from '../utils/bioLinks';
-import { BioLinksView } from './BioLinksView';
+import {
+  hexToRgba,
+  isSafeHttpUrl,
+  normalizeBioLinksConfig,
+} from '../utils/bioLinks';
+import { blobToDataUrl, compressImage } from '../utils/compressImage';
+import { resolveImageUrl } from '../utils/format';
+import { BioLinksRenderer } from './BioLinksRenderer';
 
 interface BioLinksTabProps {
   catalogId: string;
@@ -44,6 +57,8 @@ interface BioLinksTabProps {
   onRequestUpgrade: () => void;
 }
 
+type AccordionSection = 'appearance' | 'storefront' | 'links';
+
 const ICON_OPTIONS: Array<{ value: BioLinkIcon; label: string }> = [
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'instagram', label: 'Instagram' },
@@ -52,6 +67,18 @@ const ICON_OPTIONS: Array<{ value: BioLinkIcon; label: string }> = [
   { value: 'catalog', label: 'Catálogo / Cardápio' },
   { value: 'vip', label: 'Grupo VIP / Oferta' },
   { value: 'link', label: 'Link genérico' },
+];
+
+const NICHE_OPTIONS: Array<{
+  value: BioLinksNichePreset;
+  label: string;
+  desc: string;
+}> = [
+  { value: 'default', label: 'Padrão', desc: 'Limpo e versátil' },
+  { value: 'bakery', label: 'Confeitaria', desc: 'Poá sutil e suave' },
+  { value: 'petshop', label: 'Pet Shop', desc: 'Marcas de patinhas' },
+  { value: 'fashion', label: 'Moda & Loja', desc: 'Traços refinados' },
+  { value: 'delivery', label: 'Delivery', desc: 'Destaque e contraste' },
 ];
 
 const THEME_OPTIONS: Array<{
@@ -73,6 +100,16 @@ const BUTTON_STYLE_OPTIONS: Array<{
   { value: 'outline', label: 'Contorno' },
 ];
 
+const BANNER_STYLE_OPTIONS: Array<{
+  value: BioLinksBannerStyle;
+  label: string;
+  desc: string;
+}> = [
+  { value: 'none', label: 'Sem banner', desc: 'Logo centralizada' },
+  { value: 'brand-gradient', label: 'Degradê da loja', desc: 'Usa a cor da vitrine' },
+  { value: 'image', label: 'Imagem', desc: 'Foto de capa' },
+];
+
 export function BioLinksTab({
   catalogId,
   slug,
@@ -87,7 +124,20 @@ export function BioLinksTab({
   onRequestUpgrade,
 }: BioLinksTabProps) {
   const palette = getTheme(themeColor);
-  const [config, setConfig] = useState<BioLinksConfig>(initialConfig);
+  const [config, setConfig] = useState<BioLinksConfig>(() =>
+    normalizeBioLinksConfig(initialConfig)
+  );
+  const [openSections, setOpenSections] = useState<Record<AccordionSection, boolean>>({
+    appearance: true,
+    storefront: false,
+    links: true,
+  });
+
+  const [bannerFile, setBannerFile] = useState<Blob | null>(null);
+  const [bannerPreviewUrl, setBannerPreviewUrl] = useState<string | null>(null);
+  const [linkImageFiles, setLinkImageFiles] = useState<Record<string, Blob>>({});
+  const [linkPreviewUrls, setLinkPreviewUrls] = useState<Record<string, string>>({});
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
@@ -96,6 +146,18 @@ export function BioLinksTab({
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
   const publicLinksUrl = `https://vitrimini.com.br/${slug}/links`;
+
+  function toggleSection(section: AccordionSection) {
+    setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  }
+
+  function getActiveCardStyle(selected: boolean): React.CSSProperties | undefined {
+    if (!selected) return undefined;
+    return {
+      borderColor: palette.hex,
+      backgroundColor: hexToRgba(palette.hex, 0.08),
+    };
+  }
 
   function handleCopyPublicUrl() {
     navigator.clipboard.writeText(publicLinksUrl).then(() => {
@@ -112,6 +174,57 @@ export function BioLinksTab({
     setConfig((prev) => ({ ...prev, enabled: !prev.enabled }));
   }
 
+  async function handleBannerFileChange(file: File | null) {
+    if (!file) return;
+    setError(null);
+    try {
+      const compressed = await compressImage(file, 1200);
+      const preview = await blobToDataUrl(compressed);
+      setBannerFile(compressed);
+      setBannerPreviewUrl(preview);
+      setConfig((prev) => ({ ...prev, bannerStyle: 'image' }));
+    } catch {
+      setError('Não foi possível processar a imagem de capa selecionada.');
+    }
+  }
+
+  function handleRemoveBannerImage() {
+    setBannerFile(null);
+    setBannerPreviewUrl(null);
+    setConfig((prev) => ({
+      ...prev,
+      bannerUrl: undefined,
+      bannerStyle: prev.bannerStyle === 'image' ? 'brand-gradient' : prev.bannerStyle,
+    }));
+  }
+
+  async function handleLinkImageChange(linkId: string, file: File | null) {
+    if (!file) return;
+    setError(null);
+    try {
+      const compressed = await compressImage(file, 400);
+      const preview = await blobToDataUrl(compressed);
+      setLinkImageFiles((prev) => ({ ...prev, [linkId]: compressed }));
+      setLinkPreviewUrls((prev) => ({ ...prev, [linkId]: preview }));
+    } catch {
+      setError('Não foi possível processar a miniatura selecionada.');
+    }
+  }
+
+  function handleRemoveLinkImage(linkId: string) {
+    setLinkImageFiles((prev) => {
+      const next = { ...prev };
+      delete next[linkId];
+      return next;
+    });
+    setLinkPreviewUrls((prev) => {
+      const next = { ...prev };
+      delete next[linkId];
+      return next;
+    });
+    handleUpdateLink(linkId, { imageUrl: undefined });
+  }
+
   function handleAddLink() {
     if (config.links.length >= 8) return;
     const newItem: BioLinkItem = {
@@ -121,8 +234,10 @@ export function BioLinksTab({
       url: 'https://',
       icon: 'link',
       highlighted: false,
+      layout: 'compact',
     };
     setConfig((prev) => ({ ...prev, links: [...prev.links, newItem] }));
+    setOpenSections((prev) => ({ ...prev, links: true }));
   }
 
   function handleUpdateLink(id: string, patch: Partial<BioLinkItem>) {
@@ -139,6 +254,16 @@ export function BioLinksTab({
       ...prev,
       links: prev.links.filter((item) => item.id !== id),
     }));
+    setLinkImageFiles((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setLinkPreviewUrls((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   }
 
   function handleMoveLink(index: number, direction: -1 | 1) {
@@ -169,7 +294,7 @@ export function BioLinksTab({
       }
       if (!isSafeHttpUrl(item.url)) {
         setError(
-          `A URL do link "${item.title.trim()}" deve começar com https:// ou http://.`
+          `O endereço do link "${item.title.trim()}" deve começar com https:// ou http://.`
         );
         return;
       }
@@ -180,20 +305,45 @@ export function BioLinksTab({
       const payload: BioLinksConfig = {
         ...config,
         enabled: hasProAccess ? config.enabled : false,
+        nichePreset: config.nichePreset || 'default',
+        bannerStyle: config.bannerStyle || 'none',
+        bannerUrl:
+          config.bannerStyle === 'image' ? config.bannerUrl : undefined,
         links: config.links.map((l) => ({
           ...l,
           title: l.title.trim().slice(0, 40),
           subtitle: l.subtitle?.trim() ? l.subtitle.trim().slice(0, 60) : undefined,
           url: l.url.trim(),
+          layout: l.layout === 'featured-card' ? 'featured-card' : 'compact',
+          imageUrl: l.layout === 'featured-card' ? l.imageUrl : undefined,
         })),
       };
 
       const formData = new FormData();
       formData.append('bioLinksConfig', JSON.stringify(payload));
-      await updateCatalogById(catalogId, formData);
 
-      setConfig(payload);
-      onConfigSaved(payload);
+      if (bannerFile && payload.bannerStyle === 'image') {
+        formData.append('bioBanner', bannerFile, 'bio-banner.webp');
+      }
+
+      for (const link of payload.links) {
+        const file = linkImageFiles[link.id];
+        if (file && link.layout === 'featured-card') {
+          formData.append(`bioLinkImage_${link.id}`, file, `bio-link-${link.id}.webp`);
+        }
+      }
+
+      const updatedCatalog = await updateCatalogById(catalogId, formData);
+      const savedConfig = normalizeBioLinksConfig(
+        updatedCatalog?.bioLinksConfig || payload
+      );
+
+      setConfig(savedConfig);
+      setBannerFile(null);
+      setBannerPreviewUrl(null);
+      setLinkImageFiles({});
+      setLinkPreviewUrls({});
+      onConfigSaved(savedConfig);
       setSavedNotice(true);
       setTimeout(() => setSavedNotice(false), 3000);
     } catch (err) {
@@ -208,13 +358,16 @@ export function BioLinksTab({
     }
   }
 
+  const currentBannerPreview =
+    bannerPreviewUrl || resolveImageUrl(config.bannerUrl) || null;
+
   const phonePreviewNode = (
     <div className="mx-auto w-full max-w-[340px] overflow-hidden rounded-[2.5rem] border-[8px] border-zinc-900 bg-zinc-50 shadow-2xl">
       <div className="flex justify-center bg-zinc-900 pb-2 pt-1">
         <div className="h-4 w-24 rounded-full bg-zinc-800" />
       </div>
       <div className="h-[560px] overflow-y-auto">
-        <BioLinksView
+        <BioLinksRenderer
           slug={slug}
           storeName={storeName}
           logoUrl={logoUrl}
@@ -223,6 +376,8 @@ export function BioLinksTab({
           config={config}
           products={products}
           isPreview
+          bannerPreviewUrl={bannerPreviewUrl}
+          linkPreviewUrls={linkPreviewUrls}
         />
       </div>
     </div>
@@ -231,13 +386,13 @@ export function BioLinksTab({
   return (
     <>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
-        <div className="space-y-5 lg:col-span-7">
+        <div className="space-y-4 lg:col-span-7">
           {/* Botão preview mobile */}
           <div className="flex justify-end lg:hidden">
             <button
               type="button"
               onClick={() => setMobilePreviewOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-xs font-bold text-zinc-800 shadow-2xs transition hover:bg-zinc-50"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-xs font-bold text-zinc-800 shadow-2xs transition hover:bg-zinc-50"
             >
               <Eye className="h-4 w-4" />
               Prévia no celular
@@ -251,7 +406,7 @@ export function BioLinksTab({
                 <div>
                   <p className="font-bold">Recurso exclusivo do Plano Pro</p>
                   <p className="mt-0.5 text-xs text-amber-800">
-                    Você pode montar e testar o visual aqui no preview livremente. Para
+                    Você pode montar e testar o visual aqui no simulador livremente. Para
                     publicar o endereço na sua bio, faça o upgrade para o Plano Pro.
                   </p>
                 </div>
@@ -281,7 +436,7 @@ export function BioLinksTab({
           )}
 
           {/* Card Link Público + Ativação */}
-          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xs space-y-4">
+          <div className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xs">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-extrabold text-zinc-900">
@@ -294,8 +449,11 @@ export function BioLinksTab({
               <button
                 type="button"
                 onClick={handleToggleEnabled}
+                style={{
+                  backgroundColor: config.enabled ? palette.hex : undefined,
+                }}
                 className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition ${
-                  config.enabled ? palette.primaryBg : 'bg-zinc-300'
+                  config.enabled ? '' : 'bg-zinc-300'
                 }`}
                 aria-label="Ativar página de Links da Bio"
               >
@@ -335,7 +493,7 @@ export function BioLinksTab({
                     href={`/${slug}/links`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-bold text-zinc-800 transition hover:bg-zinc-100"
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-bold text-zinc-800 transition hover:bg-zinc-100"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     Abrir
@@ -345,278 +503,596 @@ export function BioLinksTab({
             </div>
           </div>
 
-          {/* Aparência e Produtos em Destaque */}
-          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xs space-y-5">
-            <div>
-              <h3 className="text-sm font-extrabold text-zinc-900">Tema visual</h3>
-              <div className="mt-2.5 grid grid-cols-3 gap-2.5">
-                {THEME_OPTIONS.map((opt) => {
-                  const selected = config.theme === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() =>
-                        setConfig((prev) => ({ ...prev, theme: opt.value }))
-                      }
-                      className={`cursor-pointer rounded-xl border p-3 text-left transition ${
-                        selected
-                          ? `${palette.softBorder} ${palette.softBg}`
-                          : 'border-zinc-200 bg-white hover:border-zinc-300'
-                      }`}
-                    >
-                      <p className="text-xs font-bold text-zinc-900">{opt.label}</p>
-                      <p className="mt-0.5 text-[11px] text-zinc-500">{opt.desc}</p>
-                    </button>
-                  );
-                })}
+          {/* Bloco 1: Aparência & Capa */}
+          <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xs">
+            <button
+              type="button"
+              onClick={() => toggleSection('appearance')}
+              className="flex w-full cursor-pointer items-center justify-between gap-3 p-5 text-left transition hover:bg-zinc-50/70"
+            >
+              <div className="flex items-center gap-2.5">
+                <span
+                  style={{
+                    backgroundColor: hexToRgba(palette.hex, 0.12),
+                    color: palette.hex,
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-xl"
+                >
+                  <Palette className="h-4 w-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-extrabold text-zinc-900">
+                    Aparência &amp; Capa
+                  </h3>
+                  <p className="text-[11px] text-zinc-500">
+                    Estilo do negócio, fundo, botões e imagem de capa
+                  </p>
+                </div>
               </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-extrabold text-zinc-900">
-                Estilo dos botões
-              </h3>
-              <div className="mt-2.5 grid grid-cols-3 gap-2.5">
-                {BUTTON_STYLE_OPTIONS.map((opt) => {
-                  const selected = config.buttonStyle === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() =>
-                        setConfig((prev) => ({ ...prev, buttonStyle: opt.value }))
-                      }
-                      className={`cursor-pointer rounded-xl border px-3 py-2.5 text-center text-xs font-bold transition ${
-                        selected
-                          ? `${palette.softBorder} ${palette.softBg} text-zinc-900`
-                          : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3.5">
-              <div>
-                <p className="text-xs font-bold text-zinc-900">
-                  Exibir até 3 produtos em destaque no card da vitrine
-                </p>
-                <p className="text-[11px] text-zinc-500">
-                  Mostra miniaturas com preço dentro do botão principal do catálogo.
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                checked={config.showFeaturedProducts}
-                onChange={(e) =>
-                  setConfig((prev) => ({
-                    ...prev,
-                    showFeaturedProducts: e.target.checked,
-                  }))
-                }
-                className="h-4 w-4 accent-zinc-900"
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${
+                  openSections.appearance ? 'rotate-180' : ''
+                }`}
               />
-            </label>
-          </div>
+            </button>
 
-          {/* Redes Sociais */}
-          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xs space-y-3">
-            <h3 className="text-sm font-extrabold text-zinc-900">
-              Barra de redes sociais (opcional)
-            </h3>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div>
-                <label className="text-[11px] font-semibold text-zinc-600">
-                  Instagram (@ ou URL)
-                </label>
-                <input
-                  type="text"
-                  value={config.socials.instagram || ''}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      socials: { ...prev.socials, instagram: e.target.value },
-                    }))
-                  }
-                  placeholder="@sualoja"
-                  className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-xs focus:border-zinc-900 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold text-zinc-600">
-                  TikTok (@ ou URL)
-                </label>
-                <input
-                  type="text"
-                  value={config.socials.tiktok || ''}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      socials: { ...prev.socials, tiktok: e.target.value },
-                    }))
-                  }
-                  placeholder="@sualoja"
-                  className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-xs focus:border-zinc-900 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold text-zinc-600">
-                  WhatsApp (DDD + número)
-                </label>
-                <input
-                  type="text"
-                  value={config.socials.whatsapp || ''}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      socials: { ...prev.socials, whatsapp: e.target.value },
-                    }))
-                  }
-                  placeholder="75999999999"
-                  className="mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-xs focus:border-zinc-900 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Lista de Links */}
-          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-extrabold text-zinc-900">
-                  Botões personalizados ({config.links.length}/8)
-                </h3>
-                <p className="text-[11px] text-zinc-500">
-                  Adicione links para WhatsApp, grupo VIP, localização ou redes.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleAddLink}
-                disabled={config.links.length >= 8}
-                className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs font-bold text-zinc-800 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Adicionar link
-              </button>
-            </div>
-
-            {config.links.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center text-xs text-zinc-500">
-                Nenhum link extra adicionado ainda. Seu cartão principal da vitrine já
-                aparece automaticamente no topo!
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {config.links.map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-3.5 space-y-2.5"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-bold text-zinc-500">
-                        Link #{idx + 1}
-                      </span>
-                      <div className="flex items-center gap-1">
+            {openSections.appearance && (
+              <div className="space-y-5 border-t border-zinc-100 p-5">
+                {/* Estilo do seu Negócio (Niche Preset) */}
+                <div>
+                  <h4 className="text-xs font-extrabold text-zinc-900">
+                    Estilo do seu Negócio
+                  </h4>
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    {NICHE_OPTIONS.map((opt) => {
+                      const selected = (config.nichePreset || 'default') === opt.value;
+                      return (
                         <button
+                          key={opt.value}
                           type="button"
-                          onClick={() => handleMoveLink(idx, -1)}
-                          disabled={idx === 0}
-                          className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-200 disabled:opacity-30"
-                          title="Subir"
+                          onClick={() =>
+                            setConfig((prev) => ({ ...prev, nichePreset: opt.value }))
+                          }
+                          style={getActiveCardStyle(selected)}
+                          className={`cursor-pointer rounded-xl border p-2.5 text-left transition ${
+                            selected
+                              ? 'shadow-2xs'
+                              : 'border-zinc-200 bg-white hover:border-zinc-300'
+                          }`}
                         >
-                          <ArrowUp className="h-3.5 w-3.5" />
+                          <p className="text-xs font-bold text-zinc-900">{opt.label}</p>
+                          <p className="mt-0.5 text-[10px] leading-tight text-zinc-500">
+                            {opt.desc}
+                          </p>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveLink(idx, 1)}
-                          disabled={idx === config.links.length - 1}
-                          className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-200 disabled:opacity-30"
-                          title="Descer"
-                        >
-                          <ArrowDown className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveLink(item.id)}
-                          className="rounded-lg p-1 text-red-500 hover:bg-red-50"
-                          title="Remover"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                      <input
-                        type="text"
-                        maxLength={40}
-                        value={item.title}
-                        onChange={(e) =>
-                          handleUpdateLink(item.id, { title: e.target.value })
-                        }
-                        placeholder="Título (máx. 40 caracteres)"
-                        className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs focus:border-zinc-900 focus:outline-none"
-                      />
-                      <input
-                        type="text"
-                        maxLength={60}
-                        value={item.subtitle || ''}
-                        onChange={(e) =>
-                          handleUpdateLink(item.id, { subtitle: e.target.value })
-                        }
-                        placeholder="Subtítulo opcional (máx. 60)"
-                        className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs focus:border-zinc-900 focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
-                      <input
-                        type="url"
-                        value={item.url}
-                        onChange={(e) =>
-                          handleUpdateLink(item.id, { url: e.target.value })
-                        }
-                        placeholder="https://..."
-                        className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs focus:border-zinc-900 focus:outline-none sm:col-span-7"
-                      />
-                      <select
-                        value={item.icon}
-                        onChange={(e) =>
-                          handleUpdateLink(item.id, {
-                            icon: e.target.value as BioLinkIcon,
-                          })
-                        }
-                        className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs focus:border-zinc-900 focus:outline-none sm:col-span-5"
-                      >
-                        {ICON_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-zinc-700">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(item.highlighted)}
-                        onChange={(e) =>
-                          handleUpdateLink(item.id, {
-                            highlighted: e.target.checked,
-                          })
-                        }
-                        className="h-3.5 w-3.5 accent-zinc-900"
-                      />
-                      <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                      Destacar botão com a cor da loja
-                    </label>
+                      );
+                    })}
                   </div>
-                ))}
+                </div>
+
+                {/* Tema de Fundo */}
+                <div>
+                  <h4 className="text-xs font-extrabold text-zinc-900">
+                    Tema de Fundo
+                  </h4>
+                  <div className="mt-2 grid grid-cols-3 gap-2.5">
+                    {THEME_OPTIONS.map((opt) => {
+                      const selected = config.theme === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() =>
+                            setConfig((prev) => ({ ...prev, theme: opt.value }))
+                          }
+                          style={getActiveCardStyle(selected)}
+                          className={`cursor-pointer rounded-xl border p-3 text-left transition ${
+                            selected
+                              ? 'shadow-2xs'
+                              : 'border-zinc-200 bg-white hover:border-zinc-300'
+                          }`}
+                        >
+                          <p className="text-xs font-bold text-zinc-900">{opt.label}</p>
+                          <p className="mt-0.5 text-[11px] text-zinc-500">{opt.desc}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Estilo dos Botões */}
+                <div>
+                  <h4 className="text-xs font-extrabold text-zinc-900">
+                    Estilo dos botões
+                  </h4>
+                  <div className="mt-2 grid grid-cols-3 gap-2.5">
+                    {BUTTON_STYLE_OPTIONS.map((opt) => {
+                      const selected = config.buttonStyle === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() =>
+                            setConfig((prev) => ({ ...prev, buttonStyle: opt.value }))
+                          }
+                          style={getActiveCardStyle(selected)}
+                          className={`cursor-pointer rounded-xl border px-3 py-2.5 text-center text-xs font-bold transition ${
+                            selected
+                              ? 'text-zinc-900 shadow-2xs'
+                              : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Banner de Capa */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-extrabold text-zinc-900">
+                    Banner de Capa
+                  </h4>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {BANNER_STYLE_OPTIONS.map((opt) => {
+                      const selected = (config.bannerStyle || 'none') === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() =>
+                            setConfig((prev) => ({ ...prev, bannerStyle: opt.value }))
+                          }
+                          style={getActiveCardStyle(selected)}
+                          className={`cursor-pointer rounded-xl border p-3 text-left transition ${
+                            selected
+                              ? 'shadow-2xs'
+                              : 'border-zinc-200 bg-white hover:border-zinc-300'
+                          }`}
+                        >
+                          <p className="text-xs font-bold text-zinc-900">{opt.label}</p>
+                          <p className="mt-0.5 text-[10px] text-zinc-500">{opt.desc}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {(config.bannerStyle || 'none') === 'image' && (
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5">
+                      {currentBannerPreview ? (
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={currentBannerPreview}
+                              alt="Prévia da capa"
+                              className="h-14 w-24 rounded-lg border border-zinc-200 object-cover"
+                            />
+                            <div>
+                              <p className="text-xs font-bold text-zinc-800">
+                                Imagem de capa selecionada
+                              </p>
+                              <p className="text-[11px] text-zinc-500">
+                                Otimizada automaticamente para carregar rápido.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-bold text-zinc-800 transition hover:bg-zinc-100">
+                              <ImagePlus className="h-3.5 w-3.5" />
+                              Trocar imagem
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  handleBannerFileChange(e.target.files?.[0] || null);
+                                  e.target.value = '';
+                                }}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={handleRemoveBannerImage}
+                              className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Remover
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label className="flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-zinc-300 bg-white p-4 text-center transition hover:border-zinc-400">
+                          <ImagePlus className="h-5 w-5 text-zinc-400" />
+                          <span className="text-xs font-bold text-zinc-800">
+                            Enviar imagem de capa
+                          </span>
+                          <span className="text-[11px] text-zinc-500">
+                            Recomendado: foto horizontal da sua loja ou produtos
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              handleBannerFileChange(e.target.files?.[0] || null);
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bloco 2: Vitrine & Redes */}
+          <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xs">
+            <button
+              type="button"
+              onClick={() => toggleSection('storefront')}
+              className="flex w-full cursor-pointer items-center justify-between gap-3 p-5 text-left transition hover:bg-zinc-50/70"
+            >
+              <div className="flex items-center gap-2.5">
+                <span
+                  style={{
+                    backgroundColor: hexToRgba(palette.hex, 0.12),
+                    color: palette.hex,
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-xl"
+                >
+                  <Share2 className="h-4 w-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-extrabold text-zinc-900">
+                    Vitrine &amp; Redes
+                  </h3>
+                  <p className="text-[11px] text-zinc-500">
+                    Produtos em destaque e barra de redes sociais
+                  </p>
+                </div>
+              </div>
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${
+                  openSections.storefront ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {openSections.storefront && (
+              <div className="space-y-4 border-t border-zinc-100 p-5">
+                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3.5">
+                  <div>
+                    <p className="text-xs font-bold text-zinc-900">
+                      Exibir até 3 produtos em destaque no card da vitrine
+                    </p>
+                    <p className="text-[11px] text-zinc-500">
+                      Mostra miniaturas com preço dentro do botão principal do catálogo.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={config.showFeaturedProducts}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        showFeaturedProducts: e.target.checked,
+                      }))
+                    }
+                    style={{ accentColor: palette.hex }}
+                    className="h-4 w-4 cursor-pointer"
+                  />
+                </label>
+
+                <div>
+                  <h4 className="mb-2 text-xs font-extrabold text-zinc-900">
+                    Barra de redes sociais (opcional)
+                  </h4>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-600">
+                        Instagram (@ ou link)
+                      </label>
+                      <input
+                        type="text"
+                        value={config.socials.instagram || ''}
+                        onChange={(e) =>
+                          setConfig((prev) => ({
+                            ...prev,
+                            socials: { ...prev.socials, instagram: e.target.value },
+                          }))
+                        }
+                        placeholder="@sualoja"
+                        className={`mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-xs focus:outline-none ${palette.ringFocus}`}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-600">
+                        TikTok (@ ou link)
+                      </label>
+                      <input
+                        type="text"
+                        value={config.socials.tiktok || ''}
+                        onChange={(e) =>
+                          setConfig((prev) => ({
+                            ...prev,
+                            socials: { ...prev.socials, tiktok: e.target.value },
+                          }))
+                        }
+                        placeholder="@sualoja"
+                        className={`mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-xs focus:outline-none ${palette.ringFocus}`}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-600">
+                        WhatsApp (DDD + número)
+                      </label>
+                      <input
+                        type="text"
+                        value={config.socials.whatsapp || ''}
+                        onChange={(e) =>
+                          setConfig((prev) => ({
+                            ...prev,
+                            socials: { ...prev.socials, whatsapp: e.target.value },
+                          }))
+                        }
+                        placeholder="75999999999"
+                        className={`mt-1 w-full rounded-xl border border-zinc-300 px-3 py-2 text-xs focus:outline-none ${palette.ringFocus}`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bloco 3: Meus Links */}
+          <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xs">
+            <button
+              type="button"
+              onClick={() => toggleSection('links')}
+              className="flex w-full cursor-pointer items-center justify-between gap-3 p-5 text-left transition hover:bg-zinc-50/70"
+            >
+              <div className="flex items-center gap-2.5">
+                <span
+                  style={{
+                    backgroundColor: hexToRgba(palette.hex, 0.12),
+                    color: palette.hex,
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-xl"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-extrabold text-zinc-900">
+                    Meus Links ({config.links.length}/8)
+                  </h3>
+                  <p className="text-[11px] text-zinc-500">
+                    Botões personalizados, cartões destaque e miniatura opcional
+                  </p>
+                </div>
+              </div>
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${
+                  openSections.links ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {openSections.links && (
+              <div className="space-y-4 border-t border-zinc-100 p-5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] text-zinc-500">
+                    Adicione links para WhatsApp, grupo VIP, localização ou redes.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleAddLink}
+                    disabled={config.links.length >= 8}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs font-bold text-zinc-800 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Adicionar link
+                  </button>
+                </div>
+
+                {config.links.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center text-xs text-zinc-500">
+                    Nenhum link extra adicionado ainda. Seu cartão principal da vitrine já
+                    aparece automaticamente no topo!
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {config.links.map((item, idx) => {
+                      const isFeaturedCard = item.layout === 'featured-card';
+                      const currentLinkThumb =
+                        linkPreviewUrls[item.id] || resolveImageUrl(item.imageUrl);
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3.5"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-bold text-zinc-500">
+                              Link #{idx + 1}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleMoveLink(idx, -1)}
+                                disabled={idx === 0}
+                                className="cursor-pointer rounded-lg p-1 text-zinc-500 hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
+                                title="Subir"
+                              >
+                                <ArrowUp className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveLink(idx, 1)}
+                                disabled={idx === config.links.length - 1}
+                                className="cursor-pointer rounded-lg p-1 text-zinc-500 hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-30"
+                                title="Descer"
+                              >
+                                <ArrowDown className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveLink(item.id)}
+                                className="cursor-pointer rounded-lg p-1 text-red-500 hover:bg-red-50"
+                                title="Remover"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                            <input
+                              type="text"
+                              maxLength={40}
+                              value={item.title}
+                              onChange={(e) =>
+                                handleUpdateLink(item.id, { title: e.target.value })
+                              }
+                              placeholder="Título (máx. 40 caracteres)"
+                              className={`rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs focus:outline-none ${palette.ringFocus}`}
+                            />
+                            <input
+                              type="text"
+                              maxLength={60}
+                              value={item.subtitle || ''}
+                              onChange={(e) =>
+                                handleUpdateLink(item.id, { subtitle: e.target.value })
+                              }
+                              placeholder="Subtítulo opcional (máx. 60)"
+                              className={`rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs focus:outline-none ${palette.ringFocus}`}
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
+                            <input
+                              type="url"
+                              value={item.url}
+                              onChange={(e) =>
+                                handleUpdateLink(item.id, { url: e.target.value })
+                              }
+                              placeholder="https://..."
+                              className={`rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs focus:outline-none sm:col-span-7 ${palette.ringFocus}`}
+                            />
+                            <select
+                              value={item.icon}
+                              onChange={(e) =>
+                                handleUpdateLink(item.id, {
+                                  icon: e.target.value as BioLinkIcon,
+                                })
+                              }
+                              className={`cursor-pointer rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs focus:outline-none sm:col-span-5 ${palette.ringFocus}`}
+                            >
+                              {ICON_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                            <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-zinc-700">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(item.highlighted)}
+                                onChange={(e) =>
+                                  handleUpdateLink(item.id, {
+                                    highlighted: e.target.checked,
+                                  })
+                                }
+                                style={{ accentColor: palette.hex }}
+                                className="h-3.5 w-3.5 cursor-pointer"
+                              />
+                              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                              Destacar botão com a cor da loja
+                            </label>
+
+                            <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-zinc-700">
+                              <input
+                                type="checkbox"
+                                checked={isFeaturedCard}
+                                onChange={(e) =>
+                                  handleUpdateLink(item.id, {
+                                    layout: e.target.checked
+                                      ? 'featured-card'
+                                      : 'compact',
+                                  })
+                                }
+                                style={{ accentColor: palette.hex }}
+                                className="h-3.5 w-3.5 cursor-pointer"
+                              />
+                              Formato Cartão Destaque
+                            </label>
+                          </div>
+
+                          {isFeaturedCard && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-3">
+                              <div className="flex items-center gap-2.5">
+                                {currentLinkThumb ? (
+                                  <img
+                                    src={currentLinkThumb}
+                                    alt={item.title || 'Miniatura'}
+                                    className="h-11 w-11 rounded-lg border border-zinc-200 object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-zinc-100 text-zinc-400">
+                                    <ImagePlus className="h-4 w-4" />
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="text-xs font-bold text-zinc-800">
+                                    Miniatura do cartão (opcional)
+                                  </p>
+                                  <p className="text-[11px] text-zinc-500">
+                                    Sem foto, usamos o ícone escolhido acima.
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-1.5 text-[11px] font-bold text-zinc-800 transition hover:bg-zinc-100">
+                                  <ImagePlus className="h-3.5 w-3.5" />
+                                  {currentLinkThumb ? 'Trocar foto' : 'Enviar foto'}
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      handleLinkImageChange(
+                                        item.id,
+                                        e.target.files?.[0] || null
+                                      );
+                                      e.target.value = '';
+                                    }}
+                                  />
+                                </label>
+                                {currentLinkThumb && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveLinkImage(item.id)}
+                                    className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1.5 text-[11px] font-bold text-red-600 transition hover:bg-red-50"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                    Remover
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -657,7 +1133,7 @@ export function BioLinksTab({
             <button
               type="button"
               onClick={() => setMobilePreviewOpen(false)}
-              className="absolute -top-3 right-0 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white text-zinc-900 shadow-md"
+              className="absolute -top-3 right-0 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white text-zinc-900 shadow-md"
               aria-label="Fechar prévia"
             >
               <X className="h-4 w-4" />
@@ -688,7 +1164,7 @@ export function BioLinksTab({
               <button
                 type="button"
                 onClick={() => setUpgradeModalOpen(false)}
-                className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+                className="cursor-pointer rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
               >
                 <X className="h-4 w-4" />
               </button>
