@@ -75,6 +75,7 @@ export function BioLinksPage() {
       storeName={catalog.storeName}
       logoUrl={catalog.logoUrl}
       themeColor={catalog.themeColor}
+      storeAppearance={catalog.storeAppearance}
       notes={catalog.notes}
       config={config}
       products={catalog.products}
