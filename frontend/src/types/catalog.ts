@@ -15,14 +15,21 @@ export type BioLinkIcon =
   | 'vip'
   | 'link';
 
+export type ButtonShape = 'professional' | 'modern' | 'relaxed';
+export type ButtonFill = 'solid' | 'outline';
+export type NichePreset = 'default' | 'bakery' | 'petshop' | 'fashion' | 'delivery';
+
+export interface StoreAppearanceConfig {
+  bgColor?: string;
+  primaryColor: string;
+  buttonShape?: ButtonShape;
+  buttonFill?: ButtonFill;
+  nichePreset?: NichePreset;
+}
+
 export type BioLinksTheme = 'minimal' | 'brand-soft' | 'dark-glass';
 export type BioLinksButtonStyle = 'pill' | 'card' | 'outline';
-export type BioLinksNichePreset =
-  | 'default'
-  | 'bakery'
-  | 'petshop'
-  | 'fashion'
-  | 'delivery';
+export type BioLinksNichePreset = NichePreset;
 export type BioLinksBannerStyle = 'none' | 'brand-gradient' | 'image';
 export type BioLinkLayout = 'compact' | 'featured-card';
 
@@ -39,8 +46,14 @@ export interface BioLinkItem {
 
 export interface BioLinksConfig {
   enabled: boolean;
+  inheritStoreTheme?: boolean;
   theme: BioLinksTheme;
   buttonStyle: BioLinksButtonStyle;
+  buttonShape?: ButtonShape;
+  buttonFill?: ButtonFill;
+  bgColor?: string;
+  primaryColor?: string;
+  storeAppearance?: StoreAppearanceConfig;
   showFeaturedProducts: boolean;
   nichePreset?: BioLinksNichePreset;
   bannerUrl?: string;
@@ -111,6 +124,7 @@ export interface Catalog {
   pickupInstructions?: string | null;
   deliveryEstimate?: string | null;
   notifyOrderByEmail?: boolean;
+  storeAppearance?: StoreAppearanceConfig | null;
   bioLinksConfig?: BioLinksConfig | null;
   expiresAt: string | null;
   createdAt?: string;
