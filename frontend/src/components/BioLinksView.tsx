@@ -1,7 +1,10 @@
-import { BioLinksRenderer, type BioLinksRendererProps } from './BioLinksRenderer';
+import {
+  VitriLinkRenderer,
+  type VitriLinkRendererProps,
+} from './VitriLinkRenderer';
 
-type BioLinksViewProps = BioLinksRendererProps;
+type BioLinksViewProps = VitriLinkRendererProps;
 
 export function BioLinksView(props: BioLinksViewProps) {
-  return <BioLinksRenderer {...props} />;
+  return <VitriLinkRenderer {...props} />;
 }
