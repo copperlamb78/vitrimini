@@ -39,6 +39,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   centsToPriceInput,
   formatPhoneMask,
+  formatPriceInput,
   isValidBrazilianPhone,
   parsePriceToCents,
   phoneToDDI,
@@ -855,18 +856,21 @@ export function ManagePage() {
                             className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-stone-900"
                           />
                         </div>
-                        <div>
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-stone-500">
+                            R$
+                          </span>
                           <input
                             type="text"
-                            inputMode="decimal"
+                            inputMode="numeric"
                             value={product.priceInput}
                             onChange={(e) =>
                               handleUpdateProduct(product.localId, {
-                                priceInput: e.target.value,
+                                priceInput: formatPriceInput(e.target.value),
                               })
                             }
-                            placeholder="Preço"
-                            className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-stone-900"
+                            placeholder="0,00"
+                            className="w-full rounded-lg border border-stone-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-stone-900"
                           />
                         </div>
                         <div className="sm:col-span-3">
@@ -990,8 +994,7 @@ export function ManagePage() {
                     inputMode="numeric"
                     value={minOrderInput}
                     onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
-                      setMinOrderInput(centsToPriceInput(digits ? Number(digits) : 0));
+                      setMinOrderInput(formatPriceInput(e.target.value));
                     }}
                     placeholder="0,00"
                     className="w-full rounded-xl border border-stone-300 py-2.5 pl-10 pr-3.5 text-sm outline-none focus:border-stone-900"
