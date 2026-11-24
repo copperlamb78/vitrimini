@@ -17,6 +17,14 @@ export type BioLinkIcon =
 
 export type BioLinksTheme = 'minimal' | 'brand-soft' | 'dark-glass';
 export type BioLinksButtonStyle = 'pill' | 'card' | 'outline';
+export type BioLinksNichePreset =
+  | 'default'
+  | 'bakery'
+  | 'petshop'
+  | 'fashion'
+  | 'delivery';
+export type BioLinksBannerStyle = 'none' | 'brand-gradient' | 'image';
+export type BioLinkLayout = 'compact' | 'featured-card';
 
 export interface BioLinkItem {
   id: string;
@@ -25,6 +33,8 @@ export interface BioLinkItem {
   url: string;
   icon: BioLinkIcon;
   highlighted?: boolean;
+  layout?: BioLinkLayout;
+  imageUrl?: string;
 }
 
 export interface BioLinksConfig {
@@ -32,6 +42,9 @@ export interface BioLinksConfig {
   theme: BioLinksTheme;
   buttonStyle: BioLinksButtonStyle;
   showFeaturedProducts: boolean;
+  nichePreset?: BioLinksNichePreset;
+  bannerUrl?: string;
+  bannerStyle?: BioLinksBannerStyle;
   socials: {
     instagram?: string;
     tiktok?: string;
