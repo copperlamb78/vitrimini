@@ -3,11 +3,21 @@ import type {
   BioLinksBannerStyle,
   BioLinksConfig,
   BioLinksNichePreset,
+  ButtonFill,
+  ButtonShape,
 } from '../types/catalog';
 import { phoneToDDI } from './format';
+import {
+  getContrastTextColor,
+  getRelativeLuminance,
+  hexToRgba,
+} from './storeTheme';
+
+export { getContrastTextColor, hexToRgba };
 
 export const DEFAULT_BIO_LINKS_CONFIG: BioLinksConfig = {
   enabled: false,
+  inheritStoreTheme: true,
   theme: 'minimal',
   buttonStyle: 'card',
   showFeaturedProducts: true,
@@ -52,6 +62,20 @@ function normalizeLinkItem(item: Partial<BioLinkItem>): BioLinkItem {
   };
 }
 
+function normalizeButtonShape(raw?: string): ButtonShape | undefined {
+  if (raw === 'professional' || raw === 'modern' || raw === 'relaxed') {
+    return raw;
+  }
+  return undefined;
+}
+
+function normalizeButtonFill(raw?: string): ButtonFill | undefined {
+  if (raw === 'solid' || raw === 'outline') {
+    return raw;
+  }
+  return undefined;
+}
+
 export function normalizeBioLinksConfig(
   raw?: Partial<BioLinksConfig> | null
 ): BioLinksConfig {
@@ -64,6 +88,7 @@ export function normalizeBioLinksConfig(
   }
   return {
     enabled: Boolean(raw.enabled),
+    inheritStoreTheme: raw.inheritStoreTheme !== false,
     theme:
       raw.theme === 'brand-soft' || raw.theme === 'dark-glass'
         ? raw.theme
@@ -72,6 +97,17 @@ export function normalizeBioLinksConfig(
       raw.buttonStyle === 'pill' || raw.buttonStyle === 'outline'
         ? raw.buttonStyle
         : 'card',
+    buttonShape: normalizeButtonShape(raw.buttonShape),
+    buttonFill: normalizeButtonFill(raw.buttonFill),
+    bgColor:
+      typeof raw.bgColor === 'string' && raw.bgColor.trim()
+        ? raw.bgColor.trim()
+        : undefined,
+    primaryColor:
+      typeof raw.primaryColor === 'string' && raw.primaryColor.trim()
+        ? raw.primaryColor.trim()
+        : undefined,
+    storeAppearance: raw.storeAppearance,
     showFeaturedProducts:
       raw.showFeaturedProducts !== undefined ? Boolean(raw.showFeaturedProducts) : true,
     nichePreset: normalizeNichePreset(raw.nichePreset),
@@ -126,44 +162,7 @@ export function resolveSocialUrl(
     : `https://tiktok.com/@${handle}`;
 }
 
-export function getContrastTextColor(hex: string): '#FFFFFF' | '#18181B' {
-  const clean = hex.replace('#', '');
-  if (clean.length !== 6) return '#FFFFFF';
-  const r = parseInt(clean.slice(0, 2), 16);
-  const g = parseInt(clean.slice(2, 4), 16);
-  const b = parseInt(clean.slice(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.62 ? '#18181B' : '#FFFFFF';
-}
-
-export function hexToRgba(hex: string, alpha: number): string {
-  const safeAlpha = Math.max(0, Math.min(1, Number.isFinite(alpha) ? alpha : 1));
-  const raw = (hex || '').replace('#', '').trim();
-  const normalized =
-    raw.length === 3
-      ? raw
-          .split('')
-          .map((c) => c + c)
-          .join('')
-      : raw;
-
-  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
-    return `rgba(24, 24, 27, ${safeAlpha})`;
-  }
-
-  const r = parseInt(normalized.slice(0, 2), 16);
-  const g = parseInt(normalized.slice(2, 4), 16);
-  const b = parseInt(normalized.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${safeAlpha})`;
-}
-
 export function getEffectiveOutlineColor(hex: string, isDarkTheme: boolean): string {
   if (!isDarkTheme) return hex;
-  const clean = (hex || '').replace('#', '').trim();
-  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return '#E4E4E7';
-  const r = parseInt(clean.slice(0, 2), 16);
-  const g = parseInt(clean.slice(2, 4), 16);
-  const b = parseInt(clean.slice(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance < 0.2 ? '#E4E4E7' : hex;
+  return getRelativeLuminance(hex) < 0.2 ? '#E4E4E7' : hex;
 }
