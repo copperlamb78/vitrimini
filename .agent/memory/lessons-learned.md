@@ -15,6 +15,7 @@
 - `[LGPD / Tracking Público]` → `GET /api/orders/track/:trackingCode` nunca pode retornar telefone ou endereço do comprador.
 - `[Optional Auth + Refresh]` → Rotas híbridas (guest + logado) não retornam `401` para token expirado; no front-end, checar `isJwtTokenExpired` e renovar via `refreshAuthSession()` antes da chamada, e no back-end validar a existência do `userId` opcional antes de gravar FK.
 - `[Logout / Dispositivo Compartilhado]` → Ao deslogar (`user` vai para `null`), limpar imediatamente campos auto-preenchidos (`customerName`, `customerPhone`) e estados de listas privadas (`orders`).
+- `[IDOR / Anti-Enumeração]` → Em rotas privadas parametrizadas, filtrar posse direto no Prisma (`where: { id, userId }` / `updateMany({ where: { id, catalogId } })`), aplicar `requireMerchant` no painel e retornar `404` (nunca `403`, que revela existência do UUID).
 
 ## Back-end, Prisma & Banco de Dados
 - `[Isolamento de Banco]` → Ambiente local só pode apontar para `vitrimini-dev`; nunca rodar `prisma db push` ou testes contra produção.
