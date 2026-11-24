@@ -1,17 +1,22 @@
 import { Info, Calendar, Plus } from 'lucide-react';
-import type { DraftProductItem } from '../types/catalog';
-import {
-  getStoreInitials,
-  getTheme,
-  type ThemeId,
-} from '../constants/themes';
+import type {
+  DraftProductItem,
+  StoreAppearanceConfig,
+} from '../types/catalog';
+import { getStoreInitials, type ThemeId } from '../constants/themes';
 import { formatCurrency, parsePriceToCents } from '../utils/format';
+import {
+  getNichePatternStyle,
+  hexToRgba,
+  resolveStoreTheme,
+} from '../utils/storeTheme';
 import logoIcon from '../assets/logo-icon.png';
 
 interface PhoneMockupPreviewProps {
   storeName: string;
   logoPreviewUrl?: string | null;
-  themeColor: ThemeId;
+  themeColor: ThemeId | string;
+  storeAppearance?: StoreAppearanceConfig | null;
   notes: string;
   deliveryDates: string[];
   depositPct: number;
@@ -23,6 +28,7 @@ export function PhoneMockupPreview({
   storeName,
   logoPreviewUrl,
   themeColor,
+  storeAppearance,
   notes,
   deliveryDates,
   depositPct: _depositPct,
@@ -30,20 +36,62 @@ export function PhoneMockupPreview({
   products,
 }: PhoneMockupPreviewProps) {
   const displayTitle = storeName.trim() || 'Sua Loja de Encomendas';
-  const theme = getTheme(themeColor);
+  const resolvedTheme = resolveStoreTheme(themeColor, storeAppearance);
+  const nichePatternStyle = getNichePatternStyle(
+    resolvedTheme.nichePreset,
+    resolvedTheme.primaryColor,
+    resolvedTheme.isDark
+  );
   const initials = getStoreInitials(displayTitle);
 
+  const isOutline = resolvedTheme.buttonFill === 'outline';
+  const actionButtonStyle = isOutline
+    ? {
+        backgroundColor: 'transparent',
+        borderWidth: '2px',
+        borderStyle: 'solid' as const,
+        borderColor: resolvedTheme.outlineColor,
+        color: resolvedTheme.outlineColor,
+      }
+    : {
+        backgroundColor: resolvedTheme.primaryColor,
+        color: resolvedTheme.textOnPrimary,
+      };
+
   return (
-    <div className="mx-auto w-full max-w-[340px] overflow-hidden rounded-[2.5rem] border-[8px] border-stone-900 bg-stone-50 shadow-2xl">
+    <div
+      style={resolvedTheme.cssVars}
+      className="mx-auto w-full max-w-[340px] overflow-hidden rounded-[2.5rem] border-[8px] border-stone-900 bg-stone-50 shadow-2xl"
+    >
       {/* Notch */}
       <div className="flex justify-center bg-stone-900 pb-2 pt-1">
         <div className="h-4 w-24 rounded-full bg-stone-800" />
       </div>
 
       {/* Screen Content */}
-      <div className="h-[560px] overflow-y-auto bg-stone-50 pb-16">
+      <div
+        style={{
+          backgroundColor: resolvedTheme.bgColor,
+          color: resolvedTheme.textColor,
+        }}
+        className="relative h-[560px] overflow-y-auto pb-16"
+      >
+        {nichePatternStyle && (
+          <div
+            aria-hidden="true"
+            style={nichePatternStyle}
+            className="pointer-events-none absolute inset-0"
+          />
+        )}
+
         {/* Header */}
-        <div className={`bg-gradient-to-br ${theme.headerGradient} px-4 py-5 text-white`}>
+        <div
+          style={{
+            background: `linear-gradient(135deg, ${resolvedTheme.primaryColor} 0%, ${hexToRgba(resolvedTheme.primaryColor, 0.85)} 100%)`,
+            color: resolvedTheme.textOnPrimary,
+          }}
+          className="relative z-10 px-4 py-5"
+        >
           <div className="flex items-center gap-3">
             {logoPreviewUrl ? (
               <img
@@ -53,7 +101,11 @@ export function PhoneMockupPreview({
               />
             ) : (
               <div
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white/80 shadow-md ${theme.avatarFallbackBg} ${theme.avatarFallbackText}`}
+                style={{
+                  backgroundColor: resolvedTheme.surfaceColor,
+                  color: resolvedTheme.primaryColor,
+                }}
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white/80 shadow-md"
               >
                 <span className="text-sm font-black tracking-tight">
                   {initials}
@@ -65,7 +117,10 @@ export function PhoneMockupPreview({
                 {displayTitle}
               </h3>
               {paymentNotice?.trim() && (
-                <p className="mt-0.5 text-[11px] text-white/90">
+                <p
+                  style={{ color: hexToRgba(resolvedTheme.textOnPrimary, 0.9) }}
+                  className="mt-0.5 text-[11px]"
+                >
                   {paymentNotice}
                 </p>
               )}
@@ -73,19 +128,40 @@ export function PhoneMockupPreview({
           </div>
         </div>
 
-        <div className="space-y-3 p-3">
+        <div className="relative z-10 space-y-3 p-3">
           {/* Delivery dates */}
           {deliveryDates.length > 0 && (
-            <div className="rounded-xl border border-stone-200 bg-white p-2.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-stone-600">
-                <Calendar className={`h-3.5 w-3.5 ${theme.primaryText}`} />
+            <div
+              style={{
+                backgroundColor: resolvedTheme.surfaceColor,
+                borderColor: resolvedTheme.borderColor,
+              }}
+              className={`${resolvedTheme.radiusClass} border p-2.5`}
+            >
+              <div
+                style={{ color: resolvedTheme.textMutedColor }}
+                className="flex items-center gap-1.5 text-[11px] font-semibold"
+              >
+                <Calendar
+                  style={{ color: resolvedTheme.outlineColor }}
+                  className="h-3.5 w-3.5"
+                />
                 Datas e turnos disponíveis
               </div>
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {deliveryDates.map((date, idx) => (
                   <span
                     key={idx}
-                    className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${theme.softBg} ${theme.softText}`}
+                    style={{
+                      backgroundColor: hexToRgba(
+                        resolvedTheme.primaryColor,
+                        resolvedTheme.isDark ? 0.2 : 0.1
+                      ),
+                      color: resolvedTheme.isDark
+                        ? '#FAFAFA'
+                        : resolvedTheme.outlineColor,
+                    }}
+                    className="rounded-md px-2 py-0.5 text-[10px] font-semibold"
                   >
                     {date}
                   </span>
@@ -96,19 +172,39 @@ export function PhoneMockupPreview({
 
           {/* Notes */}
           {notes.trim() && (
-            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-900">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+            <div
+              className={`flex items-start gap-2 ${resolvedTheme.radiusClass} border p-2.5 text-[11px] ${
+                resolvedTheme.isDark
+                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+                  : 'border-amber-200 bg-amber-50 text-amber-900'
+              }`}
+            >
+              <Info
+                className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${
+                  resolvedTheme.isDark ? 'text-amber-400' : 'text-amber-600'
+                }`}
+              />
               <p className="whitespace-pre-line leading-relaxed">{notes}</p>
             </div>
           )}
 
           {/* Product List */}
           <div className="space-y-2">
-            <p className="text-xs font-bold uppercase tracking-wider text-stone-400">
+            <p
+              style={{ color: resolvedTheme.textMutedColor }}
+              className="text-xs font-bold uppercase tracking-wider"
+            >
               Vitrine de Produtos
             </p>
             {products.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-stone-300 bg-white p-6 text-center text-xs text-stone-400">
+              <div
+                style={{
+                  backgroundColor: resolvedTheme.surfaceColor,
+                  borderColor: resolvedTheme.borderColor,
+                  color: resolvedTheme.textMutedColor,
+                }}
+                className={`${resolvedTheme.radiusClass} border border-dashed p-6 text-center text-xs`}
+              >
                 Adicione produtos ao lado para visualizar aqui
               </div>
             ) : (
@@ -118,7 +214,11 @@ export function PhoneMockupPreview({
                 return (
                   <div
                     key={product.localId}
-                    className={`flex gap-2.5 rounded-xl border border-stone-200 bg-white p-2.5 shadow-2xs ${
+                    style={{
+                      backgroundColor: resolvedTheme.surfaceColor,
+                      borderColor: resolvedTheme.borderColor,
+                    }}
+                    className={`flex gap-2.5 ${resolvedTheme.radiusClass} border p-2.5 shadow-2xs ${
                       isAvailable ? '' : 'opacity-75'
                     }`}
                   >
@@ -149,7 +249,10 @@ export function PhoneMockupPreview({
                     <div className="flex min-w-0 flex-1 flex-col justify-between">
                       <div>
                         <div className="flex items-start justify-between gap-1">
-                          <p className="truncate text-xs font-bold text-stone-900">
+                          <p
+                            style={{ color: resolvedTheme.textColor }}
+                            className="truncate text-xs font-bold"
+                          >
                             {product.name.trim() || 'Nome do produto'}
                           </p>
                           {!isAvailable && (
@@ -159,18 +262,25 @@ export function PhoneMockupPreview({
                           )}
                         </div>
                         {product.description.trim() && (
-                          <p className="line-clamp-2 text-[10px] text-stone-500">
+                          <p
+                            style={{ color: resolvedTheme.textMutedColor }}
+                            className="line-clamp-2 text-[10px]"
+                          >
                             {product.description}
                           </p>
                         )}
                       </div>
                       <div className="mt-1 flex items-center justify-between">
-                        <span className="text-xs font-extrabold text-stone-900">
+                        <span
+                          style={{ color: resolvedTheme.textColor }}
+                          className="text-xs font-extrabold"
+                        >
                           {formatCurrency(cents)}
                         </span>
                         {isAvailable ? (
                           <span
-                            className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold ${theme.primaryBg} ${theme.buttonText}`}
+                            style={actionButtonStyle}
+                            className={`inline-flex items-center gap-0.5 ${resolvedTheme.radiusClass} px-2.5 py-0.5 text-[10px] font-bold`}
                           >
                             <Plus className="h-3 w-3" />
                             Adicionar
@@ -188,28 +298,49 @@ export function PhoneMockupPreview({
             )}
           </div>
 
-          <div className="flex items-center justify-center gap-1 pt-2 text-[10px] text-stone-400">
+          <div
+            style={{ color: resolvedTheme.textMutedColor }}
+            className="flex items-center justify-center gap-1 pt-2 text-[10px]"
+          >
             <img src={logoIcon} alt="" className="h-3.5 w-3.5 object-contain" />
             <span>
-              Vitrine criada com <strong>VitriMini</strong>
+              Vitrine criada com{' '}
+              <strong style={{ color: resolvedTheme.textColor }}>
+                VitriMini
+              </strong>
             </span>
           </div>
         </div>
       </div>
 
       {/* Bottom Bar Mock */}
-      <div className="border-t border-stone-200 bg-white px-4 py-2.5">
+      <div
+        style={{
+          backgroundColor: resolvedTheme.surfaceColor,
+          borderColor: resolvedTheme.borderColor,
+        }}
+        className="border-t px-4 py-2.5"
+      >
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[10px] text-stone-400">1 item selecionado</p>
-            <p className="text-xs font-extrabold text-stone-900">
+            <p
+              style={{ color: resolvedTheme.textMutedColor }}
+              className="text-[10px]"
+            >
+              1 item selecionado
+            </p>
+            <p
+              style={{ color: resolvedTheme.textColor }}
+              className="text-xs font-extrabold"
+            >
               {products[0]
                 ? formatCurrency(parsePriceToCents(products[0].priceInput))
                 : 'R$ 0,00'}
             </p>
           </div>
           <div
-            className={`rounded-lg px-3 py-1.5 text-[11px] font-bold ${theme.primaryBg} ${theme.buttonText}`}
+            style={actionButtonStyle}
+            className={`${resolvedTheme.radiusClass} px-3 py-1.5 text-[11px] font-bold`}
           >
             Finalizar Pedido
           </div>
