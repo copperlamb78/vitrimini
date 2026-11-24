@@ -164,6 +164,31 @@ export const productInputSchema = z.object({
   available: z.union([z.boolean(), z.string(), z.number()]).optional(),
 });
 
+export const buttonShapeSchema = z.enum(['professional', 'modern', 'relaxed']);
+export const buttonFillSchema = z.enum(['solid', 'outline']);
+export const nichePresetSchema = z.enum([
+  'default',
+  'bakery',
+  'petshop',
+  'fashion',
+  'delivery',
+]);
+export const hexColorSchema = z
+  .string()
+  .trim()
+  .regex(/^#[0-9A-Fa-f]{6}$/, 'Cor inválida.');
+
+export const storeAppearanceSchema = z.object({
+  bgColor: hexColorSchema
+    .optional()
+    .nullable()
+    .transform((v) => v || undefined),
+  primaryColor: hexColorSchema,
+  buttonShape: buttonShapeSchema.optional().default('modern'),
+  buttonFill: buttonFillSchema.optional().default('solid'),
+  nichePreset: nichePresetSchema.optional().default('default'),
+});
+
 export const catalogMetadataSchema = z.object({
   storeName: z
     .string()
@@ -214,7 +239,10 @@ export const catalogMetadataSchema = z.object({
       message: 'Aviso de pagamento muito longo (máximo 140 caracteres).',
     }),
   themeColor: z
-    .enum(['rose', 'red', 'amber', 'emerald', 'purple', 'zinc'])
+    .union([
+      z.enum(['rose', 'red', 'amber', 'emerald', 'purple', 'zinc']),
+      hexColorSchema,
+    ])
     .optional()
     .default('rose'),
   notes: z
@@ -415,10 +443,19 @@ export const bioLinksConfigSchema = z.object({
   enabled: z.boolean().default(false),
   theme: z.enum(['minimal', 'brand-soft', 'dark-glass']).default('minimal'),
   buttonStyle: z.enum(['pill', 'card', 'outline']).default('card'),
-  nichePreset: z
-    .enum(['default', 'bakery', 'petshop', 'fashion', 'delivery'])
+  nichePreset: nichePresetSchema.optional().default('default'),
+  inheritStoreTheme: z.boolean().optional().default(true),
+  buttonShape: buttonShapeSchema.optional(),
+  buttonFill: buttonFillSchema.optional(),
+  bgColor: hexColorSchema
     .optional()
-    .default('default'),
+    .nullable()
+    .transform((v) => v || undefined),
+  primaryColor: hexColorSchema
+    .optional()
+    .nullable()
+    .transform((v) => v || undefined),
+  storeAppearance: storeAppearanceSchema.optional(),
   bannerUrl: optionalSafeImageUrlSchema,
   bannerStyle: z
     .enum(['none', 'brand-gradient', 'image'])
