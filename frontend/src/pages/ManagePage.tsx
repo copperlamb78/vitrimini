@@ -19,13 +19,27 @@ import {
   Unlink,
   X,
   Link2,
+  Store,
+  Palette,
+  Wallet,
+  CalendarClock,
 } from 'lucide-react';
-import type { BioLinksConfig, Catalog, CreateCatalogResponse } from '../types/catalog';
+import type {
+  BioLinksConfig,
+  ButtonFill,
+  ButtonShape,
+  Catalog,
+  CreateCatalogResponse,
+  StoreAppearanceConfig,
+} from '../types/catalog';
 import {
   getTheme,
   THEMES,
   type ThemeId,
 } from '../constants/themes';
+import { resolveStoreTheme } from '../utils/storeTheme';
+import { SettingsSectionCard } from '../components/SettingsSectionCard';
+import { AppearanceControls } from '../components/AppearanceControls';
 import {
   disconnectMercadoPago,
   getCatalogById,
@@ -49,7 +63,6 @@ import {
 import { blobToDataUrl, compressImage } from '../utils/compressImage';
 import { applyPageSeo } from '../utils/seo';
 import { LogoUploader } from '../components/LogoUploader';
-import { ThemeSelector } from '../components/ThemeSelector';
 import { DeliveryScheduleEditor } from '../components/DeliveryScheduleEditor';
 import { CatalogOrdersTab } from '../components/CatalogOrdersTab';
 import { CatalogAnalyticsTab } from '../components/CatalogAnalyticsTab';
@@ -84,6 +97,18 @@ interface EditableProduct {
 }
 
 type ManageTab = 'orders' | 'analytics' | 'catalog' | 'biolink';
+type CatalogSectionId = 'identity' | 'appearance' | 'payments' | 'schedule';
+
+const SHAPE_LABELS: Record<ButtonShape, string> = {
+  professional: 'Profissional',
+  modern: 'Moderno',
+  relaxed: 'Descontraído',
+};
+
+const FILL_LABELS: Record<ButtonFill, string> = {
+  solid: 'Sólido',
+  outline: 'Contorno',
+};
 
 export function ManagePage() {
   const { catalogId } = useParams<{ catalogId: string }>();
@@ -134,6 +159,21 @@ export function ManagePage() {
   );
   const [removeLogo, setRemoveLogo] = useState(false);
   const [themeColor, setThemeColor] = useState<ThemeId>('rose');
+  const [storeAppearance, setStoreAppearance] = useState<StoreAppearanceConfig>(
+    () => {
+      const resolved = resolveStoreTheme('rose');
+      return {
+        bgColor: resolved.bgColor,
+        primaryColor: resolved.primaryColor,
+        buttonShape: resolved.buttonShape,
+        buttonFill: resolved.buttonFill,
+        nichePreset: resolved.nichePreset,
+      };
+    }
+  );
+  const [openSection, setOpenSection] = useState<CatalogSectionId | null>(
+    'identity'
+  );
 
   const [whatsapp, setWhatsapp] = useState('');
   const [pixKey, setPixKey] = useState('');
@@ -174,6 +214,7 @@ export function ManagePage() {
   );
 
   const activeTheme = getTheme(themeColor);
+  const resolvedStoreTheme = resolveStoreTheme(themeColor, storeAppearance);
 
   useEffect(() => {
     applyPageSeo({
@@ -237,6 +278,14 @@ export function ManagePage() {
             ? (data.themeColor as ThemeId)
             : 'rose'
         );
+        const resolved = resolveStoreTheme(data.themeColor, data.storeAppearance);
+        setStoreAppearance({
+          bgColor: resolved.bgColor,
+          primaryColor: resolved.primaryColor,
+          buttonShape: resolved.buttonShape,
+          buttonFill: resolved.buttonFill,
+          nichePreset: resolved.nichePreset,
+        });
         setWhatsapp(formatPhoneMask(data.whatsapp));
         setPixKey(data.pixKey || '');
         setDepositPct(data.depositPct);
@@ -365,7 +414,8 @@ export function ManagePage() {
     try {
       const formData = new FormData();
       formData.append('storeName', storeName.trim());
-      formData.append('themeColor', themeColor);
+      formData.append('themeColor', storeAppearance.primaryColor || themeColor);
+      formData.append('storeAppearance', JSON.stringify(storeAppearance));
       formData.append('whatsapp', phoneToDDI(whatsapp));
       formData.append('pixKey', pixKey.trim());
       formData.append('depositPct', String(depositPct));
@@ -622,8 +672,8 @@ export function ManagePage() {
           {[
             { id: 'orders' as const, label: 'Pedidos', icon: ClipboardList },
             { id: 'analytics' as const, label: 'Financeiro', icon: BarChart3 },
-            { id: 'catalog' as const, label: 'Catálogo', icon: Settings2 },
-            { id: 'biolink' as const, label: 'Links da Bio', icon: Link2 },
+            { id: 'catalog' as const, label: 'Vitrine', icon: Settings2 },
+            { id: 'biolink' as const, label: 'VitriLink', icon: Link2 },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -632,9 +682,17 @@ export function ManagePage() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition ${
+                style={
                   isActive
-                    ? `${activeTheme.primaryBg} ${activeTheme.buttonText} shadow-xs`
+                    ? {
+                        backgroundColor: resolvedStoreTheme.primaryColor,
+                        color: resolvedStoreTheme.textOnPrimary,
+                      }
+                    : undefined
+                }
+                className={`flex min-h-[44px] cursor-pointer items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition ${
+                  isActive
+                    ? 'shadow-xs'
                     : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
                 }`}
               >
@@ -676,6 +734,7 @@ export function ManagePage() {
             storeName={storeName}
             logoUrl={logoPreviewDataUrl || existingLogoUrl}
             themeColor={themeColor}
+            storeAppearance={storeAppearance}
             notes={notes}
             hasProAccess={Boolean(catalogMeta.hasProAccess)}
             initialConfig={bioLinksConfig}
@@ -698,9 +757,12 @@ export function ManagePage() {
                 <button
                   type="button"
                   onClick={() => setMobilePreviewOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-xs font-bold text-zinc-800 shadow-2xs transition hover:bg-zinc-50"
+                  className="inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-xs font-bold text-zinc-800 shadow-2xs transition hover:bg-zinc-50"
                 >
-                  <Eye className={`h-4 w-4 ${activeTheme.primaryText}`} />
+                  <Eye
+                    className="h-4 w-4"
+                    style={{ color: resolvedStoreTheme.primaryColor }}
+                  />
                   Ver prévia
                 </button>
               </div>
@@ -894,28 +956,25 @@ export function ManagePage() {
             </div>
           </section>
 
-          {/* Identidade Visual, Loja & Datas */}
-          <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-2xs space-y-5">
-            <h2 className="text-base font-bold text-stone-900">
-              Identidade, Loja e Datas Disponíveis
-            </h2>
+          {/* 1. Identidade da Loja */}
+          <SettingsSectionCard
+            title="Identidade da Loja"
+            subtitle={storeName.trim() || 'Logo, nome e descrição da vitrine'}
+            icon={<Store className="h-5 w-5" />}
+            isOpen={openSection === 'identity'}
+            onToggle={() =>
+              setOpenSection((prev) => (prev === 'identity' ? null : 'identity'))
+            }
+          >
+            <div className="space-y-5">
+              <LogoUploader
+                storeName={storeName}
+                imageSrc={displayedLogo}
+                theme={activeTheme}
+                onSelectFile={handleLogoSelect}
+                onRemove={handleLogoRemove}
+              />
 
-            <LogoUploader
-              storeName={storeName}
-              imageSrc={displayedLogo}
-              theme={activeTheme}
-              onSelectFile={handleLogoSelect}
-              onRemove={handleLogoRemove}
-            />
-
-            <div>
-              <label className="mb-2 block text-xs font-semibold text-stone-700">
-                Cor do Tema da Vitrine
-              </label>
-              <ThemeSelector value={themeColor} onChange={setThemeColor} />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-semibold text-stone-700">
                   Nome da Loja
@@ -924,10 +983,99 @@ export function ManagePage() {
                   type="text"
                   value={storeName}
                   onChange={(e) => setStoreName(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
+                  className="mt-1 min-h-[44px] w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-stone-700">
+                  Descrição da vitrine (opcional)
+                </label>
+                <input
+                  type="text"
+                  maxLength={140}
+                  value={paymentNotice}
+                  onChange={(e) => setPaymentNotice(e.target.value)}
+                  placeholder="Ex.: Doces artesanais sob encomenda • Retirada ou entrega"
+                  className="mt-1 min-h-[44px] w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm outline-none focus:border-stone-900"
+                />
+                <p className="mt-1 text-[11px] text-stone-500">
+                  Aparece logo abaixo do nome da sua loja no topo da vitrine.
+                  Deixe em branco se não quiser exibir.
+                </p>
+              </div>
+            </div>
+          </SettingsSectionCard>
+
+          {/* 2. Aparência & Estilo */}
+          <SettingsSectionCard
+            title="Aparência & Estilo"
+            subtitle={
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  className="inline-block h-3 w-3 rounded-full border border-black/15"
+                  style={{ backgroundColor: storeAppearance.primaryColor }}
+                />
+                <span>
+                  {SHAPE_LABELS[resolvedStoreTheme.buttonShape]} ·{' '}
+                  {FILL_LABELS[resolvedStoreTheme.buttonFill]}
+                </span>
+              </span>
+            }
+            icon={<Palette className="h-5 w-5" />}
+            isOpen={openSection === 'appearance'}
+            onToggle={() =>
+              setOpenSection((prev) =>
+                prev === 'appearance' ? null : 'appearance'
+              )
+            }
+          >
+            <div className="space-y-4">
+              {/* Preview Mobile Inteligente (< md) */}
+              <div className="md:hidden">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                  Prévia ao vivo no celular
+                </p>
+                <div className="max-h-[340px] overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-100 p-2">
+                  <div className="origin-top scale-[0.82]">
+                    <CatalogLivePreview
+                      storeName={deferredStoreName}
+                      logoUrl={displayedLogo}
+                      themeColor={themeColor}
+                      storeAppearance={storeAppearance}
+                      depositPct={depositPct}
+                      paymentNotice={deferredPaymentNotice}
+                      deliveryDates={deferredDeliveryDates}
+                      notes={deferredNotes}
+                      pickupAddress={deferredPickupAddress}
+                      deliveryEstimate={deferredDeliveryEstimate}
+                      products={previewProducts}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <AppearanceControls
+                value={storeAppearance}
+                onChange={setStoreAppearance}
+                allowRelaxedShape={false}
+              />
+            </div>
+          </SettingsSectionCard>
+
+          {/* 3. Pagamentos & Pedidos */}
+          <SettingsSectionCard
+            title="Pagamentos & Pedidos"
+            subtitle={`Sinal ${depositPct}% • ${
+              pixKey.trim() ? 'Pix configurado' : 'Pix não informado'
+            }`}
+            icon={<Wallet className="h-5 w-5" />}
+            isOpen={openSection === 'payments'}
+            onToggle={() =>
+              setOpenSection((prev) => (prev === 'payments' ? null : 'payments'))
+            }
+          >
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-semibold text-stone-700">
                   WhatsApp (com DDD)
@@ -939,7 +1087,7 @@ export function ManagePage() {
                   value={whatsapp}
                   onChange={(e) => setWhatsapp(formatPhoneMask(e.target.value))}
                   placeholder="(75) 99999-9999"
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
+                  className="mt-1 min-h-[44px] w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
                 />
               </div>
 
@@ -951,7 +1099,7 @@ export function ManagePage() {
                   type="text"
                   value={pixKey}
                   onChange={(e) => setPixKey(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
+                  className="mt-1 min-h-[44px] w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
                 />
               </div>
 
@@ -964,20 +1112,32 @@ export function ManagePage() {
                     { value: 0, label: '0% (Sem sinal)' },
                     { value: 50, label: '50% de sinal' },
                     { value: 100, label: '100% antecipado' },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setDepositPct(opt.value)}
-                      className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
-                        depositPct === opt.value
-                          ? `${activeTheme.softBorder} ${activeTheme.softBg} ${activeTheme.softText}`
-                          : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                  ].map((opt) => {
+                    const selected = depositPct === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setDepositPct(opt.value)}
+                        style={
+                          selected
+                            ? {
+                                borderColor: resolvedStoreTheme.primaryColor,
+                                backgroundColor: `${resolvedStoreTheme.primaryColor}14`,
+                                color: resolvedStoreTheme.primaryColor,
+                              }
+                            : undefined
+                        }
+                        className={`min-h-[44px] cursor-pointer rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                          selected
+                            ? 'shadow-2xs'
+                            : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -997,52 +1157,12 @@ export function ManagePage() {
                       setMinOrderInput(formatPriceInput(e.target.value));
                     }}
                     placeholder="0,00"
-                    className="w-full rounded-xl border border-stone-300 py-2.5 pl-10 pr-3.5 text-sm outline-none focus:border-stone-900"
+                    className="min-h-[44px] w-full rounded-xl border border-stone-300 py-2.5 pl-10 pr-3.5 text-sm outline-none focus:border-stone-900"
                   />
                 </div>
                 <p className="mt-1 text-[11px] text-stone-500">
                   Deixe em R$ 0,00 para não exigir valor mínimo.
                 </p>
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-stone-700">
-                  Descrição da vitrine (opcional)
-                </label>
-                <input
-                  type="text"
-                  maxLength={140}
-                  value={paymentNotice}
-                  onChange={(e) => setPaymentNotice(e.target.value)}
-                  placeholder="Ex.: Doces artesanais sob encomenda • Retirada ou entrega"
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm outline-none focus:border-stone-900"
-                />
-                <p className="mt-1 text-[11px] text-stone-500">
-                  Aparece logo abaixo do nome da sua loja no topo da vitrine. Deixe em branco se não quiser exibir.
-                </p>
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                  Datas e Turnos de Entrega / Retirada
-                </label>
-                <DeliveryScheduleEditor
-                  value={deliveryDates}
-                  onChange={setDeliveryDates}
-                  theme={activeTheme}
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-stone-700">
-                  Avisos / Regras
-                </label>
-                <textarea
-                  rows={2}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
-                />
               </div>
 
               {/* Card Pagamento Online Automático (Plano Pro) */}
@@ -1064,12 +1184,15 @@ export function ManagePage() {
                   {!catalogMeta.hasProAccess ? (
                     <div className="mt-3 space-y-2.5">
                       <p className="text-xs leading-relaxed text-zinc-600">
-                        Receba pagamentos automáticos no Pix e Cartão direto na sua conta Mercado Pago, com baixa automática dos pedidos pagos. Disponível no <strong>Plano Pro</strong> (R$ 39,90 por 90 dias ou R$ 99,90 por ano).
+                        Receba pagamentos automáticos no Pix e Cartão direto na
+                        sua conta Mercado Pago, com baixa automática dos pedidos
+                        pagos. Disponível no <strong>Plano Pro</strong> (R$
+                        39,90 por 90 dias ou R$ 99,90 por ano).
                       </p>
                       <button
                         type="button"
                         onClick={() => setPlanModalOpen(true)}
-                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-rose-700"
+                        className="inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-rose-700"
                       >
                         <Sparkles className="h-3.5 w-3.5" />
                         Fazer upgrade para o Plano Pro
@@ -1078,16 +1201,21 @@ export function ManagePage() {
                   ) : !catalogMeta.mpConnected ? (
                     <div className="mt-3 space-y-2.5">
                       <p className="text-xs leading-relaxed text-zinc-600">
-                        Conecte sua conta Mercado Pago para que seus clientes paguem na hora por Pix ou Cartão, com o dinheiro caindo direto para você.
+                        Conecte sua conta Mercado Pago para que seus clientes
+                        paguem na hora por Pix ou Cartão, com o dinheiro caindo
+                        direto para você.
                       </p>
                       <p className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-[11px] leading-relaxed text-zinc-600">
-                        <strong>Importante:</strong> a VitriMini cobra 0% de comissão. Sobre as vendas pagas online, aplicam-se apenas as taxas padrão da sua própria conta do Mercado Pago (Pix ou Cartão).
+                        <strong>Importante:</strong> a VitriMini cobra 0% de
+                        comissão. Sobre as vendas pagas online, aplicam-se apenas
+                        as taxas padrão da sua própria conta do Mercado Pago
+                        (Pix ou Cartão).
                       </p>
                       <button
                         type="button"
                         disabled={mpLoading}
                         onClick={() => void handleConnectMercadoPago()}
-                        className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {mpLoading ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1138,7 +1266,7 @@ export function ManagePage() {
                         </button>
                       </div>
 
-                      <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-zinc-800">
+                      <label className="flex min-h-[44px] cursor-pointer items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-zinc-800">
                         <span>Ativar pagamento online na vitrine</span>
                         <input
                           type="checkbox"
@@ -1173,13 +1301,63 @@ export function ManagePage() {
                               setMpLoading(false);
                             }
                           }}
-                          className="h-4 w-4 accent-rose-600"
+                          style={{ accentColor: resolvedStoreTheme.primaryColor }}
+                          className="h-4 w-4 cursor-pointer"
                         />
                       </label>
                     </div>
                   )}
                 </div>
               )}
+
+              <div className="sm:col-span-2">
+                <label className="flex min-h-[44px] cursor-pointer items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+                  <div>
+                    <span className="block text-xs font-bold text-stone-800">
+                      Receber e-mail a cada novo pedido
+                    </span>
+                    <span className="block text-[11px] text-stone-500">
+                      Envia um alerta imediato para o e-mail da sua conta sempre
+                      que um cliente finalizar um pedido.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifyOrderByEmail}
+                    onChange={(e) => setNotifyOrderByEmail(e.target.checked)}
+                    style={{ accentColor: resolvedStoreTheme.primaryColor }}
+                    className="h-4 w-4 shrink-0 cursor-pointer"
+                  />
+                </label>
+              </div>
+            </div>
+          </SettingsSectionCard>
+
+          {/* 4. Datas & Turnos de Entrega / Retirada */}
+          <SettingsSectionCard
+            title="Datas & Turnos de Entrega / Retirada"
+            subtitle={
+              deliveryDates.length > 0
+                ? `${deliveryDates.length} opção(ões) configurada(s)`
+                : 'Nenhuma data configurada'
+            }
+            icon={<CalendarClock className="h-5 w-5" />}
+            isOpen={openSection === 'schedule'}
+            onToggle={() =>
+              setOpenSection((prev) => (prev === 'schedule' ? null : 'schedule'))
+            }
+          >
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                  Datas e Turnos de Entrega / Retirada
+                </label>
+                <DeliveryScheduleEditor
+                  value={deliveryDates}
+                  onChange={setDeliveryDates}
+                  theme={activeTheme}
+                />
+              </div>
 
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-stone-700">
@@ -1190,7 +1368,7 @@ export function ManagePage() {
                   value={pickupAddress}
                   onChange={(e) => setPickupAddress(e.target.value)}
                   placeholder="Ex: Rua das Flores, 120 — Centro, Feira de Santana"
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
+                  className="mt-1 min-h-[44px] w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
                 />
               </div>
 
@@ -1203,7 +1381,7 @@ export function ManagePage() {
                   value={pickupInstructions}
                   onChange={(e) => setPickupInstructions(e.target.value)}
                   placeholder="Ex: Seg a Sáb, 9h às 18h"
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
+                  className="mt-1 min-h-[44px] w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
                 />
               </div>
 
@@ -1216,30 +1394,23 @@ export function ManagePage() {
                   value={deliveryEstimate}
                   onChange={(e) => setDeliveryEstimate(e.target.value)}
                   placeholder="Ex: 30 a 50 min ou A combinar"
-                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
+                  className="mt-1 min-h-[44px] w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
                 />
               </div>
 
               <div className="sm:col-span-2">
-                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-                  <div>
-                    <span className="block text-xs font-bold text-stone-800">
-                      Receber e-mail a cada novo pedido
-                    </span>
-                    <span className="block text-[11px] text-stone-500">
-                      Envia um alerta imediato para o e-mail da sua conta sempre que um cliente finalizar um pedido.
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={notifyOrderByEmail}
-                    onChange={(e) => setNotifyOrderByEmail(e.target.checked)}
-                    className="h-4 w-4 accent-rose-600"
-                  />
+                <label className="block text-xs font-semibold text-stone-700">
+                  Avisos / Regras
                 </label>
+                <textarea
+                  rows={2}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-stone-300 px-3.5 py-2 text-sm outline-none focus:border-stone-900"
+                />
               </div>
             </div>
-          </section>
+          </SettingsSectionCard>
 
           {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -1257,7 +1428,11 @@ export function ManagePage() {
           <button
             type="submit"
             disabled={saving}
-            className={`flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-4 text-base font-bold shadow-lg transition disabled:opacity-60 ${activeTheme.primaryBg} ${activeTheme.primaryHover} ${activeTheme.buttonText} ${activeTheme.shadowColor}`}
+            style={{
+              backgroundColor: resolvedStoreTheme.primaryColor,
+              color: resolvedStoreTheme.textOnPrimary,
+            }}
+            className="flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-base font-bold shadow-lg transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? (
               <>
@@ -1280,6 +1455,7 @@ export function ManagePage() {
                 storeName={deferredStoreName}
                 logoUrl={displayedLogo}
                 themeColor={themeColor}
+                storeAppearance={storeAppearance}
                 depositPct={depositPct}
                 paymentNotice={deferredPaymentNotice}
                 deliveryDates={deferredDeliveryDates}
@@ -1308,7 +1484,7 @@ export function ManagePage() {
               type="button"
               onClick={() => setMobilePreviewOpen(false)}
               aria-label="Fechar prévia"
-              className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/25"
+              className="inline-flex min-h-[36px] cursor-pointer items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/25"
             >
               <X className="h-4 w-4" />
               Fechar
@@ -1319,6 +1495,7 @@ export function ManagePage() {
               storeName={deferredStoreName}
               logoUrl={displayedLogo}
               themeColor={themeColor}
+              storeAppearance={storeAppearance}
               depositPct={depositPct}
               paymentNotice={deferredPaymentNotice}
               deliveryDates={deferredDeliveryDates}
