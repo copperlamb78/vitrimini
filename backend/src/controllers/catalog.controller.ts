@@ -22,6 +22,7 @@ import {
   catalogMetadataSchema,
   productInputSchema,
   sanitizePlainText,
+  storeAppearanceSchema,
 } from '../utils/validation.js';
 
 const productsArraySchema = z
@@ -163,6 +164,17 @@ function buildValidatedCatalogUpdatePayload(
     }
   }
 
+  let storeAppearance: z.infer<typeof storeAppearanceSchema> | undefined;
+  if (body.storeAppearance !== undefined) {
+    const rawStoreAppearance = parseJsonField<unknown>(
+      body.storeAppearance,
+      null
+    );
+    if (rawStoreAppearance !== null) {
+      storeAppearance = storeAppearanceSchema.parse(rawStoreAppearance);
+    }
+  }
+
   return {
     storeName,
     whatsapp,
@@ -179,6 +191,7 @@ function buildValidatedCatalogUpdatePayload(
     rawNotifyOrderByEmail: body.notifyOrderByEmail,
     incomingProducts,
     bioLinksConfig,
+    storeAppearance,
     removeLogo: body.removeLogo === 'true' || body.removeLogo === true,
   };
 }
