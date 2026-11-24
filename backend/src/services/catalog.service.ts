@@ -52,6 +52,7 @@ import {
   bioLinksConfigSchema,
   catalogMetadataSchema,
   productInputSchema,
+  storeAppearanceSchema,
 } from '../utils/validation.js';
 
 const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
@@ -73,13 +74,34 @@ export type CatalogThemeColor =
   | 'amber'
   | 'emerald'
   | 'purple'
-  | 'zinc';
+  | 'zinc'
+  | (string & {});
 
 export function normalizeThemeColor(raw: unknown): CatalogThemeColor {
-  if (typeof raw === 'string' && ALLOWED_THEMES.has(raw.trim())) {
-    return raw.trim() as CatalogThemeColor;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (ALLOWED_THEMES.has(trimmed)) {
+      return trimmed as CatalogThemeColor;
+    }
+    if (/^#[0-9A-Fa-f]{6}$/.test(trimmed)) {
+      return trimmed;
+    }
   }
   return 'rose';
+}
+
+function extractStoreAppearance(
+  bioLinksConfig: unknown
+): z.infer<typeof storeAppearanceSchema> | null {
+  if (!bioLinksConfig || typeof bioLinksConfig !== 'object') {
+    return null;
+  }
+  const raw = (bioLinksConfig as { storeAppearance?: unknown }).storeAppearance;
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const parsed = storeAppearanceSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
 }
 
 export function parseBoolean(value: unknown, defaultValue = true): boolean {
@@ -737,6 +759,7 @@ export async function getPublicStoreBySlug(params: {
     storeName: catalog.storeName,
     logoUrl: catalog.logoUrl,
     themeColor: catalog.themeColor,
+    storeAppearance: extractStoreAppearance(catalog.bioLinksConfig),
     whatsapp: catalog.whatsapp,
     pixKey: catalog.pixKey,
     depositPct: catalog.depositPct,
@@ -786,6 +809,7 @@ export async function getOwnedCatalogDetail(
   const { mpUserId: catMpUserId, ...safeCatalog } = catalog;
   return {
     ...safeCatalog,
+    storeAppearance: extractStoreAppearance(catalog.bioLinksConfig),
     mpConnected: Boolean(catMpUserId),
     hasProAccess: hasProFeatures(catalog),
   };
@@ -807,12 +831,16 @@ export interface ValidatedCatalogUpdatePayload {
   rawNotifyOrderByEmail?: unknown;
   incomingProducts?: Array<z.infer<typeof productInputSchema>>;
   bioLinksConfig?: z.infer<typeof bioLinksConfigSchema>;
+  storeAppearance?: z.infer<typeof storeAppearanceSchema>;
   removeLogo: boolean;
 }
 
 type ExistingBioLinksConfig = {
+  enabled?: boolean;
   bannerUrl?: string | null;
   links?: Array<{ id?: string; imageUrl?: string | null }>;
+  storeAppearance?: z.infer<typeof storeAppearanceSchema>;
+  [key: string]: unknown;
 } | null;
 
 export async function updateOwnedCatalog(params: {
@@ -860,6 +888,11 @@ export async function updateOwnedCatalog(params: {
       ? payload.deliveryEstimate
       : existing.deliveryEstimate;
 
+  const existingBioConfig =
+    existing.bioLinksConfig && typeof existing.bioLinksConfig === 'object'
+      ? (existing.bioLinksConfig as ExistingBioLinksConfig)
+      : null;
+
   const nextBioLinksConfig = payload.bioLinksConfig;
   if (nextBioLinksConfig) {
     if (nextBioLinksConfig.enabled && !hasProFeatures(existing)) {
@@ -868,7 +901,34 @@ export async function updateOwnedCatalog(params: {
         'A publicação da Página de Links da Bio é exclusiva do Plano Pro.'
       );
     }
+    if (payload.storeAppearance) {
+      nextBioLinksConfig.storeAppearance =
+        nextBioLinksConfig.storeAppearance ?? payload.storeAppearance;
+    }
+    if (!nextBioLinksConfig.storeAppearance && existingBioConfig?.storeAppearance) {
+      nextBioLinksConfig.storeAppearance = existingBioConfig.storeAppearance;
+    }
   }
+
+  const bioLinksConfigToPersist: Prisma.InputJsonValue | undefined =
+    nextBioLinksConfig
+      ? (nextBioLinksConfig as Prisma.InputJsonValue)
+      : payload.storeAppearance
+        ? ((existingBioConfig
+            ? {
+                ...existingBioConfig,
+                storeAppearance: payload.storeAppearance,
+              }
+            : {
+                enabled: false,
+                theme: 'minimal',
+                buttonStyle: 'card',
+                showFeaturedProducts: true,
+                socials: {},
+                links: [],
+                storeAppearance: payload.storeAppearance,
+              }) as Prisma.InputJsonValue)
+        : undefined;
 
   // Todas as validações passaram — agora processamos uploads ao R2 e mapeamos fotos antigas para exclusão em lote
   const fileByField = new Map<string, Express.Multer.File>();
@@ -901,11 +961,6 @@ export async function updateOwnedCatalog(params: {
         .map((ep) => ep.imageUrl)
         .filter((url): url is string => typeof url === 'string' && url.length > 0)
     );
-
-    const existingBioConfig =
-      existing.bioLinksConfig && typeof existing.bioLinksConfig === 'object'
-        ? (existing.bioLinksConfig as ExistingBioLinksConfig)
-        : null;
 
     const allowedExistingBioImageUrls = new Set<string>();
     if (
@@ -1085,8 +1140,8 @@ export async function updateOwnedCatalog(params: {
         pickupInstructions: cleanPickupInstructions,
         deliveryEstimate: cleanDeliveryEstimate,
         notifyOrderByEmail,
-        ...(nextBioLinksConfig !== undefined
-          ? { bioLinksConfig: nextBioLinksConfig as Prisma.InputJsonValue }
+        ...(bioLinksConfigToPersist !== undefined
+          ? { bioLinksConfig: bioLinksConfigToPersist }
           : {}),
       },
       toDeleteProductIds,
@@ -1130,7 +1185,12 @@ export async function updateOwnedCatalog(params: {
       }
     }
 
-    return updatedCatalog;
+    return updatedCatalog
+      ? {
+          ...updatedCatalog,
+          storeAppearance: extractStoreAppearance(updatedCatalog.bioLinksConfig),
+        }
+      : updatedCatalog;
   } catch (innerErr) {
     if (newlyUploadedUrls.length > 0) {
       void deleteImagesFromR2(newlyUploadedUrls);
