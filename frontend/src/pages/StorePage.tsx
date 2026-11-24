@@ -22,7 +22,13 @@ import type {
   OrderPaymentChannel,
   OrderPaymentMethod,
 } from '../types/catalog';
-import { getStoreInitials, getTheme } from '../constants/themes';
+import { getStoreInitials } from '../constants/themes';
+import {
+  getNichePatternStyle,
+  hexToRgba,
+  resolveStoreTheme,
+} from '../utils/storeTheme';
+import { ThemedButton } from '../components/ThemedButton';
 import {
   createStoreOrder,
   getPublicStore,
@@ -460,26 +466,59 @@ export function StorePage() {
     );
   }
 
-  const theme = getTheme(catalog.themeColor);
+  const resolvedTheme = resolveStoreTheme(
+    catalog.themeColor,
+    catalog.storeAppearance
+  );
+  const nichePatternStyle = getNichePatternStyle(
+    resolvedTheme.nichePreset,
+    resolvedTheme.primaryColor,
+    resolvedTheme.isDark
+  );
   const logoSrc = resolveImageUrl(catalog.logoUrl);
   const initials = getStoreInitials(catalog.storeName);
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-28">
+    <div
+      style={{
+        ...resolvedTheme.cssVars,
+        backgroundColor: resolvedTheme.bgColor,
+        color: resolvedTheme.textColor,
+      }}
+      className="relative min-h-screen pb-28"
+    >
+      {nichePatternStyle && (
+        <div
+          aria-hidden="true"
+          style={nichePatternStyle}
+          className="pointer-events-none absolute inset-0"
+        />
+      )}
+
       {isPreview && catalog.status !== 'ACTIVE' && (
-        <div className="bg-amber-500 px-4 py-1.5 text-center text-xs font-bold text-white">
+        <div className="relative z-10 bg-amber-500 px-4 py-1.5 text-center text-xs font-bold text-white">
           MODO PRÉVIA DE DEMONSTRAÇÃO — Vitrine ainda não publicada
         </div>
       )}
 
       {/* Header com Logo Circular ou Avatar de Iniciais */}
-      <header className={`bg-gradient-to-br ${theme.headerGradient} text-white`}>
+      <header
+        style={{
+          background: `linear-gradient(135deg, ${resolvedTheme.primaryColor} 0%, ${hexToRgba(resolvedTheme.primaryColor, 0.85)} 100%)`,
+          color: resolvedTheme.textOnPrimary,
+        }}
+        className="relative z-10"
+      >
         <div className="mx-auto max-w-xl px-4 py-7">
           {user && (
             <div className="mb-3 flex justify-end">
               <Link
                 to="/meus-pedidos"
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold text-white/95 backdrop-blur-xs transition hover:bg-white/25"
+                style={{
+                  backgroundColor: hexToRgba(resolvedTheme.textOnPrimary, 0.16),
+                  color: resolvedTheme.textOnPrimary,
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold backdrop-blur-xs transition hover:opacity-90"
               >
                 <ShoppingBag className="h-3 w-3" />
                 Meus Pedidos
@@ -497,7 +536,11 @@ export function StorePage() {
               />
             ) : (
               <div
-                className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-white/90 shadow-lg ${theme.avatarFallbackBg} ${theme.avatarFallbackText}`}
+                style={{
+                  backgroundColor: resolvedTheme.surfaceColor,
+                  color: resolvedTheme.primaryColor,
+                }}
+                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-white/90 shadow-lg"
               >
                 <span className="text-lg font-black tracking-tight">
                   {initials}
@@ -510,7 +553,10 @@ export function StorePage() {
                 {catalog.storeName}
               </h1>
               {catalog.paymentNotice?.trim() && (
-                <p className="mt-0.5 text-xs text-white/90">
+                <p
+                  style={{ color: hexToRgba(resolvedTheme.textOnPrimary, 0.9) }}
+                  className="mt-0.5 text-xs"
+                >
                   {catalog.paymentNotice}
                 </p>
               )}
@@ -519,19 +565,40 @@ export function StorePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-xl space-y-4 px-4 py-5">
+      <main className="relative z-10 mx-auto max-w-xl space-y-4 px-4 py-5">
         {/* Datas disponíveis (somente não vencidas) */}
         {activeDeliveryDates.length > 0 && (
-          <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-2xs">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-stone-500">
-              <Calendar className={`h-4 w-4 ${theme.primaryText}`} />
+          <div
+            style={{
+              backgroundColor: resolvedTheme.surfaceColor,
+              borderColor: resolvedTheme.borderColor,
+            }}
+            className={`${resolvedTheme.radiusClass} border p-4 shadow-2xs`}
+          >
+            <div
+              style={{ color: resolvedTheme.textMutedColor }}
+              className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide"
+            >
+              <Calendar
+                style={{ color: resolvedTheme.outlineColor }}
+                className="h-4 w-4"
+              />
               Datas e turnos disponíveis
             </div>
             <div className="mt-2.5 flex flex-wrap gap-1.5">
               {activeDeliveryDates.map((date, idx) => (
                 <span
                   key={idx}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${theme.softBg} ${theme.softText}`}
+                  style={{
+                    backgroundColor: hexToRgba(
+                      resolvedTheme.primaryColor,
+                      resolvedTheme.isDark ? 0.2 : 0.1
+                    ),
+                    color: resolvedTheme.isDark
+                      ? '#FAFAFA'
+                      : resolvedTheme.outlineColor,
+                  }}
+                  className="rounded-lg px-2.5 py-1 text-xs font-semibold"
                 >
                   {date}
                 </span>
@@ -542,8 +609,18 @@ export function StorePage() {
 
         {/* Avisos */}
         {catalog.notes && (
-          <div className="flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <div
+            className={`flex items-start gap-2.5 ${resolvedTheme.radiusClass} border p-4 text-sm ${
+              resolvedTheme.isDark
+                ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+                : 'border-amber-200 bg-amber-50 text-amber-900'
+            }`}
+          >
+            <Info
+              className={`mt-0.5 h-4 w-4 shrink-0 ${
+                resolvedTheme.isDark ? 'text-amber-400' : 'text-amber-600'
+              }`}
+            />
             <p className="whitespace-pre-line text-xs leading-relaxed">
               {catalog.notes}
             </p>
@@ -551,11 +628,24 @@ export function StorePage() {
         )}
 
         {(catalog.minOrderCents ?? 0) > 0 && (
-          <div className="flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-xs text-stone-600 shadow-2xs">
-            <ShoppingBag className={`h-3.5 w-3.5 shrink-0 ${theme.primaryText}`} />
+          <div
+            style={{
+              backgroundColor: resolvedTheme.surfaceColor,
+              borderColor: resolvedTheme.borderColor,
+              color: resolvedTheme.textMutedColor,
+            }}
+            className={`flex items-center gap-2 ${resolvedTheme.radiusClass} border px-3.5 py-2.5 text-xs shadow-2xs`}
+          >
+            <ShoppingBag
+              style={{ color: resolvedTheme.outlineColor }}
+              className="h-3.5 w-3.5 shrink-0"
+            />
             <span>
               Pedido mínimo:{' '}
-              <strong className="font-bold text-stone-900">
+              <strong
+                style={{ color: resolvedTheme.textColor }}
+                className="font-bold"
+              >
                 {formatCurrency(catalog.minOrderCents!)}
               </strong>
             </span>
@@ -582,7 +672,10 @@ export function StorePage() {
 
         {/* Lista de Produtos */}
         <section className="space-y-3">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-stone-400">
+          <h2
+            style={{ color: resolvedTheme.textMutedColor }}
+            className="text-xs font-bold uppercase tracking-wider"
+          >
             Produtos para Encomenda
           </h2>
 
@@ -593,10 +686,12 @@ export function StorePage() {
             return (
               <div
                 key={product.id}
-                className={`flex gap-3 rounded-2xl border bg-white p-3.5 shadow-2xs transition ${
-                  product.available
-                    ? 'border-stone-200'
-                    : 'border-stone-200/70 opacity-75'
+                style={{
+                  backgroundColor: resolvedTheme.surfaceColor,
+                  borderColor: resolvedTheme.borderColor,
+                }}
+                className={`flex gap-3 ${resolvedTheme.radiusClass} border p-3.5 shadow-2xs transition ${
+                  product.available ? '' : 'opacity-75'
                 }`}
               >
                 <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-stone-100">
@@ -625,7 +720,10 @@ export function StorePage() {
                 <div className="flex min-w-0 flex-1 flex-col justify-between">
                   <div>
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-bold text-stone-900">
+                      <h3
+                        style={{ color: resolvedTheme.textColor }}
+                        className="font-bold"
+                      >
                         {product.name}
                       </h3>
                       {!product.available && (
@@ -635,7 +733,10 @@ export function StorePage() {
                       )}
                     </div>
                     {product.description && (
-                      <p className="mt-0.5 line-clamp-2 text-xs text-stone-500">
+                      <p
+                        style={{ color: resolvedTheme.textMutedColor }}
+                        className="mt-0.5 line-clamp-2 text-xs"
+                      >
                         {product.description}
                       </p>
                     )}
@@ -643,9 +744,12 @@ export function StorePage() {
 
                   <div className="mt-2 flex items-center justify-between">
                     <span
-                      className={`text-base font-extrabold ${
-                        product.available ? 'text-stone-900' : 'text-stone-400'
-                      }`}
+                      style={{
+                        color: product.available
+                          ? resolvedTheme.textColor
+                          : resolvedTheme.textMutedColor,
+                      }}
+                      className="text-base font-extrabold"
                     >
                       {formatCurrency(product.priceCents)}
                     </span>
@@ -653,36 +757,54 @@ export function StorePage() {
                     {product.available ? (
                       <div className="flex items-center gap-2">
                         {qty > 0 ? (
-                          <div className="flex items-center gap-2 rounded-full border border-stone-200 bg-stone-50 px-1.5 py-1">
+                          <div
+                            style={{
+                              backgroundColor: resolvedTheme.bgColor,
+                              borderColor: resolvedTheme.borderColor,
+                            }}
+                            className="flex items-center gap-2 rounded-full border px-1.5 py-1"
+                          >
                             <button
                               type="button"
                               onClick={() => updateQty(product.id, -1)}
                               aria-label="Diminuir quantidade"
-                              className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-stone-700 shadow-2xs hover:bg-stone-100"
+                              style={{
+                                backgroundColor: resolvedTheme.surfaceColor,
+                                color: resolvedTheme.textColor,
+                              }}
+                              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full shadow-2xs transition hover:opacity-80"
                             >
                               <Minus className="h-3.5 w-3.5" />
                             </button>
-                            <span className="min-w-4 text-center text-sm font-bold text-stone-900">
+                            <span
+                              style={{ color: resolvedTheme.textColor }}
+                              className="min-w-4 text-center text-sm font-bold"
+                            >
                               {qty}
                             </span>
                             <button
                               type="button"
                               onClick={() => updateQty(product.id, 1)}
                               aria-label="Aumentar quantidade"
-                              className={`flex h-7 w-7 items-center justify-center rounded-full shadow-2xs transition ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText}`}
+                              style={{
+                                backgroundColor: resolvedTheme.primaryColor,
+                                color: resolvedTheme.textOnPrimary,
+                              }}
+                              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full shadow-2xs transition hover:brightness-95"
                             >
                               <Plus className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         ) : (
-                          <button
+                          <ThemedButton
                             type="button"
+                            resolvedTheme={resolvedTheme}
                             onClick={() => updateQty(product.id, 1)}
-                            className={`flex items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText}`}
+                            className="!min-h-[34px] !px-3.5 !py-1.5 text-xs font-bold"
                           >
                             <Plus className="h-3.5 w-3.5" />
                             Adicionar
-                          </button>
+                          </ThemedButton>
                         )}
                       </div>
                     ) : (
@@ -707,7 +829,12 @@ export function StorePage() {
             href="https://vitrimini.com.br"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-full border border-stone-200/80 bg-white/85 px-3.5 py-1.5 text-xs text-stone-500 shadow-2xs transition hover:border-stone-300 hover:bg-white hover:text-stone-700"
+            style={{
+              backgroundColor: resolvedTheme.surfaceColor,
+              borderColor: resolvedTheme.borderColor,
+              color: resolvedTheme.textMutedColor,
+            }}
+            className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs shadow-2xs transition hover:opacity-90"
           >
             <img
               src={logoIcon}
@@ -716,7 +843,9 @@ export function StorePage() {
             />
             <span>
               Vitrine digital criada com{' '}
-              <strong className="font-bold text-stone-700">VitriMini</strong>
+              <strong style={{ color: resolvedTheme.textColor }} className="font-bold">
+                VitriMini
+              </strong>
             </span>
           </a>
         </footer>
@@ -724,7 +853,13 @@ export function StorePage() {
 
       {/* Barra Fixa Inferior do Carrinho */}
       {cartSummary.count > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 px-4 py-3 backdrop-blur-xs">
+        <div
+          style={{
+            backgroundColor: hexToRgba(resolvedTheme.surfaceColor, 0.95),
+            borderColor: resolvedTheme.borderColor,
+          }}
+          className="fixed inset-x-0 bottom-0 z-30 border-t px-4 py-3 backdrop-blur-xs"
+        >
           {belowMinOrder && (
             <div className="mx-auto mb-2 max-w-xl rounded-lg bg-amber-50 px-3 py-1.5 text-center text-xs font-medium text-amber-800">
               Adicione mais{' '}
@@ -734,25 +869,32 @@ export function StorePage() {
           )}
           <div className="mx-auto flex max-w-xl items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-medium text-stone-500">
+              <p
+                style={{ color: resolvedTheme.textMutedColor }}
+                className="text-xs font-medium"
+              >
                 {cartSummary.count}{' '}
                 {cartSummary.count === 1
                   ? 'item selecionado'
                   : 'itens selecionados'}
               </p>
-              <p className="text-lg font-extrabold text-stone-900">
+              <p
+                style={{ color: resolvedTheme.textColor }}
+                className="text-lg font-extrabold"
+              >
                 {formatCurrency(cartSummary.totalCents)}
               </p>
             </div>
-            <button
+            <ThemedButton
               type="button"
+              resolvedTheme={resolvedTheme}
               onClick={handleOpenCheckout}
               disabled={checkingStock || belowMinOrder}
-              className={`inline-flex cursor-pointer items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold shadow-lg transition disabled:cursor-not-allowed disabled:opacity-50 ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText} ${theme.shadowColor}`}
+              className="px-6 py-3 text-sm font-bold shadow-lg"
             >
               {checkingStock && <Loader2 className="h-4 w-4 animate-spin" />}
               Finalizar Pedido
-            </button>
+            </ThemedButton>
           </div>
         </div>
       )}
@@ -807,8 +949,10 @@ export function StorePage() {
                               className="h-44 w-44 object-contain"
                             />
                           </div>
-                          <button
+                          <ThemedButton
                             type="button"
+                            fill="solid"
+                            resolvedTheme={resolvedTheme}
                             onClick={async () => {
                               await navigator.clipboard.writeText(
                                 createdOrder.order.mpPixCopyPaste || ''
@@ -816,7 +960,7 @@ export function StorePage() {
                               setCopiedOnlinePix(true);
                               setTimeout(() => setCopiedOnlinePix(false), 2000);
                             }}
-                            className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-bold shadow-xs transition ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText}`}
+                            className="w-full py-3 text-xs font-bold shadow-xs"
                           >
                             {copiedOnlinePix ? (
                               <>
@@ -829,7 +973,7 @@ export function StorePage() {
                                 Copiar código Pix
                               </>
                             )}
-                          </button>
+                          </ThemedButton>
                           <p className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-stone-500">
                             <Loader2 className="h-3 w-3 animate-spin" />
                             Aguardando confirmação automática...
@@ -838,14 +982,16 @@ export function StorePage() {
                       )}
 
                     {createdOrder.order.mpCheckoutUrl && (
-                      <a
+                      <ThemedButton
                         href={createdOrder.order.mpCheckoutUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-bold shadow-lg transition ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText}`}
+                        fill="solid"
+                        resolvedTheme={resolvedTheme}
+                        className="w-full py-3.5 text-sm font-bold shadow-lg"
                       >
                         Pagar com Cartão no Mercado Pago
-                      </a>
+                      </ThemedButton>
                     )}
                   </>
                 ) : (
@@ -971,11 +1117,20 @@ export function StorePage() {
                       type="button"
                       disabled={belowMpMin}
                       onClick={() => setPaymentChannel('MERCADO_PAGO')}
+                      style={
+                        !belowMpMin && paymentChannel === 'MERCADO_PAGO'
+                          ? {
+                              borderColor: resolvedTheme.primaryColor,
+                              backgroundColor: hexToRgba(resolvedTheme.primaryColor, 0.08),
+                              color: '#18181B',
+                            }
+                          : undefined
+                      }
                       className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
                         belowMpMin
                           ? 'cursor-not-allowed border-stone-200 bg-stone-50 text-stone-400'
                           : paymentChannel === 'MERCADO_PAGO'
-                            ? `cursor-pointer ${theme.softBorder} ${theme.softBg} ${theme.softText}`
+                            ? 'cursor-pointer'
                             : 'cursor-pointer border-stone-200 text-stone-600'
                       }`}
                     >
@@ -984,9 +1139,18 @@ export function StorePage() {
                     <button
                       type="button"
                       onClick={() => setPaymentChannel('WHATSAPP')}
+                      style={
+                        belowMpMin || paymentChannel === 'WHATSAPP'
+                          ? {
+                              borderColor: resolvedTheme.primaryColor,
+                              backgroundColor: hexToRgba(resolvedTheme.primaryColor, 0.08),
+                              color: '#18181B',
+                            }
+                          : undefined
+                      }
                       className={`cursor-pointer rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
                         belowMpMin || paymentChannel === 'WHATSAPP'
-                          ? `${theme.softBorder} ${theme.softBg} ${theme.softText}`
+                          ? ''
                           : 'border-stone-200 text-stone-600'
                       }`}
                     >
@@ -1017,9 +1181,18 @@ export function StorePage() {
                         key={pm.id}
                         type="button"
                         onClick={() => setPaymentMethod(pm.id)}
+                        style={
+                          paymentMethod === pm.id
+                            ? {
+                                borderColor: resolvedTheme.primaryColor,
+                                backgroundColor: hexToRgba(resolvedTheme.primaryColor, 0.08),
+                                color: '#18181B',
+                              }
+                            : undefined
+                        }
                         className={`cursor-pointer rounded-xl border py-2 text-xs font-bold transition ${
                           paymentMethod === pm.id
-                            ? `${theme.softBorder} ${theme.softBg} ${theme.softText}`
+                            ? ''
                             : 'border-stone-200 text-stone-600'
                         }`}
                       >
@@ -1044,9 +1217,18 @@ export function StorePage() {
                           key={date}
                           type="button"
                           onClick={() => setSelectedDate(date)}
+                          style={
+                            isSelected
+                              ? {
+                                  borderColor: resolvedTheme.primaryColor,
+                                  backgroundColor: hexToRgba(resolvedTheme.primaryColor, 0.08),
+                                  color: '#18181B',
+                                }
+                              : undefined
+                          }
                           className={`flex items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-left text-xs font-bold transition ${
                             isSelected
-                              ? `${theme.softBorder} ${theme.softBg} ${theme.softText} ring-1 ring-current`
+                              ? 'ring-1 ring-current'
                               : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
                           }`}
                         >
@@ -1089,9 +1271,18 @@ export function StorePage() {
                   <button
                     type="button"
                     onClick={() => setFulfillmentType('pickup')}
+                    style={
+                      fulfillmentType === 'pickup'
+                        ? {
+                            borderColor: resolvedTheme.primaryColor,
+                            backgroundColor: hexToRgba(resolvedTheme.primaryColor, 0.08),
+                            color: '#18181B',
+                          }
+                        : undefined
+                    }
                     className={`flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-bold transition ${
                       fulfillmentType === 'pickup'
-                        ? `${theme.softBorder} ${theme.softBg} ${theme.softText}`
+                        ? ''
                         : 'border-stone-200 text-stone-600'
                     }`}
                   >
@@ -1101,9 +1292,18 @@ export function StorePage() {
                   <button
                     type="button"
                     onClick={() => setFulfillmentType('delivery')}
+                    style={
+                      fulfillmentType === 'delivery'
+                        ? {
+                            borderColor: resolvedTheme.primaryColor,
+                            backgroundColor: hexToRgba(resolvedTheme.primaryColor, 0.08),
+                            color: '#18181B',
+                          }
+                        : undefined
+                    }
                     className={`flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-bold transition ${
                       fulfillmentType === 'delivery'
-                        ? `${theme.softBorder} ${theme.softBg} ${theme.softText}`
+                        ? ''
                         : 'border-stone-200 text-stone-600'
                     }`}
                   >
@@ -1153,10 +1353,10 @@ export function StorePage() {
 
                 {!catalog.onlinePaymentAvailable && catalog.depositPct > 0 && (
                   <div className="flex items-center justify-between text-sm">
-                    <span className={`font-semibold ${theme.softText}`}>
+                    <span className="font-semibold text-stone-700">
                       Sinal para reservar ({catalog.depositPct}%)
                     </span>
-                    <span className={`text-base font-extrabold ${theme.softText}`}>
+                    <span className="text-base font-extrabold text-stone-900">
                       {formatCurrency(depositCents)}
                     </span>
                   </div>
@@ -1199,10 +1399,12 @@ export function StorePage() {
                 </div>
               )}
 
-              <button
+              <ThemedButton
                 type="submit"
+                fill="solid"
+                resolvedTheme={resolvedTheme}
                 disabled={submittingOrder}
-                className={`flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-bold shadow-lg transition disabled:opacity-60 ${theme.primaryBg} ${theme.primaryHover} ${theme.buttonText} ${theme.shadowColor}`}
+                className="w-full py-3.5 text-sm font-bold shadow-lg"
               >
                 {submittingOrder ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -1212,7 +1414,7 @@ export function StorePage() {
                 {submittingOrder
                   ? 'Registrando pedido...'
                   : 'Confirmar e Enviar no WhatsApp'}
-              </button>
+              </ThemedButton>
             </form>
             )}
           </div>
