@@ -143,6 +143,12 @@ export function getTheme(themeColor?: string | null): ThemePalette {
   if (themeColor && themeColor in THEMES) {
     return THEMES[themeColor as ThemeId];
   }
+  if (themeColor && /^#[0-9a-fA-F]{6}$/.test(themeColor.trim())) {
+    return {
+      ...THEMES.rose,
+      hex: themeColor.trim(),
+    };
+  }
   return THEMES.rose;
 }
 
