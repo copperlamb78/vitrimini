@@ -395,31 +395,31 @@ const ROUTES = [
     path: '/termos',
     title: 'Termos de Uso — VitriMini',
     description:
-      'Condições gerais de contratação, planos avulsos ou recorrentes, regra de upgrade e responsabilidades no uso da plataforma SaaS VitriMini.',
+      'Condições gerais de contratação avulsa por ciclo, regra de upgrade, direito de arrependimento, DPA e responsabilidades no uso da plataforma SaaS VitriMini.',
     type: 'legal',
     h1: 'Termos de Uso — VitriMini',
     subtitle:
-      'Condições gerais de contratação, planos e uso da plataforma SaaS (Versão 1.1)',
+      'Condições gerais de contratação avulsa por ciclo, uso da plataforma SaaS e Acordo de Tratamento de Dados (Versão 2.1)',
     sections: [
       {
-        heading: '1. Identificação, Aceite e Natureza do Serviço (SaaS)',
-        body: 'A VitriMini atua exclusivamente como fornecedora de software (SaaS) para criação de catálogo digital e organização de pedidos, não sendo intermediadora financeira, marketplace, transportadora ou vendedora, e cobrando 0% de comissão sobre as vendas.',
+        heading: '1. Identificação do Fornecedor (Decreto nº 7.962/2013) e Aceite',
+        body: 'Operada por Antonio Gabriel Gomes Falcão do Nascimento (VitriMini / NeoDevZone), com suporte oficial em suporte@vitrimini.com.br. A VitriMini fornece exclusivamente software (SaaS) para catálogo digital e organização de pedidos, cobrando 0% de comissão sobre as vendas realizadas pelos Lojistas.',
       },
       {
-        heading: '2. Teste Gratuito de 15 Dias e Planos (Avulsos ou Recorrentes)',
-        body: 'Teste gratuito de 15 dias na 1ª vitrine. Planos contratados na modalidade avulsa ou recorrente via Pix ou Cartão, conforme opções da tela de assinatura: Plano Essencial (R$ 24,90 por 90 dias), Plano Pro Trimestral (R$ 39,90 por 90 dias) e Plano Pro Anual (R$ 99,90 por 365 dias), com cancelamento simples pelo painel. No upgrade do Essencial para o Pro, o acesso Pro é liberado imediatamente (incluindo VitriLink e Mercado Pago) e os novos dias são somados integralmente ao saldo restante.',
+        heading: '2. Avaliação Gratuita (15 dias), Contratação Avulsa e Upgrade',
+        body: 'Avaliação gratuita de 15 dias na primeira vitrine, sem cobrança automática e sem geração de dívida ao término. Os planos pagos (Essencial 90 dias e Pro 90 ou 365 dias) operam exclusivamente na modalidade avulsa/pré-paga por ciclo via Pix ou Cartão no Mercado Pago, sem renovação automática. No upgrade antes do vencimento, cobra-se o valor integral do novo ciclo e somam-se integralmente os dias restantes do ciclo anterior ao novo prazo.',
       },
       {
-        heading: '3. Cancelamento e Direito de Arrependimento (CDC)',
-        body: 'Direito de arrependimento em até 7 dias corridos da contratação inicial conforme o art. 49 do CDC pelo e-mail suporte@vitrimini.com.br, desde que não haja uso abusivo. Após esse prazo ou em caso de bloqueio por violação dos Termos, não há reembolso proporcional de dias não utilizados.',
+        heading: '3. Expiração (30 dias) e Direito de Arrependimento (Art. 49 do CDC)',
+        body: 'Após 30 dias da expiração sem renovação, rotina automatizada remove os dados operacionais da vitrine, pedidos e imagens no Cloudflare R2, ressalvadas hipóteses legais e ciclos de backups em nuvem. O direito de arrependimento é garantido em até 7 dias corridos da contratação via suporte@vitrimini.com.br, preservando tempestividade para solicitações em finais de semana ou feriados.',
       },
       {
         heading: '4. Pagamentos Diretos ao Lojista (Mercado Pago) e Responsabilidades',
-        body: 'No Plano Pro, a integração com o Mercado Pago ocorre diretamente entre a conta do lojista e o consumidor final. O lojista é o único responsável pela entrega, qualidade, cumprimento do CDC, notas fiscais, chargebacks e execução integral de estornos/reembolsos em caso de cancelamento de pedidos pagos.',
+        body: 'Os pagamentos via Pix ou Mercado Pago (OAuth) caem 100% diretamente na conta do Lojista, que responde pela entrega, qualidade, notas fiscais, estornos e chargebacks, enquanto a VitriMini responde pelo funcionamento técnico da plataforma e segurança dos dados sob sua custódia.',
       },
       {
-        heading: '5. Uso Aceitável e Suspensão Imediata',
-        body: 'É proibida a venda de produtos ilícitos, falsificados, restritos por lei, golpes ou fraudes, autorizando a VitriMini a suspender ou excluir a vitrine imediatamente, sem aviso prévio e sem reembolso, cooperando com autoridades competentes.',
+        heading: '5. Uso Aceitável, Foro e Acordo de Tratamento de Dados (DPA)',
+        body: 'Proibido o uso para produtos ilícitos, fraudes ou violação de direitos autorais, sujeito a suspensão preventiva com direito a contestação. Foro de Feira de Santana – BA, ressalvado o domicílio do consumidor quando aplicável. Inclui Anexo de DPA entre Lojista (Controlador) e VitriMini (Operadora).',
       },
     ],
   },
@@ -427,27 +427,27 @@ const ROUTES = [
     path: '/privacidade',
     title: 'Política de Privacidade (LGPD) — VitriMini',
     description:
-      'Transparência sobre o tratamento, segurança e proteção de dados pessoais na plataforma VitriMini em conformidade com a LGPD.',
+      'Transparência sobre o tratamento, bases legais, cookies, suboperadores e proteção de dados pessoais na plataforma VitriMini em conformidade com a LGPD.',
     type: 'legal',
     h1: 'Política de Privacidade (LGPD) — VitriMini',
     subtitle:
-      'Transparência sobre o tratamento, segurança e proteção de dados pessoais (Versão 1.1)',
+      'Transparência sobre o tratamento, bases legais, cookies, suboperadores e proteção de dados pessoais (Versão 2.1)',
     sections: [
       {
-        heading: '1. Papéis na LGPD: Controladora da Plataforma x Controlador da Vitrine',
-        body: 'A VitriMini é Controladora dos dados cadastrais dos lojistas e das contas de acesso dos clientes na plataforma. O lojista vendedor é Controlador autônomo dos dados de entrega e histórico de pedidos realizados em sua respectiva vitrine.',
+        heading: '1. Papéis na LGPD e Enquadramento ANPD (Res. nº 2/2022)',
+        body: 'A VitriMini atua como Controladora para contas de lojistas, autenticação e segurança própria, e como Operadora para vitrines e pedidos em nome do Lojista (Controlador). Enquadrada como agente de pequeno porte (Resolução CD/ANPD nº 2/2022), mantém canal direto com titulares em suporte@vitrimini.com.br.',
       },
       {
-        heading: '2. Dados Coletados e Criptografia',
-        body: 'Coletamos nome, e-mail, telefone/WhatsApp, senha criptografada com hash bcrypt, logs de aceite de termos com data/hora e metadados técnicos de pagamento (incluindo recursos como VitriLink). O processamento de cartão de crédito segue padrão PCI-DSS via Mercado Pago; a VitriMini não armazena dados completos de cartão e mantém tokens de integração Mercado Pago criptografados em repouso (AES-256-GCM).',
+        heading: '2. Dados Coletados, Segurança Técnica e Delimitação PCI-DSS',
+        body: 'Coletamos dados cadastrais do lojista, chave Pix (exibição na vitrine), tokens OAuth do Mercado Pago (AES-256-GCM) e dados de pedidos. Senhas usam hash bcrypt e refresh tokens usam SHA-256 em cookie HttpOnly. A VitriMini não possui certificação PCI-DSS própria e não armazena números completos de cartão ou CVV, nem grava tabela própria de logs históricos de acesso IP + data/hora no banco.',
       },
       {
-        heading: '3. Operadores e Subcontratados Essenciais',
-        body: 'Compartilhamos apenas o estritamente necessário com provedores de hospedagem e banco de dados em nuvem, armazenamento de imagens (Cloudflare R2), envio de e-mails transacionais (Brevo) e processamento de pagamentos (Mercado Pago).',
+        heading: '3. Cookies, Armazenamento Local e Suboperadores',
+        body: 'Sem cookies publicitários nem scripts de analytics/pixel. Utiliza apenas cookies HttpOnly necessários (vitrimini_refresh_token e mp_oauth_nonce) e storage local essencial. Suboperadores: Supabase (Brasil), Render, Cloudflare (CDN/R2), Mercado Pago, Brevo e Zoho Mail, com salvaguardas compatíveis com a LGPD e a Resolução CD/ANPD nº 19/2024.',
       },
       {
-        heading: '4. Direitos do Titular (LGPD) e Contato',
-        body: 'O titular pode solicitar acesso, confirmação, correção, exclusão de conta e revogação de consentimento a qualquer momento pelo canal oficial: suporte@vitrimini.com.br.',
+        heading: '4. Retenção, Direitos do Titular (Art. 18) e Incidentes',
+        body: 'Exclusão automatizada após 30 dias da expiração sem renovação, ressalvadas hipóteses legais e ciclos de backups. Atendimento aos direitos do Art. 18 da LGPD em até 15 dias pelo e-mail suporte@vitrimini.com.br e comunicação de incidentes conforme a Resolução CD/ANPD nº 15/2024.',
       },
     ],
   },
