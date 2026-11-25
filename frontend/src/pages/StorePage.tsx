@@ -400,7 +400,7 @@ export function StorePage() {
 
       if (catalog.depositPct > 0) {
         lines.push(
-          `*Sinal (${catalog.depositPct}%):* ${formatCurrency(Math.round((orderRes.totalCents * catalog.depositPct) / 100))}`
+          `*Pagamento no pedido (${catalog.depositPct}%):* ${formatCurrency(Math.round((orderRes.totalCents * catalog.depositPct) / 100))}`
         );
       }
 
@@ -1354,7 +1354,7 @@ export function StorePage() {
                 {!catalog.onlinePaymentAvailable && catalog.depositPct > 0 && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-semibold text-stone-700">
-                      Sinal para reservar ({catalog.depositPct}%)
+                      Valor antecipado ({catalog.depositPct}%)
                     </span>
                     <span className="text-base font-extrabold text-stone-900">
                       {formatCurrency(depositCents)}
