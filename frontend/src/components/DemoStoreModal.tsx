@@ -139,7 +139,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
             <button
               type="button"
               onClick={handleGoToCreate}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-rose-700"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-rose-700"
             >
               Gostou? Crie a sua igual a essa
               <ArrowRight className="h-3.5 w-3.5" />
@@ -148,7 +148,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
               type="button"
               onClick={onClose}
               aria-label="Fechar demonstração"
-              className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-200/70 hover:text-zinc-700"
+              className="cursor-pointer rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-200/70 hover:text-zinc-700"
             >
               <X className="h-5 w-5" />
             </button>
@@ -170,7 +170,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
                     Doces da Clara — Especial de Natal
                   </h3>
                   <p className="text-xs text-white/90">
-                    Encomenda mediante sinal de 50% via Pix
+                    Encomenda com pagamento na confirmação (50% via Pix)
                   </p>
                 </div>
               </div>
@@ -213,7 +213,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
                             <button
                               type="button"
                               onClick={() => updateQty(product.id, -1)}
-                              className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-zinc-700 shadow-2xs hover:bg-zinc-100"
+                              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-white text-zinc-700 shadow-2xs hover:bg-zinc-100"
                             >
                               <Minus className="h-3.5 w-3.5" />
                             </button>
@@ -223,7 +223,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
                             <button
                               type="button"
                               onClick={() => updateQty(product.id, 1)}
-                              className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white shadow-2xs hover:bg-rose-700"
+                              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-rose-600 text-white shadow-2xs hover:bg-rose-700"
                             >
                               <Plus className="h-3.5 w-3.5" />
                             </button>
@@ -232,7 +232,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
                           <button
                             type="button"
                             onClick={() => updateQty(product.id, 1)}
-                            className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-rose-700"
+                            className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-rose-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-rose-700"
                           >
                             <Plus className="h-3.5 w-3.5" />
                             Adicionar
@@ -259,7 +259,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
                         key={date}
                         type="button"
                         onClick={() => setSelectedDate(date)}
-                        className={`flex items-center justify-between gap-1.5 rounded-xl border px-3 py-2 text-left text-xs font-bold transition ${
+                        className={`flex cursor-pointer items-center justify-between gap-1.5 rounded-xl border px-3 py-2 text-left text-xs font-bold transition ${
                           active
                             ? 'border-rose-600 bg-rose-50 text-rose-700'
                             : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
@@ -276,7 +276,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
                   <button
                     type="button"
                     onClick={() => setFulfillment('pickup')}
-                    className={`flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition ${
+                    className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition ${
                       fulfillment === 'pickup'
                         ? 'border-rose-600 bg-rose-50 text-rose-700'
                         : 'border-zinc-200 text-zinc-600'
@@ -288,7 +288,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
                   <button
                     type="button"
                     onClick={() => setFulfillment('delivery')}
-                    className={`flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition ${
+                    className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition ${
                       fulfillment === 'delivery'
                         ? 'border-rose-600 bg-rose-50 text-rose-700'
                         : 'border-zinc-200 text-zinc-600'
@@ -314,7 +314,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
             </div>
           </div>
 
-          {/* Coluna Direita: Cálculo do Sinal e Prévia do WhatsApp */}
+          {/* Coluna Direita: Cálculo do Pagamento e Prévia do WhatsApp */}
           <div className="flex flex-col justify-between bg-white p-5 lg:col-span-5">
             <div className="space-y-4">
               <div>
@@ -325,11 +325,11 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
                   Como o pedido chega para você
                 </h4>
                 <p className="text-xs text-zinc-500">
-                  O cliente já vê o valor do sinal calculado, copia sua chave Pix e envia tudo pronto no seu WhatsApp.
+                  O cliente já vê o valor antecipado calculado, copia sua chave Pix e envia tudo pronto no seu WhatsApp.
                 </p>
               </div>
 
-              {/* Card Cálculo de Sinal */}
+              {/* Card Cálculo de Pagamento */}
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 space-y-2">
                 <div className="flex items-center justify-between text-xs text-zinc-600">
                   <span>Valor Total do Pedido</span>
@@ -339,7 +339,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-bold text-rose-700">
-                    Sinal de 50% para reservar
+                    Valor antecipado (50%)
                   </span>
                   <span className="font-extrabold text-rose-700">
                     {formatCurrency(summary.depositCents)}
@@ -353,7 +353,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
                   <button
                     type="button"
                     onClick={handleCopyDemoPix}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-zinc-900 px-2.5 py-1 text-[11px] font-semibold text-white"
+                    className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg bg-zinc-900 px-2.5 py-1 text-[11px] font-semibold text-white"
                   >
                     {copiedPix ? (
                       <>
@@ -411,7 +411,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
                       <strong>Total:</strong> {formatCurrency(summary.totalCents)}
                       <br />
                       <strong className="text-emerald-700">
-                        Sinal (50%): {formatCurrency(summary.depositCents)}
+                        Valor na confirmação (50%): {formatCurrency(summary.depositCents)}
                       </strong>
                     </p>
                   </div>
@@ -423,7 +423,7 @@ export function DemoStoreModal({ onClose }: DemoStoreModalProps) {
               <button
                 type="button"
                 onClick={handleGoToCreate}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-rose-600 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:bg-rose-700"
+                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-rose-600 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:bg-rose-700"
               >
                 Gostou? Crie a sua igual a essa
                 <ArrowRight className="h-4 w-4" />
