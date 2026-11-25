@@ -56,7 +56,7 @@ export const NICHE_PAGES: Record<NicheKey, NichePageConfig> = {
     ctaHeadline:
       'Pronto para colocar o cardápio digital da sua lanchonete ou marmitaria no ar?',
     ctaSubtitle:
-      'Comece agora com 15 dias grátis na sua primeira vitrine, sem cartão de crédito e com 0% de taxa sobre seus pedidos.',
+      'Comece agora com 15 dias grátis na sua primeira vitrine, 0% de comissão sobre suas vendas e cancele quando quiser.',
     faqItems: [
       {
         question: 'A VitriMini cobra porcentagem sobre os pedidos do meu delivery?',
@@ -79,9 +79,9 @@ export const NICHE_PAGES: Record<NicheKey, NichePageConfig> = {
           'Cada pedido gera um link exclusivo de acompanhamento em tempo real (/pedido/codigo). Quando você muda o status para "Em preparo" ou "Saiu para entrega" no painel, o cliente vê na hora pelo navegador.',
       },
       {
-        question: 'Tem mensalidade ou fidelidade para usar o cardápio digital?',
+        question: 'Tem fidelidade ou multa para usar o cardápio digital?',
         answer:
-          'Não há mensalidade nem renovação automática. Você testa grátis por 15 dias na primeira vitrine e, quando quiser continuar, paga via Pix a partir de R$ 24,90 por 90 dias.',
+          'Não há fidelidade nem multa de cancelamento. Você testa grátis por 15 dias na primeira vitrine e, quando quiser continuar, escolhe o plano na modalidade avulsa ou recorrente disponível na tela de assinatura, com cancelamento simples pelo painel.',
       },
     ],
   },
@@ -136,9 +136,9 @@ export const NICHE_PAGES: Record<NicheKey, NichePageConfig> = {
           'Sim. A vitrine foi desenhada para abrir instantaneamente no navegador interno do Instagram e do WhatsApp, sem exigir que a cliente baixe aplicativo.',
       },
       {
-        question: 'Preciso cadastrar cartão de crédito para testar os 15 dias grátis?',
+        question: 'Como funciona após os 15 dias grátis?',
         answer:
-          'Não. Você cria e publica sua primeira vitrine com 15 dias grátis sem informar cartão. Só paga via Pix se quiser manter a vitrine ativa após o período de teste.',
+          'Você cria e publica sua primeira vitrine com 15 dias grátis para testar à vontade. Depois desse período, basta escolher um dos planos na modalidade avulsa ou recorrente disponíveis na tela de assinatura, com cancelamento simples pelo painel.',
       },
     ],
   },
@@ -252,7 +252,7 @@ export const NICHE_PAGES: Record<NicheKey, NichePageConfig> = {
       {
         question: 'Como funciona o pagamento da plataforma?',
         answer:
-          'Você tem 15 dias grátis na primeira vitrine para testar à vontade. Depois, se quiser continuar, faz um pagamento pré-pago via Pix a partir de R$ 24,90 por 90 dias, sem mensalidade e sem renovação automática.',
+          'Você tem 15 dias grátis na primeira vitrine para testar à vontade. Depois, se quiser continuar, escolhe o plano a partir de R$ 24,90 por 90 dias na modalidade avulsa ou recorrente disponível na tela de assinatura, com cancelamento simples pelo painel.',
       },
     ],
   },
