@@ -4,8 +4,6 @@ import {
   Store,
   Sparkles,
   Eye,
-  XCircle,
-  CheckCircle2,
   Palette,
   Share2,
   MessageCircle,
@@ -26,6 +24,10 @@ import {
   Shirt,
   Scissors,
   ShoppingBag,
+  LayoutDashboard,
+  CreditCard,
+  Link2,
+  ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { DemoStoreModal } from '../components/DemoStoreModal';
@@ -89,23 +91,56 @@ const HOW_IT_WORKS_STEPS = [
     icon: Share2,
     title: 'Compartilhe na bio ou WhatsApp',
     description:
-      'Publique com Pix único de R$ 24,90 por 90 dias e coloque o link leve da sua vitrine na bio do Instagram e nas conversas.',
+      'Publique sua vitrine em minutos com 15 dias grátis, 0% de comissão e coloque o link leve na bio do Instagram e nas conversas.',
   },
   {
     step: '03',
     icon: MessageCircle,
     title: 'Receba pedidos organizados',
     description:
-      'O cliente monta o carrinho, vê o sinal no Pix e envia tudo pronto no WhatsApp — com link de acompanhamento em tempo real.',
+      'O cliente monta o carrinho, vê o pagamento na encomenda (0%, 50% ou 100%) e o pedido cai organizado no Painel de Gestão e no WhatsApp.',
+  },
+];
+
+const CORE_FUNCTIONALITIES = [
+  {
+    icon: Store,
+    title: 'Vitrine Virtual',
+    description:
+      'Catálogo leve e personalizável — cores, formato de botões, estilo do negócio — produtos com foto, datas/turnos e cobrança flexível 0%, 50% ou 100%.',
+  },
+  {
+    icon: ClipboardList,
+    title: 'Gestão de Pedidos',
+    description:
+      'Pedidos registrados automaticamente no Painel de Gestão e enviados prontos no WhatsApp, com controle de status e link de acompanhamento.',
+  },
+  {
+    icon: CreditCard,
+    title: 'Integração via Mercado Pago',
+    description:
+      'Receba via Pix e Cartão de Crédito direto na sua conta Mercado Pago, com confirmação e baixa automática no painel.',
+  },
+  {
+    icon: Link2,
+    title: 'VitriLink (Hub de Links)',
+    description:
+      'Página de links para bio do Instagram e TikTok conectada à vitrine, com banner de capa, cartões com foto e visual sincronizado.',
+  },
+  {
+    icon: BarChart3,
+    title: 'Painel Financeiro',
+    description:
+      'Resumo claro de faturamento, pedidos pagos e valores a receber em tempo real, sem planilhas.',
   },
 ];
 
 const FEATURES = [
   {
     icon: MessageCircle,
-    title: 'Pedidos organizados no WhatsApp',
+    title: 'Pedidos organizados no Painel e WhatsApp',
     description:
-      'Receba nome do cliente, itens, quantidades, data/turno escolhido, entrega ou retirada e valor do sinal já calculados.',
+      'Receba nome do cliente, itens, quantidades, data/turno escolhido, entrega ou retirada e valor do pagamento já calculados.',
   },
   {
     icon: Radar,
@@ -121,9 +156,9 @@ const FEATURES = [
   },
   {
     icon: Wallet,
-    title: 'Sinal automático via Pix',
+    title: 'Pagamento Flexível no Pedido',
     description:
-      'Calcula 50% (ou a porcentagem que você definir) e exibe sua própria chave Pix na hora, com 0% de comissão da plataforma.',
+      'Escolha cobrar 0% (combinar/entrega), 50% do valor ou 100% do valor no ato da encomenda, via Pix ou Cartão, com 0% de comissão da VitriMini.',
   },
   {
     icon: BarChart3,
@@ -144,38 +179,44 @@ const NICHES = [
     icon: CakeSlice,
     title: 'Confeitarias & Docerias',
     description:
-      'Bolos sob encomenda, kits de festa, docinhos e cardápios sazonais com sinal no Pix garantido.',
-    to: '/vitrine-digital-confeitaria',
+      'Bolos sob encomenda, kits de festa, docinhos e cardápios sazonais com pagamento na hora do pedido via Pix ou Cartão.',
   },
   {
     icon: UtensilsCrossed,
     title: 'Marmitarias & Lanchonetes',
     description:
       'Cardápio do dia ou da semana com escolha de turno, retirada ou entrega sem bagunça no WhatsApp.',
-    to: '/cardapio-digital-whatsapp',
   },
   {
     icon: Shirt,
     title: 'Lojas de Roupas & Acessórios',
     description:
       'Catálogo online leve para colocar na bio do Instagram e receber pedidos prontos com tamanho e peça.',
-    to: '/catalogo-online-roupas',
   },
   {
     icon: Scissors,
     title: 'Vendas pelo Instagram & Encomendas',
     description:
       'Link de pedidos para a bio do Instagram com datas disponíveis e acompanhamento de status.',
-    to: '/link-pedidos-instagram',
   },
 ];
 
-const VALUE_BENEFITS = [
+const ESSENTIAL_BENEFITS = [
+  'Vitrine virtual personalizável (cores, botões e estilo do negócio)',
   'Produtos ilimitados com foto, descrição e preço',
-  '0% de comissão sobre suas vendas (o Pix cai direto na sua conta)',
-  'Link de acompanhamento do pedido em tempo real para o cliente',
-  'Painel com gestão de pedidos, datas/turnos e resumo financeiro',
-  'Sem mensalidade, sem cartão e sem renovação automática',
+  'Cobrança configurável no pedido (0%, 50% ou 100% via sua chave Pix)',
+  'Pedidos organizados no Painel de Gestão e no WhatsApp',
+  'Link de acompanhamento em tempo real para o cliente',
+  'Painel financeiro e controle de datas/turnos',
+  '0% de comissão da plataforma sobre suas vendas',
+];
+
+const PRO_BENEFITS = [
+  'Tudo do Plano Essencial incluso',
+  'VitriLink exclusivo: Hub de links para bio com banner de capa e cartões com foto',
+  'Integração Mercado Pago: Pagamento automático via Pix e Cartão direto na sua conta',
+  'Baixa automática dos pedidos pagos no painel',
+  '0% de comissão da VitriMini sobre suas vendas',
 ];
 
 interface LandingPageProps {
@@ -193,7 +234,7 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
     'VitriMini | Catálogo Online e Pedidos pelo WhatsApp';
   const pageDescription =
     nicheConfig?.seoDescription ??
-    'Crie sua vitrine digital e catálogo online com pedidos organizados no WhatsApp, sinal no Pix e 0% de comissão. Pague R$ 24,90 uma vez e use por 90 dias.';
+    'Crie sua vitrine digital e catálogo online com pedidos organizados no painel e no WhatsApp, pagamento flexível no pedido e 0% de comissão. Comece com 15 dias grátis.';
   const canonicalPath = nicheConfig?.path ?? '/';
 
   useEffect(() => {
@@ -270,10 +311,10 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
               Como funciona
             </a>
             <a
-              href="#recursos"
+              href="#funcionalidades"
               className="cursor-pointer transition hover:text-rose-600"
             >
-              Diferenciais
+              Funcionalidades
             </a>
             <a
               href="#nichos"
@@ -285,7 +326,7 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
               href="#valor"
               className="cursor-pointer transition hover:text-rose-600"
             >
-              Valor
+              Planos
             </a>
             <a
               href="#duvidas"
@@ -360,7 +401,7 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                   <Sparkles className="h-3.5 w-3.5 text-rose-600" />
                   <span>
                     {nicheConfig?.badgeText ??
-                      '15 dias grátis na 1ª vitrine • 0% de comissão • Sem mensalidade'}
+                      '15 dias grátis na 1ª vitrine • 0% de comissão • Cancele quando quiser'}
                   </span>
                 </div>
 
@@ -375,10 +416,9 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                   </p>
                 ) : (
                   <p className="text-base leading-relaxed text-zinc-600">
-                    Chega de mandar PDF pesado e responder preço o dia inteiro. Sua primeira vitrine entra no ar hoje com{' '}
+                    Chega de mandar PDF pesado e responder preço o dia inteiro. Publique sua vitrine em minutos com{' '}
                     <strong className="font-bold text-zinc-900">15 dias grátis</strong>{' '}
-                    (sem cartão) e, para continuar depois, custa apenas{' '}
-                    <strong className="font-bold text-zinc-900">R$ 24,90 no Pix por 90 dias</strong>, com{' '}
+                    e receba pedidos organizados com{' '}
                     <strong className="font-bold text-zinc-900">0% de comissão</strong>.
                   </p>
                 )}
@@ -403,7 +443,7 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                 </div>
 
                 <p className="text-xs text-zinc-500">
-                  Sem cartão de crédito e sem cobrança automática. Você testa na prática com seus clientes por 15 dias.
+                  Teste na prática com seus clientes por 15 dias. Cancele quando quiser, sem multa.
                 </p>
               </div>
 
@@ -432,7 +472,7 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                               Doces da Clara
                             </p>
                             <p className="text-[11px] text-white/90">
-                              Sinal de 50% via Pix
+                              Pagamento na encomenda via Pix
                             </p>
                           </div>
                         </div>
@@ -534,7 +574,7 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                             <strong className="text-zinc-900">R$ 224,90</strong>
                           </div>
                           <div className="mt-0.5 flex justify-between text-emerald-800">
-                            <span className="font-bold">Sinal via Pix (50%):</span>
+                            <span className="font-bold">Valor na confirmação (50%):</span>
                             <strong className="font-extrabold">R$ 112,45</strong>
                           </div>
                         </div>
@@ -547,44 +587,52 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
           </div>
         </section>
 
-        {/* C. Antes x Depois (Compacta) */}
+        {/* C. Experiência Completa de Recebimento de Pedidos */}
         <section className="py-14 sm:py-18">
           <div className="mx-auto max-w-6xl px-4">
             <Reveal className="mx-auto max-w-2xl text-center">
               <span className="text-xs font-extrabold uppercase tracking-wider text-rose-600">
-                Menos conversa repetida, mais vendas fechadas
+                Muito além de mensagens soltas
               </span>
               <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-zinc-900 sm:text-3xl">
-                Transforme seu atendimento no WhatsApp
+                O pedido não chega só no WhatsApp — ele cai organizado no seu painel
               </h2>
+              <p className="mt-2.5 text-sm leading-relaxed text-zinc-600 sm:text-base">
+                Cada encomenda feita na vitrine é registrada automaticamente no Painel de Gestão da VitriMini e também enviada pronta para o seu WhatsApp.
+              </p>
             </Reveal>
 
-            <div className="mt-9 grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="mt-9 grid grid-cols-1 gap-6 lg:grid-cols-2">
               <Reveal
                 delayMs={40}
-                className="rounded-2xl border border-red-200/80 bg-red-50/30 p-6 transition-all duration-300 hover:-translate-y-1"
+                className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xs transition-all duration-300 hover:-translate-y-1 hover:border-rose-200 hover:shadow-md"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
-                    <XCircle className="h-5 w-5" />
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                    <LayoutDashboard className="h-5 w-5" />
                   </div>
-                  <h3 className="text-base font-extrabold text-zinc-900">
-                    {nicheConfig?.beforeTitle ??
-                      'Como é hoje (PDF e fotos soltas)'}
-                  </h3>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-extrabold text-zinc-900">
+                      1. Painel de Gestão VitriMini
+                    </h3>
+                    <p className="text-xs text-zinc-500">
+                      Controle completo sem depender de conversas perdidas
+                    </p>
+                  </div>
                 </div>
 
-                <ul className="mt-4 space-y-2.5 text-sm text-zinc-600">
-                  {(
-                    nicheConfig?.beforeItems ?? [
-                      'Cliente dando zoom em cardápio PDF pesado que demora para abrir.',
-                      'Mensagens repetidas perguntando preço, disponibilidade e data.',
-                      'Você somando itens e calculando sinal na mão entre uma produção e outra.',
-                    ]
-                  ).map((text) => (
-                    <li key={text} className="flex items-start gap-2.5">
-                      <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-                      <span>{text}</span>
+                <ul className="mt-4 space-y-2.5 text-sm text-zinc-700">
+                  {[
+                    'Lista automática de pedidos com itens, quantidades, data e turno escolhidos.',
+                    'Atualização de status em 1 clique (Recebido, Em preparo, Pronto / Saiu para entrega).',
+                    'Link de acompanhamento em tempo real para o cliente ver cada etapa no navegador.',
+                    'Confirmação de pagamento e resumo financeiro organizado sem planilhas.',
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2.5">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white">
+                        <Check className="h-3 w-3 stroke-[3]" />
+                      </span>
+                      <span className="min-w-0">{item}</span>
                     </li>
                   ))}
                 </ul>
@@ -592,28 +640,34 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
 
               <Reveal
                 delayMs={120}
-                className="rounded-2xl border border-emerald-200 bg-emerald-50/30 p-6 transition-all duration-300 hover:-translate-y-1"
+                className="min-w-0 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-6 shadow-2xs transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
-                    <CheckCircle2 className="h-5 w-5" />
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                    <MessageCircle className="h-5 w-5" />
                   </div>
-                  <h3 className="text-base font-extrabold text-zinc-900">
-                    {nicheConfig?.afterTitle ?? 'Com sua vitrine VitriMini'}
-                  </h3>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-extrabold text-zinc-900">
+                      2. Resumo pronto no seu WhatsApp
+                    </h3>
+                    <p className="text-xs text-emerald-800/80">
+                      Agilidade para confirmar detalhes com o cliente
+                    </p>
+                  </div>
                 </div>
 
                 <ul className="mt-4 space-y-2.5 text-sm text-zinc-700">
-                  {(
-                    nicheConfig?.afterItems ?? [
-                      'Catálogo leve que abre na hora pelo link da bio ou WhatsApp.',
-                      'Cliente escolhe produtos, data, turno e vê o sinal no Pix já calculado.',
-                      'Pedido chega pronto no WhatsApp com link de acompanhamento em tempo real.',
-                    ]
-                  ).map((text) => (
-                    <li key={text} className="flex items-start gap-2.5">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                      <span>{text}</span>
+                  {[
+                    'Mensagem já formatada com nome do cliente, itens e observações.',
+                    'Valor total e pagamento antecipado (0%, 50% ou 100%) já calculados.',
+                    'Tipo de recebimento (retirada ou entrega) e endereço preenchidos na hora.',
+                    'Zero cálculo manual e zero confusão entre uma produção e outra.',
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2.5">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+                        <Check className="h-3 w-3 stroke-[3]" />
+                      </span>
+                      <span className="min-w-0">{item}</span>
                     </li>
                   ))}
                 </ul>
@@ -667,8 +721,48 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
           </div>
         </section>
 
-        {/* E. Diferenciais Reais da VitriMini */}
-        <section id="recursos" className="py-14 sm:py-18">
+        {/* E. O que a VitriMini entrega (5 Funcionalidades Principais) */}
+        <section id="funcionalidades" className="py-14 sm:py-18">
+          <div className="mx-auto max-w-6xl px-4">
+            <Reveal className="mx-auto max-w-2xl text-center">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-rose-600">
+                Funcionalidades
+              </span>
+              <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-zinc-900 sm:text-3xl">
+                O que a VitriMini entrega para o seu negócio
+              </h2>
+              <p className="mt-2 text-sm text-zinc-600 sm:text-base">
+                Ferramentas pensadas para vender mais pela bio e organizar cada pedido do início ao pagamento.
+              </p>
+            </Reveal>
+
+            <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {CORE_FUNCTIONALITIES.map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <Reveal
+                    key={item.title}
+                    delayMs={idx * 60}
+                    className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xs transition-all duration-300 hover:-translate-y-1 hover:border-rose-200 hover:shadow-md"
+                  >
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="mt-4 text-base font-extrabold text-zinc-900">
+                      {item.title}
+                    </h3>
+                    <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">
+                      {item.description}
+                    </p>
+                  </Reveal>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* E2. Diferenciais Reais da VitriMini */}
+        <section id="recursos" className="border-t border-zinc-200 bg-zinc-50/40 py-14 sm:py-18">
           <div className="mx-auto max-w-6xl px-4">
             <Reveal className="mx-auto max-w-2xl text-center">
               <span className="text-xs font-extrabold uppercase tracking-wider text-rose-600">
@@ -724,24 +818,17 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                 const Icon = niche.icon;
                 return (
                   <Reveal key={niche.title} delayMs={idx * 60}>
-                    <Link
-                      to={niche.to}
-                      className="group block h-full rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xs transition-all duration-300 hover:-translate-y-1 hover:border-rose-200"
-                    >
+                    <div className="h-full min-w-0 rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xs transition-all duration-300 hover:-translate-y-1 hover:border-rose-200">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
                         <Icon className="h-5 w-5" />
                       </div>
-                      <h3 className="mt-3.5 text-base font-extrabold text-zinc-900 group-hover:text-rose-600">
+                      <h3 className="mt-3.5 text-base font-extrabold text-zinc-900">
                         {niche.title}
                       </h3>
                       <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">
                         {niche.description}
                       </p>
-                      <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-rose-600">
-                        Saiba mais
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </span>
-                    </Link>
+                    </div>
                   </Reveal>
                 );
               })}
@@ -785,7 +872,7 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                 Comece grátis hoje. Escolha seu plano quando quiser continuar.
               </h2>
               <p className="mt-2 text-sm text-zinc-600">
-                Sem cartão de crédito, sem cobrança automática e todo o valor das vendas vai direto para você.
+                Ative seu plano em minutos e receba todo o valor das vendas direto na sua conta.
               </p>
             </Reveal>
 
@@ -802,14 +889,14 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                       24,90
                     </span>
                     <span className="text-xs font-semibold text-zinc-500">
-                      / 90 dias no Pix
+                      / 90 dias
                     </span>
                   </div>
                   <p className="mt-1.5 text-xs text-zinc-600">
                     Ideal para quem quer catálogo online leve e pedidos organizados no WhatsApp.
                   </p>
                   <ul className="mt-5 space-y-2.5 text-sm text-zinc-700">
-                    {VALUE_BENEFITS.map((benefit) => (
+                    {ESSENTIAL_BENEFITS.map((benefit) => (
                       <li key={benefit} className="flex items-start gap-2.5">
                         <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-white">
                           <Check className="h-3 w-3 stroke-[3]" />
@@ -855,16 +942,10 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                     </span>
                   </div>
                   <p className="mt-1.5 text-xs text-zinc-600">
-                    Para quem quer receber Pix e Cartão automaticamente direto na sua conta Mercado Pago.
+                    Para quem quer VitriLink na bio e receber Pix e Cartão automaticamente via Mercado Pago.
                   </p>
                   <ul className="mt-5 space-y-2.5 text-sm text-zinc-700">
-                    {[
-                      'Tudo do Plano Essencial incluso',
-                      'Pagamento online automático via Pix e Cartão',
-                      'Dinheiro cai direto na sua conta Mercado Pago',
-                      'Baixa automática dos pedidos pagos no painel',
-                      '0% de comissão da VitriMini sobre suas vendas',
-                    ].map((benefit) => (
+                    {PRO_BENEFITS.map((benefit) => (
                       <li key={benefit} className="flex items-start gap-2.5">
                         <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white">
                           <Check className="h-3 w-3 stroke-[3]" />
@@ -956,7 +1037,7 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
               </h2>
               <p className="mx-auto max-w-xl text-sm leading-relaxed text-zinc-300 sm:text-base">
                 {nicheConfig?.ctaSubtitle ??
-                  'Monte sua vitrine digital gratuitamente em poucos minutos e pague apenas R$ 24,90 por 90 dias quando decidir publicar.'}
+                  'Monte sua vitrine digital gratuitamente em poucos minutos, teste por 15 dias grátis e venda com 0% de comissão.'}
               </p>
               <div className="flex flex-col justify-center gap-3 pt-2 sm:flex-row">
                 <Link
