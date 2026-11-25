@@ -434,7 +434,7 @@ export function CreatorPage() {
           <div className="flex flex-wrap items-center gap-2">
             <span className="mr-2 hidden items-center gap-1 text-xs font-semibold text-stone-700 xl:flex">
               <InfinityIcon className="h-4 w-4 text-emerald-600" />
-              Produtos ilimitados • Pagamento único de R$ 24,90
+              Produtos ilimitados • 0% de comissão • Planos a partir de R$ 24,90
             </span>
 
             {authLoading ? (
@@ -487,7 +487,7 @@ export function CreatorPage() {
         </div>
       ) : (
         <div className="border-b border-emerald-100 bg-emerald-50/80 px-4 py-2 text-center text-xs font-semibold text-emerald-900 xl:hidden">
-          Produtos ilimitados • Pagamento único de R$ 24,90 • Sem mensalidade
+          Produtos ilimitados • 0% de comissão • Planos a partir de R$ 24,90
         </div>
       )}
 
@@ -593,7 +593,7 @@ export function CreatorPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-stone-700">
-                    Sua Chave Pix (para receber sinal)
+                    Sua Chave Pix (para receber pagamentos)
                   </label>
                   <input
                     type="text"
@@ -606,25 +606,44 @@ export function CreatorPage() {
 
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-semibold text-stone-700">
-                    Porcentagem de Sinal na Encomenda
+                    Cobrança no Pedido (Pagamento Antecipado)
                   </label>
-                  <div className="mt-1.5 grid grid-cols-3 gap-2">
+                  <div className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {[
-                      { value: 0, label: '0% (Sem sinal)' },
-                      { value: 50, label: '50% de sinal' },
-                      { value: 100, label: '100% antecipado' },
+                      {
+                        value: 0,
+                        label: '0% do valor',
+                        description: 'Combinar ou pagar na entrega',
+                      },
+                      {
+                        value: 50,
+                        label: '50% do valor',
+                        description: 'Metade na confirmação',
+                      },
+                      {
+                        value: 100,
+                        label: '100% do valor',
+                        description: 'Pagamento integral antecipado',
+                      },
                     ].map((opt) => (
                       <button
                         key={opt.value}
                         type="button"
                         onClick={() => setDepositPct(opt.value)}
-                        className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                        className={`flex min-h-[44px] cursor-pointer flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition ${
                           depositPct === opt.value
                             ? `${activeTheme.softBorder} ${activeTheme.softBg} ${activeTheme.softText}`
                             : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                         }`}
                       >
-                        {opt.label}
+                        <span className="text-xs font-bold">{opt.label}</span>
+                        <span
+                          className={`mt-0.5 text-[11px] leading-tight ${
+                            depositPct === opt.value ? 'opacity-90' : 'text-stone-500'
+                          }`}
+                        >
+                          {opt.description}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -899,8 +918,8 @@ export function CreatorPage() {
               </button>
               <p className="text-center text-xs text-stone-500">
                 {canUseTrial
-                  ? 'Sua primeira vitrine entra no ar hoje com 15 dias grátis • Sem cartão de crédito'
-                  : 'Produtos ilimitados • Pagamento único de R$ 24,90 • Válida por 90 dias'}
+                  ? 'Sua primeira vitrine entra no ar hoje com 15 dias grátis • 0% de comissão'
+                  : 'Produtos ilimitados • Planos a partir de R$ 24,90 • Cancele quando quiser'}
               </p>
             </div>
           </form>
