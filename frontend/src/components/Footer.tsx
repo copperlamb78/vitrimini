@@ -49,13 +49,13 @@ export function Footer() {
               </div>
 
               <p className="text-xs leading-relaxed text-zinc-600">
-                Sua vitrine digital de encomendas pronta em 2 minutos. Sem mensalidade, sem app e com pedidos direto no WhatsApp.
+                Sua vitrine digital de encomendas pronta em 2 minutos. 0% de comissão, sem app e com pedidos direto no WhatsApp.
               </p>
 
               <div className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-1.5 text-[11px] font-semibold text-rose-700">
                 <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[#E11D48]" />
                 <span>
-                  Pagamento único via Pix • Liberação imediata • Produtos ilimitados
+                  Teste grátis por 15 dias • Liberação imediata • Produtos ilimitados
                 </span>
               </div>
             </div>
