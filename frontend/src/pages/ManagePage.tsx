@@ -1066,7 +1066,11 @@ export function ManagePage() {
           {/* 3. Pagamentos & Pedidos */}
           <SettingsSectionCard
             title="Pagamentos & Pedidos"
-            subtitle={`Sinal ${depositPct}% • ${
+            subtitle={`${
+              depositPct === 0
+                ? 'Combinar na entrega'
+                : `Pagamento no pedido: ${depositPct}%`
+            } • ${
               pixKey.trim() ? 'Pix configurado' : 'Pix não informado'
             }`}
             icon={<Wallet className="h-5 w-5" />}
@@ -1105,13 +1109,25 @@ export function ManagePage() {
 
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-stone-700">
-                  Porcentagem de Sinal na Encomenda
+                  Cobrança no Pedido (Pagamento Antecipado)
                 </label>
-                <div className="mt-1.5 grid grid-cols-3 gap-2">
+                <div className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {[
-                    { value: 0, label: '0% (Sem sinal)' },
-                    { value: 50, label: '50% de sinal' },
-                    { value: 100, label: '100% antecipado' },
+                    {
+                      value: 0,
+                      label: '0% do valor',
+                      description: 'Combinar ou pagar na entrega',
+                    },
+                    {
+                      value: 50,
+                      label: '50% do valor',
+                      description: 'Metade na confirmação',
+                    },
+                    {
+                      value: 100,
+                      label: '100% do valor',
+                      description: 'Pagamento integral antecipado',
+                    },
                   ].map((opt) => {
                     const selected = depositPct === opt.value;
                     return (
@@ -1128,13 +1144,20 @@ export function ManagePage() {
                               }
                             : undefined
                         }
-                        className={`min-h-[44px] cursor-pointer rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                        className={`flex min-h-[44px] cursor-pointer flex-col items-start justify-center rounded-xl border px-3 py-2 text-left transition ${
                           selected
                             ? 'shadow-2xs'
                             : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                         }`}
                       >
-                        {opt.label}
+                        <span className="text-xs font-bold">{opt.label}</span>
+                        <span
+                          className={`mt-0.5 text-[11px] leading-tight ${
+                            selected ? 'opacity-90' : 'text-stone-500'
+                          }`}
+                        >
+                          {opt.description}
+                        </span>
                       </button>
                     );
                   })}
