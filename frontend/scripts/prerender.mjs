@@ -23,11 +23,11 @@ const COMMON_PLANS = [
   {
     name: 'Teste Grátis (1ª Vitrine)',
     price: 'R$ 0,00 por 15 dias',
-    desc: 'Sua primeira vitrine entra no ar na hora por 15 dias grátis, sem cartão de crédito e sem cobrança automática.',
+    desc: 'Sua primeira vitrine entra no ar na hora por 15 dias grátis, com 0% de comissão e cancelamento simples pelo painel.',
   },
   {
     name: 'Plano Essencial • 90 dias',
-    price: 'R$ 24,90 / 90 dias no Pix',
+    price: 'R$ 24,90 / 90 dias',
     desc: 'Produtos ilimitados, pedidos organizados no WhatsApp, cálculo de sinal via Pix, link de acompanhamento em tempo real e 0% de comissão.',
   },
   {
@@ -131,7 +131,7 @@ function buildLandingBodyHtml(page) {
         </section>
 
         <section class="space-y-4">
-          <h2 class="text-2xl font-extrabold text-zinc-900">Planos pré-pagos via Pix (0% de comissão)</h2>
+          <h2 class="text-2xl font-extrabold text-zinc-900">Planos simples e transparentes (0% de comissão)</h2>
           <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
             ${plansHtml}
           </div>
@@ -207,11 +207,11 @@ const ROUTES = [
     path: '/',
     title: 'VitriMini | Catálogo Online e Pedidos pelo WhatsApp',
     description:
-      'Crie sua vitrine digital e catálogo online com pedidos organizados no WhatsApp, sinal no Pix e 0% de comissão. Pague R$ 24,90 uma vez e use por 90 dias.',
+      'Crie sua vitrine digital e catálogo online com pedidos organizados no WhatsApp, sinal no Pix e 0% de comissão. Teste grátis por 15 dias e planos a partir de R$ 24,90.',
     type: 'landing',
-    badge: '15 dias grátis na 1ª vitrine • 0% de comissão • Sem mensalidade',
+    badge: '15 dias grátis na 1ª vitrine • 0% de comissão • Cancele quando quiser',
     h1: 'Catálogo Online e Vitrine Digital com Pedidos no WhatsApp',
-    lead: 'Chega de mandar PDF pesado e responder preço o dia inteiro. Sua primeira vitrine entra no ar hoje com 15 dias grátis (sem cartão) e, para continuar depois, custa apenas R$ 24,90 no Pix por 90 dias, com 0% de comissão.',
+    lead: 'Chega de mandar PDF pesado e responder preço o dia inteiro. Sua primeira vitrine entra no ar hoje com 15 dias grátis e, para continuar depois, planos a partir de R$ 24,90 por 90 dias com 0% de comissão.',
     highlights: [
       'Pedidos organizados no WhatsApp com itens, quantidades, data/turno e entrega ou retirada já somados.',
       'Cálculo automático de sinal via Pix com 0% de comissão da plataforma e acompanhamento do pedido em tempo real.',
@@ -221,12 +221,12 @@ const ROUTES = [
       {
         question: 'Como funcionam os 15 dias grátis na primeira vitrine?',
         answer:
-          'Ao criar sua primeira vitrine na VitriMini, ela já entra no ar imediatamente por 15 dias grátis — sem precisar cadastrar cartão de crédito e sem cobrança automática. Se quiser continuar depois desse prazo, basta renovar por R$ 24,90 via Pix para garantir mais 90 dias.',
+          'Ao criar sua primeira vitrine na VitriMini, ela já entra no ar imediatamente por 15 dias grátis para você testar na prática com seus clientes. Se quiser continuar depois desse prazo, basta escolher um dos planos disponíveis na tela de assinatura.',
       },
       {
-        question: 'Tem mensalidade ou cobrança automática depois dos 15 dias ou dos 90 dias?',
+        question: 'Como funcionam a contratação, os meios de pagamento e a renovação dos planos?',
         answer:
-          'Não. Não pedimos cartão de crédito e nunca fazemos cobranças automáticas. Quando quiser continuar com a vitrine no ar, você faz um pagamento único de R$ 24,90 via Pix e libera mais 90 dias corridos.',
+          'A contratação pode ser feita nas modalidades avulsa ou recorrente, conforme os meios de pagamento disponíveis na tela de assinatura no momento da contratação. Caso opte pela assinatura recorrente, o cancelamento é simples e pode ser feito a qualquer momento pelo próprio painel, sem multa.',
       },
       {
         question: 'Vocês cobram alguma taxa sobre as encomendas que eu vender?',
@@ -271,9 +271,9 @@ const ROUTES = [
           'Sim. Ao finalizar o pedido, o cliente seleciona Entrega (preenchendo o endereço completo) ou Retirada no local, além do turno ou horário disponível.',
       },
       {
-        question: 'Tem mensalidade ou fidelidade para usar o cardápio digital?',
+        question: 'Tem fidelidade ou multa para usar o cardápio digital?',
         answer:
-          'Não há mensalidade nem renovação automática. Você testa grátis por 15 dias na primeira vitrine e, quando quiser continuar, paga via Pix a partir de R$ 24,90 por 90 dias.',
+          'Não há fidelidade nem multa de cancelamento. Você testa grátis por 15 dias na primeira vitrine e, quando quiser continuar, escolhe o plano na modalidade avulsa ou recorrente disponível na tela de assinatura, com cancelamento simples pelo painel.',
       },
     ],
   },
@@ -309,9 +309,9 @@ const ROUTES = [
           'Sim! No Plano Pro (R$ 39,90 por 90 dias ou R$ 99,90 por ano), você conecta sua própria conta do Mercado Pago e recebe Pix e Cartão automaticamente, com 0% de taxa da VitriMini.',
       },
       {
-        question: 'Preciso cadastrar cartão de crédito para testar os 15 dias grátis?',
+        question: 'Como funciona após os 15 dias grátis?',
         answer:
-          'Não. Você cria e publica sua primeira vitrine com 15 dias grátis sem informar cartão. Só paga via Pix se quiser manter a vitrine ativa após o período de teste.',
+          'Você cria e publica sua primeira vitrine com 15 dias grátis para testar à vontade. Depois desse período, basta escolher um dos planos na modalidade avulsa ou recorrente disponíveis na tela de assinatura, com cancelamento simples pelo painel.',
       },
     ],
   },
@@ -387,7 +387,7 @@ const ROUTES = [
       {
         question: 'Como funciona o pagamento da plataforma?',
         answer:
-          'Você tem 15 dias grátis na primeira vitrine para testar à vontade. Depois, se quiser continuar, faz um pagamento pré-pago via Pix a partir de R$ 24,90 por 90 dias, sem mensalidade e sem renovação automática.',
+          'Você tem 15 dias grátis na primeira vitrine para testar à vontade. Depois, se quiser continuar, escolhe o plano a partir de R$ 24,90 por 90 dias na modalidade avulsa ou recorrente disponível na tela de assinatura, com cancelamento simples pelo painel.',
       },
     ],
   },
@@ -395,19 +395,19 @@ const ROUTES = [
     path: '/termos',
     title: 'Termos de Uso — VitriMini',
     description:
-      'Condições gerais de contratação, planos pré-pagos via Pix, regra de upgrade e responsabilidades no uso da plataforma SaaS VitriMini.',
+      'Condições gerais de contratação, planos avulsos ou recorrentes, regra de upgrade e responsabilidades no uso da plataforma SaaS VitriMini.',
     type: 'legal',
     h1: 'Termos de Uso — VitriMini',
     subtitle:
-      'Condições gerais de contratação, planos pré-pagos e uso da plataforma SaaS (Versão 1.1)',
+      'Condições gerais de contratação, planos e uso da plataforma SaaS (Versão 1.1)',
     sections: [
       {
         heading: '1. Identificação, Aceite e Natureza do Serviço (SaaS)',
         body: 'A VitriMini atua exclusivamente como fornecedora de software (SaaS) para criação de catálogo digital e organização de pedidos, não sendo intermediadora financeira, marketplace, transportadora ou vendedora, e cobrando 0% de comissão sobre as vendas.',
       },
       {
-        heading: '2. Teste Gratuito de 15 Dias e Planos Pré-Pagos via Pix',
-        body: 'Teste gratuito de 15 dias na 1ª vitrine. Planos pré-pagos via Pix sem renovação automática: Plano Essencial (R$ 24,90 por 90 dias), Plano Pro Trimestral (R$ 39,90 por 90 dias) e Plano Pro Anual (R$ 99,90 por 365 dias). No upgrade do Essencial para o Pro, o acesso Pro é liberado imediatamente e os novos dias são somados integralmente ao saldo restante.',
+        heading: '2. Teste Gratuito de 15 Dias e Planos (Avulsos ou Recorrentes)',
+        body: 'Teste gratuito de 15 dias na 1ª vitrine. Planos contratados na modalidade avulsa ou recorrente via Pix ou Cartão, conforme opções da tela de assinatura: Plano Essencial (R$ 24,90 por 90 dias), Plano Pro Trimestral (R$ 39,90 por 90 dias) e Plano Pro Anual (R$ 99,90 por 365 dias), com cancelamento simples pelo painel. No upgrade do Essencial para o Pro, o acesso Pro é liberado imediatamente (incluindo VitriLink e Mercado Pago) e os novos dias são somados integralmente ao saldo restante.',
       },
       {
         heading: '3. Cancelamento e Direito de Arrependimento (CDC)',
@@ -439,7 +439,7 @@ const ROUTES = [
       },
       {
         heading: '2. Dados Coletados e Criptografia',
-        body: 'Coletamos nome, e-mail, telefone/WhatsApp, senha criptografada com hash bcrypt, logs de aceite de termos com data/hora e metadados técnicos de pagamento. A VitriMini não armazena dados de cartão de crédito e mantém tokens de integração Mercado Pago criptografados em repouso (AES-256-GCM).',
+        body: 'Coletamos nome, e-mail, telefone/WhatsApp, senha criptografada com hash bcrypt, logs de aceite de termos com data/hora e metadados técnicos de pagamento (incluindo recursos como VitriLink). O processamento de cartão de crédito segue padrão PCI-DSS via Mercado Pago; a VitriMini não armazena dados completos de cartão e mantém tokens de integração Mercado Pago criptografados em repouso (AES-256-GCM).',
       },
       {
         heading: '3. Operadores e Subcontratados Essenciais',
