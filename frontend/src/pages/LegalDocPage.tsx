@@ -90,6 +90,41 @@ export function LegalDocPage({ type }: LegalDocPageProps) {
                     ))}
                   </ul>
                 )}
+                {section.table && (
+                  <div className="overflow-x-auto rounded-xl border border-zinc-200">
+                    <table className="w-full min-w-[520px] border-collapse text-left text-xs sm:text-sm">
+                      <thead className="bg-zinc-50">
+                        <tr>
+                          {section.table.headers.map((header, idx) => (
+                            <th
+                              key={idx}
+                              scope="col"
+                              className="border-b border-zinc-200 px-4 py-2.5 font-bold text-zinc-800"
+                            >
+                              {header}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-200 bg-white">
+                        {section.table.rows.map((row, rowIdx) => (
+                          <tr key={rowIdx}>
+                            {row.map((cell, cellIdx) => (
+                              <td
+                                key={cellIdx}
+                                className={`px-4 py-3 align-top leading-relaxed text-zinc-600 ${
+                                  cellIdx === 0 ? 'font-semibold text-zinc-800' : ''
+                                }`}
+                              >
+                                {cell}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </section>
             ))}
           </div>
