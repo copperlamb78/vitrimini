@@ -222,7 +222,7 @@ export function MyCatalogsPage() {
               Você ainda não criou nenhuma vitrine
             </h2>
             <p className="mx-auto mt-1 max-w-sm text-xs text-zinc-500">
-              Monte sua primeira vitrine de encomendas com fotos, datas de entrega e sinal automático via Pix em 2 minutos.
+              Monte sua primeira vitrine de encomendas com fotos, datas de entrega e pagamento no pedido via Pix em 2 minutos.
             </p>
             <Link
               to="/criar"
