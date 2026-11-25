@@ -7,22 +7,22 @@ export const LANDING_FAQ_ITEMS: LandingFaqItem[] = [
   {
     question: 'Como funcionam os 15 dias grátis na primeira vitrine?',
     answer:
-      'Ao criar sua primeira vitrine na VitriMini, ela já entra no ar imediatamente por 15 dias grátis — sem precisar cadastrar cartão de crédito e sem cobrança automática. Se quiser continuar depois desse prazo, basta renovar por R$ 24,90 via Pix para garantir mais 90 dias.',
+      'Ao criar sua primeira vitrine na VitriMini, ela já entra no ar imediatamente por 15 dias grátis para você testar na prática com seus clientes. Se quiser continuar depois desse prazo, basta escolher um dos planos disponíveis na tela de assinatura.',
   },
   {
-    question: 'Tem mensalidade ou cobrança automática depois dos 15 dias ou dos 90 dias?',
+    question: 'Como funcionam a contratação, os meios de pagamento e a renovação dos planos?',
     answer:
-      'Não. Não pedimos cartão de crédito e nunca fazemos cobranças automáticas. Quando quiser continuar com a vitrine no ar, você faz um pagamento único de R$ 24,90 via Pix e libera mais 90 dias corridos.',
+      'A contratação pode ser feita nas modalidades avulsa ou recorrente, conforme os meios de pagamento disponíveis na tela de assinatura no momento da contratação. Caso opte pela assinatura recorrente, o cancelamento é simples e pode ser feito a qualquer momento pelo próprio painel, sem multa.',
   },
   {
-    question: 'Se eu pagar os R$ 24,90 antes de acabar os 15 dias grátis, eu perco os dias que faltavam?',
+    question: 'Se eu assinar um plano antes de acabar os 15 dias grátis, eu perco os dias que faltavam?',
     answer:
-      'De jeito nenhum! Os 90 dias são somados a partir da data em que seus 15 dias grátis iam vencer, então você aproveita até 105 dias no ar.',
+      'De jeito nenhum! O tempo do plano é somado a partir da data em que seus 15 dias grátis iam vencer — em um plano de 90 dias, por exemplo, você aproveita até 105 dias no ar.',
   },
   {
     question: 'Vocês cobram alguma taxa sobre as encomendas que eu vender?',
     answer:
-      'Zero comissão. Todo o valor das suas vendas e o sinal pago pelos seus clientes caem diretamente na sua conta usando a sua própria chave Pix.',
+      'Zero comissão. Todo o valor das suas vendas e o pagamento antecipado feito pelos seus clientes caem diretamente na sua conta usando a sua própria chave Pix ou Mercado Pago.',
   },
   {
     question:
