@@ -2,46 +2,102 @@ import crypto from 'node:crypto';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
 
-export type PlanCode = 'ESSENTIAL_90D' | 'PRO_90D' | 'PRO_365D';
+export type PlanCode = 'ESSENTIAL_30' | 'PRO_30' | 'PRO_365';
+export type LegacyPlanCode =
+  | 'ESSENTIAL_90D'
+  | 'PRO_90D'
+  | 'ESSENTIAL_90'
+  | 'PRO_90'
+  | 'PRO_365D';
+
+const BRT_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * Soma meses no calendário (fuso America/Sao_Paulo) preservando o dia âncora
+ * da contratação e ajustando fins de mês (ex.: 31/01 -> 28/02 ou 29/02).
+ */
+export function addCalendarMonths(baseDate: Date, months: number): Date {
+  const brt = new Date(baseDate.getTime() - BRT_OFFSET_MS);
+  const year = brt.getUTCFullYear();
+  const month = brt.getUTCMonth();
+  const day = brt.getUTCDate();
+
+  const totalMonths = year * 12 + month + months;
+  const targetYear = Math.floor(totalMonths / 12);
+  const targetMonth = ((totalMonths % 12) + 12) % 12;
+
+  const lastDayOfTargetMonth = new Date(
+    Date.UTC(targetYear, targetMonth + 1, 0)
+  ).getUTCDate();
+  const clampedDay = Math.min(day, lastDayOfTargetMonth);
+
+  const resultBrtMs = Date.UTC(
+    targetYear,
+    targetMonth,
+    clampedDay,
+    brt.getUTCHours(),
+    brt.getUTCMinutes(),
+    brt.getUTCSeconds(),
+    brt.getUTCMilliseconds()
+  );
+  return new Date(resultBrtMs + BRT_OFFSET_MS);
+}
 
 export interface PlanDefinition {
   code: PlanCode;
   planType: 'ESSENTIAL' | 'PRO';
   days: number;
+  months: 1 | 12;
   amountCents: number;
   label: string;
 }
 
 export const PLAN_CATALOG: Record<PlanCode, PlanDefinition> = {
-  ESSENTIAL_90D: {
-    code: 'ESSENTIAL_90D',
+  ESSENTIAL_30: {
+    code: 'ESSENTIAL_30',
     planType: 'ESSENTIAL',
-    days: 90,
-    amountCents: 2490,
-    label: 'VitriMini Essencial (90 dias)',
+    days: 30,
+    months: 1,
+    amountCents: 990,
+    label: 'VitriMini Essencial Mensal',
   },
-  PRO_90D: {
-    code: 'PRO_90D',
+  PRO_30: {
+    code: 'PRO_30',
     planType: 'PRO',
-    days: 90,
-    amountCents: 3990,
-    label: 'VitriMini Pro Trimestral (90 dias)',
+    days: 30,
+    months: 1,
+    amountCents: 1490,
+    label: 'VitriMini Pro Mensal',
   },
-  PRO_365D: {
-    code: 'PRO_365D',
+  PRO_365: {
+    code: 'PRO_365',
     planType: 'PRO',
     days: 365,
-    amountCents: 9990,
-    label: 'VitriMini Pro Anual (365 dias)',
+    months: 12,
+    amountCents: 14900,
+    label: 'VitriMini Pro Anual',
   },
 };
 
+export const LEGACY_PLAN_MAP: Record<LegacyPlanCode, PlanCode> = {
+  ESSENTIAL_90D: 'ESSENTIAL_30',
+  ESSENTIAL_90: 'ESSENTIAL_30',
+  PRO_90D: 'PRO_30',
+  PRO_90: 'PRO_30',
+  PRO_365D: 'PRO_365',
+};
+
 export function resolvePlanDefinition(rawCode?: unknown): PlanDefinition {
-  if (typeof rawCode === 'string' && rawCode in PLAN_CATALOG) {
-    return PLAN_CATALOG[rawCode as PlanCode];
+  if (typeof rawCode === 'string') {
+    if (rawCode in PLAN_CATALOG) {
+      return PLAN_CATALOG[rawCode as PlanCode];
+    }
+    if (rawCode in LEGACY_PLAN_MAP) {
+      return PLAN_CATALOG[LEGACY_PLAN_MAP[rawCode as LegacyPlanCode]];
+    }
   }
   return {
-    ...PLAN_CATALOG.ESSENTIAL_90D,
+    ...PLAN_CATALOG.ESSENTIAL_30,
     amountCents: getCatalogPriceCents(),
   };
 }
@@ -62,7 +118,7 @@ export interface PixPaymentResult {
   mockMode: boolean;
 }
 
-const DEFAULT_AMOUNT_CENTS = 2490; // R$ 24,90
+const DEFAULT_AMOUNT_CENTS = 990; // R$ 9,90
 
 export function getCatalogPriceCents(): number {
   const raw = Number(process.env.CATALOG_PRICE_CENTS);
@@ -91,7 +147,7 @@ export async function createPixPayment({
   catalogId,
   storeName: _storeName,
   amountCents = getCatalogPriceCents(),
-  description = 'VitriMini - Publicação de Vitrine (90 dias)',
+  description = 'VitriMini - Publicação de Vitrine',
   payerEmail,
   idempotencyKey,
 }: CreatePixPaymentInput): Promise<PixPaymentResult> {
@@ -114,8 +170,14 @@ export async function createPixPayment({
   }
 
   const accessToken = getAccessToken();
+  const testPayerEmail =
+    process.env.NODE_ENV !== 'production'
+      ? process.env.MP_TEST_PAYER_EMAIL?.trim()
+      : undefined;
   const resolvedEmail =
-    payerEmail?.trim() || `cliente+${catalogId}@vitrimini.com.br`;
+    testPayerEmail ||
+    payerEmail?.trim() ||
+    `cliente+${catalogId}@vitrimini.com.br`;
 
   const response = await fetch('https://api.mercadopago.com/v1/orders', {
     method: 'POST',
@@ -377,4 +439,309 @@ export function validateMercadoPagoWebhookSignature(params: {
   } catch {
     return false;
   }
+}
+
+export interface CreateCardSubscriptionInput {
+  catalogId: string;
+  storeName: string;
+  planCode: PlanCode | LegacyPlanCode;
+  payerEmail: string;
+  backUrl: string;
+  externalReference?: string;
+}
+
+export interface CreateCardSubscriptionResult {
+  preapprovalId: string;
+  initPoint: string;
+  mockMode: boolean;
+}
+
+export async function createCardSubscription({
+  catalogId,
+  storeName: _storeName,
+  planCode,
+  payerEmail,
+  backUrl,
+  externalReference,
+}: CreateCardSubscriptionInput): Promise<CreateCardSubscriptionResult> {
+  const planDef = resolvePlanDefinition(planCode);
+
+  if (isMockPixEnabled()) {
+    return {
+      preapprovalId: `mock_sub_${uuidv4()}`,
+      initPoint: `${backUrl}&mock_sub=1`,
+      mockMode: true,
+    };
+  }
+
+  const accessToken = getAccessToken();
+  const testPayerEmail =
+    process.env.NODE_ENV !== 'production'
+      ? process.env.MP_TEST_PAYER_EMAIL?.trim()
+      : undefined;
+  const resolvedEmail =
+    testPayerEmail ||
+    payerEmail?.trim() ||
+    `cliente+${catalogId}@vitrimini.com.br`;
+
+  const response = await fetch('https://api.mercadopago.com/preapproval', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      reason: planDef.label,
+      external_reference: externalReference ?? catalogId,
+      payer_email: resolvedEmail,
+      auto_recurring: {
+        frequency: planDef.months,
+        frequency_type: 'months',
+        transaction_amount: Number((planDef.amountCents / 100).toFixed(2)),
+        currency_id: 'BRL',
+      },
+      back_url: backUrl,
+      status: 'pending',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error(
+      '[Mercado Pago Preapproval Create Error]:',
+      response.status,
+      errorBody
+    );
+    throw new Error(
+      `Preapproval API request failed with status ${response.status}`
+    );
+  }
+
+  const data = (await response.json()) as {
+    id: string;
+    init_point?: string;
+    sandbox_init_point?: string;
+  };
+
+  const initPoint =
+    process.env.NODE_ENV === 'production'
+      ? data.init_point || data.sandbox_init_point || ''
+      : data.sandbox_init_point || data.init_point || '';
+  if (!data.id || !initPoint) {
+    console.error('[createCardSubscription] Resposta do Mercado Pago sem init_point:', {
+      status: response.status,
+      id: data?.id ?? null,
+      hasInitPoint: Boolean(data?.init_point),
+      hasSandboxInitPoint: Boolean(data?.sandbox_init_point),
+    });
+    throw new Error('Mercado Pago não retornou init_point da assinatura.');
+  }
+
+  return {
+    preapprovalId: String(data.id),
+    initPoint,
+    mockMode: false,
+  };
+}
+
+export interface MercadoPagoPreapprovalData {
+  id?: string;
+  status?: string;
+  external_reference?: string;
+  next_payment_date?: string;
+  auto_recurring?: {
+    frequency?: number;
+    frequency_type?: string;
+    transaction_amount?: number;
+  };
+}
+
+export async function fetchMercadoPagoPreapproval(
+  preapprovalId: string
+): Promise<MercadoPagoPreapprovalData | null> {
+  if (isMockPixEnabled()) {
+    return {
+      id: preapprovalId,
+      status: 'authorized',
+    };
+  }
+
+  const accessToken = getAccessToken();
+  const response = await fetch(
+    `https://api.mercadopago.com/preapproval/${encodeURIComponent(preapprovalId)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error(
+      '[Mercado Pago Preapproval Fetch Error]:',
+      response.status,
+      errorBody
+    );
+    return null;
+  }
+
+  return (await response.json()) as MercadoPagoPreapprovalData;
+}
+
+export interface MercadoPagoAuthorizedPaymentData {
+  id?: string | number;
+  preapproval_id?: string;
+  status?: string;
+  external_reference?: string;
+  transaction_amount?: number;
+  net_received_amount?: number;
+  payment?: {
+    id?: string | number;
+    status?: string;
+  };
+}
+
+export async function fetchMercadoPagoAuthorizedPayment(
+  paymentId: string
+): Promise<MercadoPagoAuthorizedPaymentData | null> {
+  if (isMockPixEnabled()) {
+    return {
+      id: paymentId,
+      status: 'processed',
+    };
+  }
+
+  const accessToken = getAccessToken();
+  const response = await fetch(
+    `https://api.mercadopago.com/authorized_payments/${encodeURIComponent(paymentId)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error(
+      '[Mercado Pago Authorized Payment Fetch Error]:',
+      response.status,
+      errorBody
+    );
+    return null;
+  }
+
+  return (await response.json()) as MercadoPagoAuthorizedPaymentData;
+}
+
+export async function searchMercadoPagoAuthorizedPaymentsByPreapproval(
+  preapprovalId: string
+): Promise<MercadoPagoAuthorizedPaymentData[]> {
+  if (isMockPixEnabled() || preapprovalId.startsWith('mock_sub_')) {
+    return [];
+  }
+
+  const accessToken = getAccessToken();
+  const response = await fetch(
+    `https://api.mercadopago.com/authorized_payments/search?preapproval_id=${encodeURIComponent(preapprovalId)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    return [];
+  }
+
+  const data = (await response.json()) as {
+    results?: MercadoPagoAuthorizedPaymentData[];
+  };
+  return Array.isArray(data.results) ? data.results : [];
+}
+
+export interface MercadoPagoPaymentData {
+  id?: string | number;
+  status?: string;
+  status_detail?: string;
+  external_reference?: string;
+  transaction_amount?: number;
+  preapproval_id?: string;
+  metadata?: {
+    preapproval_id?: string;
+    [key: string]: unknown;
+  };
+  point_of_interaction?: {
+    transaction_data?: {
+      subscription_id?: string;
+    };
+  };
+  transaction_details?: {
+    net_received_amount?: number;
+  };
+  fee_details?: Array<{
+    amount?: number;
+    fee_payer?: string;
+  }>;
+}
+
+export async function fetchMercadoPagoPayment(
+  paymentId: string
+): Promise<MercadoPagoPaymentData | null> {
+  if (isMockPixEnabled()) {
+    return null;
+  }
+
+  const accessToken = getAccessToken();
+  const response = await fetch(
+    `https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return (await response.json()) as MercadoPagoPaymentData;
+}
+
+export async function cancelMercadoPagoPreapproval(
+  preapprovalId: string
+): Promise<{ cancelled: boolean; mockMode?: boolean }> {
+  if (isMockPixEnabled() || preapprovalId.startsWith('mock_sub_')) {
+    return { cancelled: true, mockMode: true };
+  }
+
+  const accessToken = getAccessToken();
+  const response = await fetch(
+    `https://api.mercadopago.com/preapproval/${encodeURIComponent(preapprovalId)}`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status: 'cancelled' }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error(
+      '[Mercado Pago Preapproval Cancel Error]:',
+      response.status,
+      errorBody
+    );
+    throw new Error(
+      `Preapproval cancel failed with status ${response.status}`
+    );
+  }
+
+  return { cancelled: true, mockMode: false };
 }
