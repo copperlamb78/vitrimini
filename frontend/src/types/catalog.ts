@@ -2,7 +2,15 @@ import type { ThemeId } from '../constants/themes';
 
 export type CatalogStatus = 'DRAFT' | 'ACTIVE' | 'EXPIRED';
 export type CatalogPlanType = 'ESSENTIAL' | 'PRO';
-export type CatalogPlanCode = 'ESSENTIAL_90D' | 'PRO_90D' | 'PRO_365D';
+export type CatalogPlanCode = 'ESSENTIAL_30' | 'PRO_30' | 'PRO_365';
+export type CatalogBillingType = 'PIX_ONE_OFF' | 'CARD_RECURRING';
+export type SubscriptionStatus =
+  | 'NONE'
+  | 'PENDING'
+  | 'ACTIVE'
+  | 'PAUSED'
+  | 'CANCELLED'
+  | 'PAST_DUE';
 export type OrderPaymentChannel = 'WHATSAPP' | 'MERCADO_PAGO';
 export type OrderPaymentStatus = 'PENDING' | 'PAID' | 'CANCELLED';
 
@@ -106,6 +114,12 @@ export interface Catalog {
   renewalCount?: number;
   isTrial?: boolean;
   planType?: CatalogPlanType;
+  billingType?: CatalogBillingType;
+  mpPreapprovalId?: string | null;
+  subscriptionStatus?: SubscriptionStatus | null;
+  autoRenew?: boolean;
+  canceledAt?: string | null;
+  nextBillingAt?: string | null;
   onlinePaymentEnabled?: boolean;
   mpConnected?: boolean;
   hasProAccess?: boolean;
@@ -144,6 +158,33 @@ export interface CreateCatalogResponse {
   expiresAt?: string | null;
 }
 
+export interface CreateCardSubscriptionResponse {
+  initPoint: string;
+  preapprovalId: string;
+  paymentRecordId: string;
+}
+
+export interface CancelSubscriptionResponse {
+  subscriptionStatus: SubscriptionStatus;
+  autoRenew: boolean;
+  canceledAt: string;
+  expiresAt: string | null;
+}
+
+export interface SyncSubscriptionResponse {
+  status: CatalogStatus;
+  isTrial: boolean;
+  expiresAt: string | null;
+  planType: CatalogPlanType;
+  billingType: CatalogBillingType;
+  mpPreapprovalId: string | null;
+  subscriptionStatus: SubscriptionStatus | null;
+  autoRenew: boolean;
+  canceledAt: string | null;
+  nextBillingAt: string | null;
+  hasProAccess: boolean;
+}
+
 export interface CatalogStatusResponse {
   status: CatalogStatus;
   slug: string;
@@ -161,6 +202,12 @@ export interface MyCatalogItem {
   status: CatalogStatus;
   isTrial?: boolean;
   planType?: CatalogPlanType;
+  billingType?: CatalogBillingType;
+  mpPreapprovalId?: string | null;
+  subscriptionStatus?: SubscriptionStatus | null;
+  autoRenew?: boolean;
+  canceledAt?: string | null;
+  nextBillingAt?: string | null;
   onlinePaymentEnabled?: boolean;
   mpConnected?: boolean;
   hasProAccess?: boolean;
