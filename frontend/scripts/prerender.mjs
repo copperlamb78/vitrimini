@@ -22,18 +22,18 @@ function escapeHtml(str) {
 const COMMON_PLANS = [
   {
     name: 'Teste Grátis (1ª Vitrine)',
-    price: 'R$ 0,00 por 15 dias',
-    desc: 'Sua primeira vitrine entra no ar na hora por 15 dias grátis, com 0% de comissão e cancelamento simples pelo painel.',
+    price: 'R$ 0,00 por 15 dias sem cartão',
+    desc: 'Sua primeira vitrine entra no ar na hora por 15 dias grátis sem precisar cadastrar cartão, com 0% de comissão e sem cobrança automática.',
   },
   {
-    name: 'Plano Essencial • 90 dias',
-    price: 'R$ 24,90 / 90 dias',
-    desc: 'Produtos ilimitados, pedidos organizados no WhatsApp, cálculo de sinal via Pix, link de acompanhamento em tempo real e 0% de comissão.',
+    name: 'Plano Essencial • Mensal',
+    price: 'R$ 9,90 / mês',
+    desc: 'Produtos ilimitados, catálogo e carrinho no WhatsApp, agendamento por data e turno, cálculo de sinal via Pix e 0% de comissão. Pague com Pix Avulso ou Cartão Recorrente.',
   },
   {
-    name: 'Plano Pro • Pagamento Automático',
-    price: 'R$ 39,90 / 90 dias ou R$ 99,90 / ano (365 dias)',
-    desc: 'Tudo do Essencial + integração direta com sua conta Mercado Pago para receber Pix e Cartão automaticamente com baixa automática no painel.',
+    name: 'Plano Pro • Pagamento Automático + VitriLink',
+    price: 'R$ 14,90 / mês (apenas R$ 5,00 a mais) ou R$ 149,00 / ano (2 meses grátis)',
+    desc: 'Tudo do Essencial + VitriLink para bio do Instagram/TikTok + Mercado Pago direto (Pix e Cartão com baixa automática). Escolha Pix Avulso ou Cartão com renovação por aniversário no calendário.',
   },
 ];
 
@@ -205,38 +205,68 @@ function buildLegalBodyHtml(page) {
 const ROUTES = [
   {
     path: '/',
-    title: 'VitriMini | Catálogo Online e Pedidos pelo WhatsApp',
+    title:
+      'VitriMini | Vitrine Digital, Catálogo Online para WhatsApp e Link na Bio',
     description:
-      'Crie sua vitrine digital e catálogo online com pedidos organizados no WhatsApp, sinal no Pix e 0% de comissão. Teste grátis por 15 dias e planos a partir de R$ 24,90.',
+      'Crie sua vitrine digital e catálogo online para WhatsApp com VitriLink na bio, agendamento por data e turno, pagamento online via Mercado Pago e 0% de comissão. 15 dias grátis sem cartão. Planos a partir de R$ 9,90/mês (Pro R$ 14,90/mês ou R$ 149,00/ano).',
     type: 'landing',
-    badge: '15 dias grátis na 1ª vitrine • 0% de comissão • Cancele quando quiser',
-    h1: 'Catálogo Online e Vitrine Digital com Pedidos no WhatsApp',
-    lead: 'Chega de mandar PDF pesado e responder preço o dia inteiro. Sua primeira vitrine entra no ar hoje com 15 dias grátis e, para continuar depois, planos a partir de R$ 24,90 por 90 dias com 0% de comissão.',
+    badge: '15 dias grátis sem cartão na 1ª vitrine • 0% de comissão',
+    h1: 'Vitrine Digital e Catálogo Online para WhatsApp e Link na Bio — Venda sem Comissão',
+    lead: 'Chega de mandar PDF pesado e responder preço o dia inteiro. Publique sua vitrine digital com 15 dias grátis sem cartão, VitriLink na bio, agendamento por data e turno, pagamento online via Mercado Pago e 0% de comissão.',
     highlights: [
-      'Pedidos organizados no WhatsApp com itens, quantidades, data/turno e entrega ou retirada já somados.',
-      'Cálculo automático de sinal via Pix com 0% de comissão da plataforma e acompanhamento do pedido em tempo real.',
-      'Plano Essencial (R$ 24,90 por 90 dias) ou Plano Pro com Mercado Pago integrado (R$ 39,90 por 90 dias ou R$ 99,90/ano).',
+      'Catálogo + Carrinho no WhatsApp com pedidos organizados no painel, agendamento por data e turno e entrega ou retirada.',
+      'VitriLink para bio do Instagram e TikTok + Pagamento Online Direto via Mercado Pago (Pix e Cartão com baixa automática no Plano Pro).',
+      'Escolha entre Pix (sem renovação automática) ou Cartão de Crédito (cobrança todo mês ou ano no mesmo dia, com cancelamento direto no painel).',
     ],
     faqItems: [
       {
-        question: 'Como funcionam os 15 dias grátis na primeira vitrine?',
+        question: 'Como funcionam os 15 dias grátis sem cartão na primeira vitrine?',
         answer:
-          'Ao criar sua primeira vitrine na VitriMini, ela já entra no ar imediatamente por 15 dias grátis para você testar na prática com seus clientes. Se quiser continuar depois desse prazo, basta escolher um dos planos disponíveis na tela de assinatura.',
+          'Ao criar sua primeira vitrine na VitriMini, ela já entra no ar imediatamente por 15 dias grátis, sem precisar cadastrar cartão de crédito e sem cobrança automática ao final do teste. Se quiser continuar depois desse prazo, basta escolher um plano na tela de assinatura.',
       },
       {
-        question: 'Como funcionam a contratação, os meios de pagamento e a renovação dos planos?',
+        question: 'Quais são os planos e como posso pagar?',
         answer:
-          'A contratação pode ser feita nas modalidades avulsa ou recorrente, conforme os meios de pagamento disponíveis na tela de assinatura no momento da contratação. Caso opte pela assinatura recorrente, o cancelamento é simples e pode ser feito a qualquer momento pelo próprio painel, sem multa.',
+          'Você escolhe entre Essencial (R$ 9,90/mês), Pro Mensal (R$ 14,90/mês) ou Pro Anual (R$ 149,00/ano, com 2 meses grátis). Pode pagar no Pix (sem renovação automática) ou no Cartão de Crédito (com renovação mensal ou anual e cancelamento direto no painel, sem multa).',
       },
       {
-        question: 'Vocês cobram alguma taxa sobre as encomendas que eu vender?',
+        question: 'Como funciona a data de vencimento dos planos?',
         answer:
-          'Zero comissão. Todo o valor das suas vendas e o sinal pago pelos seus clientes caem diretamente na sua conta usando a sua própria chave Pix.',
+          'A cobrança ou vencimento acontece todo mês ou ano no mesmo dia em que você contratou. Se assinar no dia 15, por exemplo, o próximo vencimento será no dia 15 do mês seguinte (no mensal) ou do ano seguinte (no anual).',
       },
       {
-        question: 'Como meu cliente acompanha o status do pedido? Precisa baixar app?',
+        question:
+          'Se eu assinar um plano antes de acabar os 15 dias grátis, eu perco os dias que faltavam?',
         answer:
-          'Não precisa baixar nenhum aplicativo. Assim que você registra ou atualiza o pedido, um link exclusivo de acompanhamento em tempo real é gerado para o cliente ver cada etapa direto no navegador.',
+          'De jeito nenhum! O tempo do plano é somado a partir da data em que seus 15 dias grátis iam vencer — ao contratar um plano mensal, por exemplo, você aproveita os dias restantes do teste somados ao novo período completo no ar.',
+      },
+      {
+        question: 'Vocês cobram alguma comissão sobre as vendas da minha vitrine?',
+        answer:
+          'Zero comissão. Todo o valor das suas vendas vai 100% para você, direto na sua conta pela sua própria chave Pix ou pela sua conta do Mercado Pago conectada no Plano Pro.',
+      },
+      {
+        question: 'O que vem no Plano Pro com VitriLink e Mercado Pago?',
+        answer:
+          'Por apenas R$ 5,00 a mais por mês em relação ao Essencial, o Plano Pro libera o VitriLink (sua página de links para a bio do Instagram e TikTok com capa e cartões com foto) e a integração direta com o Mercado Pago para receber via Pix e Cartão de Crédito com confirmação e baixa automática no painel.',
+      },
+      {
+        question:
+          'Como meu cliente acompanha o status do pedido? Precisa baixar app?',
+        answer:
+          'Não precisa baixar nenhum aplicativo. Assim que o pedido é feito, um link exclusivo de acompanhamento em tempo real é gerado para o cliente ver cada etapa (Recebido, Em preparo, Pronto ou Saiu para entrega) direto no navegador.',
+      },
+      {
+        question:
+          'Consigo alterar preços, datas e turnos ou marcar um produto como esgotado?',
+        answer:
+          'Sim. Pelo painel da vitrine você pode pausar itens esgotados em 1 toque, mudar preços, configurar agendamento por data e turno para entregas ou retiradas e adicionar novos produtos quando quiser.',
+      },
+      {
+        question:
+          'Existe limite de quantos produtos posso cadastrar na minha vitrine?',
+        answer:
+          'Não há limite. Você pode cadastrar quantos doces, marmitas, roupas, kits ou produtos sob encomenda desejar, todos com foto, descrição e preço.',
       },
     ],
   },
@@ -306,7 +336,7 @@ const ROUTES = [
       {
         question: 'Posso aceitar cartão de crédito e Pix automático na minha loja de roupas?',
         answer:
-          'Sim! No Plano Pro (R$ 39,90 por 90 dias ou R$ 99,90 por ano), você conecta sua própria conta do Mercado Pago e recebe Pix e Cartão automaticamente, com 0% de taxa da VitriMini.',
+          'Sim! No Plano Pro (R$ 14,90/mês ou R$ 149,00/ano), você conecta sua própria conta do Mercado Pago e recebe Pix e Cartão automaticamente, com 0% de taxa da VitriMini.',
       },
       {
         question: 'Como funciona após os 15 dias grátis?',
@@ -387,7 +417,7 @@ const ROUTES = [
       {
         question: 'Como funciona o pagamento da plataforma?',
         answer:
-          'Você tem 15 dias grátis na primeira vitrine para testar à vontade. Depois, se quiser continuar, escolhe o plano a partir de R$ 24,90 por 90 dias na modalidade avulsa ou recorrente disponível na tela de assinatura, com cancelamento simples pelo painel.',
+          'Você tem 15 dias grátis na primeira vitrine para testar à vontade. Depois, se quiser continuar, escolhe um dos planos disponíveis na tela de assinatura.',
       },
     ],
   },
@@ -395,23 +425,23 @@ const ROUTES = [
     path: '/termos',
     title: 'Termos de Uso — VitriMini',
     description:
-      'Condições gerais de contratação avulsa por ciclo, regra de upgrade, direito de arrependimento, DPA e responsabilidades no uso da plataforma SaaS VitriMini.',
+      'Condições gerais de contratação avulsa via Pix ou assinatura recorrente via cartão com vencimento por aniversário de calendário, regra de upgrade, cancelamento pelo painel, arrependimento e DPA na VitriMini.',
     type: 'legal',
     h1: 'Termos de Uso — VitriMini',
     subtitle:
-      'Condições gerais de contratação avulsa por ciclo, uso da plataforma SaaS e Acordo de Tratamento de Dados (Versão 2.1)',
+      'Condições gerais de contratação avulsa ou recorrente, uso da plataforma SaaS e Acordo de Tratamento de Dados (Versão 2.3 • Vigência: 25 de novembro de 2026)',
     sections: [
       {
         heading: '1. Identificação do Fornecedor (Decreto nº 7.962/2013) e Aceite',
         body: 'Operada por Antonio Gabriel Gomes Falcão do Nascimento (VitriMini / NeoDevZone), com suporte oficial em suporte@vitrimini.com.br. A VitriMini fornece exclusivamente software (SaaS) para catálogo digital e organização de pedidos, cobrando 0% de comissão sobre as vendas realizadas pelos Lojistas.',
       },
       {
-        heading: '2. Avaliação Gratuita (15 dias), Contratação Avulsa e Upgrade',
-        body: 'Avaliação gratuita de 15 dias na primeira vitrine, sem cobrança automática e sem geração de dívida ao término. Os planos pagos (Essencial 90 dias e Pro 90 ou 365 dias) operam exclusivamente na modalidade avulsa/pré-paga por ciclo via Pix ou Cartão no Mercado Pago, sem renovação automática. No upgrade antes do vencimento, cobra-se o valor integral do novo ciclo e somam-se integralmente os dias restantes do ciclo anterior ao novo prazo.',
+        heading: '2. Avaliação Gratuita (15 dias), Pix Avulso, Cartão Recorrente e Upgrade',
+        body: 'Avaliação gratuita de 15 dias na primeira vitrine, sem cartão prévio, sem cobrança automática e sem geração de dívida ao término. Os planos pagos (Essencial Mensal R$ 9,90/mês, Pro Mensal R$ 14,90/mês e Pro Anual R$ 149,00/ano) operam em duas modalidades: Pix Avulso (pagamento único por ciclo, sem renovação automática) e Assinatura Recorrente via Cartão de Crédito (Mercado Pago /preapproval, mediante autorização expressa antes da confirmação, com renovação automática mensal ou anual sempre no mesmo dia da contratação por aniversário de data no calendário e cancelamento direto pelo painel com bloqueio imediato de futuras cobranças e acesso mantido até o fim do período já pago). Em upgrades ou trocas de modalidade, eventual assinatura anterior ativa é cancelada automaticamente após a confirmação do novo pagamento, e no upgrade somam-se os dias restantes ao novo prazo.',
       },
       {
         heading: '3. Expiração (30 dias) e Direito de Arrependimento (Art. 49 do CDC)',
-        body: 'Após 30 dias da expiração sem renovação, rotina automatizada remove os dados operacionais da vitrine, pedidos e imagens no Cloudflare R2, ressalvadas hipóteses legais e ciclos de backups em nuvem. O direito de arrependimento é garantido em até 7 dias corridos da contratação via suporte@vitrimini.com.br, preservando tempestividade para solicitações em finais de semana ou feriados.',
+        body: 'Após 30 dias da expiração sem renovação, rotina automatizada remove os dados operacionais da vitrine, pedidos e imagens no Cloudflare R2, ressalvadas hipóteses legais e ciclos de backups em nuvem. O direito de arrependimento é garantido em até 7 dias corridos da contratação diretamente pelo painel ou via suporte@vitrimini.com.br, preservando tempestividade para solicitações em finais de semana ou feriados.',
       },
       {
         heading: '4. Pagamentos Diretos ao Lojista (Mercado Pago) e Responsabilidades',
@@ -431,7 +461,7 @@ const ROUTES = [
     type: 'legal',
     h1: 'Política de Privacidade (LGPD) — VitriMini',
     subtitle:
-      'Transparência sobre o tratamento, bases legais, cookies, suboperadores e proteção de dados pessoais (Versão 2.1)',
+      'Transparência sobre o tratamento, bases legais, cookies, suboperadores e proteção de dados pessoais (Versão 2.3 • Vigência: 25 de novembro de 2026)',
     sections: [
       {
         heading: '1. Papéis na LGPD e Enquadramento ANPD (Res. nº 2/2022)',
@@ -439,7 +469,7 @@ const ROUTES = [
       },
       {
         heading: '2. Dados Coletados, Segurança Técnica e Delimitação PCI-DSS',
-        body: 'Coletamos dados cadastrais do lojista, chave Pix (exibição na vitrine), tokens OAuth do Mercado Pago (AES-256-GCM) e dados de pedidos. Senhas usam hash bcrypt e refresh tokens usam SHA-256 em cookie HttpOnly. A VitriMini não possui certificação PCI-DSS própria e não armazena números completos de cartão ou CVV, nem grava tabela própria de logs históricos de acesso IP + data/hora no banco.',
+        body: 'Coletamos dados cadastrais do lojista, chave Pix (exibição na vitrine), tokens OAuth do Mercado Pago (AES-256-GCM) e dados de pedidos. Senhas usam hash bcrypt e refresh tokens usam SHA-256 em cookie HttpOnly. Tanto no Pix Avulso quanto na Assinatura Recorrente via Cartão de Crédito, a VitriMini redireciona para o checkout hospedado do Mercado Pago (init_point), não possui certificação PCI-DSS própria e não coleta nem armazena números de cartão ou CVV, armazenando apenas o identificador da assinatura (mpPreapprovalId), status e histórico técnico de cobranças (CatalogPayment), sem gravar tabela própria de logs históricos de acesso IP + data/hora no banco.',
       },
       {
         heading: '3. Cookies, Armazenamento Local e Suboperadores',
@@ -489,9 +519,11 @@ function buildJsonLd(route) {
       url: canonicalUrl,
       description: route.description,
       offers: {
-        '@type': 'Offer',
-        price: '24.90',
+        '@type': 'AggregateOffer',
+        lowPrice: '9.90',
+        highPrice: '149.00',
         priceCurrency: 'BRL',
+        offerCount: '3',
         availability: 'https://schema.org/InStock',
       },
     },
@@ -514,7 +546,10 @@ function renderRouteHtml(templateHtml, route) {
   const canonicalUrl = `${SITE_URL}${route.path}`;
   const escapedTitle = escapeHtml(route.title);
   const escapedDesc = escapeHtml(route.description);
-  const jsonLdString = JSON.stringify(buildJsonLd(route), null, 2);
+  const jsonLdString = JSON.stringify(buildJsonLd(route), null, 2).replace(
+    /</g,
+    '\\u003c'
+  );
   const bodyContent =
     route.type === 'legal'
       ? buildLegalBodyHtml(route)
