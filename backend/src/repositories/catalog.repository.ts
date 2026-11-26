@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
+import { addCalendarMonths } from '../services/payment.service.js';
 
 export interface CreateProductPersistenceInput {
   name: string;
@@ -93,6 +94,12 @@ const OWNED_CATALOG_DETAIL_SELECT = {
   notifyOrderByEmail: true,
   bioLinksConfig: true,
   expiresAt: true,
+  billingType: true,
+  mpPreapprovalId: true,
+  subscriptionStatus: true,
+  autoRenew: true,
+  canceledAt: true,
+  nextBillingAt: true,
   createdAt: true,
   updatedAt: true,
   products: {
@@ -121,6 +128,12 @@ const UPDATED_CATALOG_SELECT = {
   bioLinksConfig: true,
   planType: true,
   expiresAt: true,
+  billingType: true,
+  mpPreapprovalId: true,
+  subscriptionStatus: true,
+  autoRenew: true,
+  canceledAt: true,
+  nextBillingAt: true,
   createdAt: true,
   updatedAt: true,
   products: {
@@ -140,7 +153,7 @@ export async function confirmCatalogPaymentTx(params: {
   }) => {
     feeCents: number;
     netAmountCents: number;
-    planDurationMs: number;
+    planMonths: number;
     nextPlanType: 'ESSENTIAL' | 'PRO';
     nowMs: number;
   };
@@ -182,14 +195,37 @@ export async function confirmCatalogPaymentTx(params: {
         justConfirmed: false,
         type: paymentRecord.type,
         user: paymentRecord.user,
+        previousPreapproval: null,
       };
     }
+
+    const previousPreapproval = {
+      mpPreapprovalId: paymentRecord.catalog.mpPreapprovalId,
+      autoRenew: paymentRecord.catalog.autoRenew,
+      subscriptionStatus: paymentRecord.catalog.subscriptionStatus,
+    };
 
     const currentExpires = paymentRecord.catalog.expiresAt;
     const baseTime =
       currentExpires && currentExpires.getTime() > computed.nowMs
         ? currentExpires.getTime()
         : computed.nowMs;
+
+    const subscriptionResetData =
+      previousPreapproval.mpPreapprovalId &&
+      (previousPreapproval.autoRenew ||
+        previousPreapproval.subscriptionStatus === 'ACTIVE' ||
+        previousPreapproval.subscriptionStatus === 'PAUSED')
+        ? {
+            billingType: 'PIX_ONE_OFF',
+            autoRenew: false,
+            subscriptionStatus: 'CANCELLED',
+            canceledAt: new Date(),
+          }
+        : {
+            billingType: 'PIX_ONE_OFF',
+            autoRenew: false,
+          };
 
     if (paymentRecord.type === 'RENEWAL') {
       const updatedCatalog = await tx.catalog.update({
@@ -202,9 +238,10 @@ export async function confirmCatalogPaymentTx(params: {
           isTrial: false,
           planType: computed.nextPlanType,
           renewalCount: { increment: 1 },
-          expiresAt: new Date(baseTime + computed.planDurationMs),
+          expiresAt: addCalendarMonths(new Date(baseTime), computed.planMonths),
           notified7DaysBefore: false,
           notifiedExpiration: false,
+          ...subscriptionResetData,
         },
       });
 
@@ -213,6 +250,7 @@ export async function confirmCatalogPaymentTx(params: {
         justConfirmed: true,
         type: paymentRecord.type,
         user: paymentRecord.user,
+        previousPreapproval,
       };
     }
 
@@ -225,9 +263,10 @@ export async function confirmCatalogPaymentTx(params: {
         status: 'ACTIVE',
         isTrial: false,
         planType: computed.nextPlanType,
-        expiresAt: new Date(baseTime + computed.planDurationMs),
+        expiresAt: addCalendarMonths(new Date(baseTime), computed.planMonths),
         notified7DaysBefore: false,
         notifiedExpiration: false,
+        ...subscriptionResetData,
       },
     });
 
@@ -236,6 +275,7 @@ export async function confirmCatalogPaymentTx(params: {
       justConfirmed: true,
       type: paymentRecord.type,
       user: paymentRecord.user,
+      previousPreapproval,
     };
   });
 }
@@ -323,6 +363,8 @@ export async function createCatalogPaymentRecord(input: {
   planCode: string;
   amountCents: number;
   gatewayId: string;
+  autoRenewConsentAt?: Date;
+  autoRenewConsentVersion?: string;
 }) {
   return prisma.catalogPayment.create({
     data: {
@@ -333,6 +375,12 @@ export async function createCatalogPaymentRecord(input: {
       status: 'PENDING',
       amountCents: input.amountCents,
       gatewayId: input.gatewayId,
+      ...(input.autoRenewConsentAt
+        ? { autoRenewConsentAt: input.autoRenewConsentAt }
+        : {}),
+      ...(input.autoRenewConsentVersion
+        ? { autoRenewConsentVersion: input.autoRenewConsentVersion }
+        : {}),
     },
   });
 }
@@ -371,6 +419,12 @@ export async function findUserCatalogsAndTrialFlag(userId: string) {
         mpUserId: true,
         expiresAt: true,
         renewalCount: true,
+        billingType: true,
+        mpPreapprovalId: true,
+        subscriptionStatus: true,
+        autoRenew: true,
+        canceledAt: true,
+        nextBillingAt: true,
         logoUrl: true,
         themeColor: true,
         createdAt: true,
@@ -659,5 +713,214 @@ export async function updateOwnedCatalogAndProductsTx(params: {
       },
       select: UPDATED_CATALOG_SELECT,
     });
+  });
+}
+
+export async function findUserEmailById(userId: string) {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+}
+
+export async function savePendingPreapprovalOnCatalog(
+  catalogId: string,
+  userId: string,
+  mpPreapprovalId: string
+) {
+  return prisma.catalog.update({
+    where: { id: catalogId, userId },
+    data: {
+      mpPreapprovalId,
+      subscriptionStatus: 'PENDING',
+    },
+  });
+}
+
+export async function cancelOwnedCatalogSubscriptionDb(
+  catalogId: string,
+  userId: string,
+  canceledAt: Date
+) {
+  return prisma.catalog.update({
+    where: { id: catalogId, userId },
+    data: {
+      autoRenew: false,
+      subscriptionStatus: 'CANCELLED',
+      canceledAt,
+    },
+    select: {
+      subscriptionStatus: true,
+      autoRenew: true,
+      canceledAt: true,
+      expiresAt: true,
+    },
+  });
+}
+
+export async function findCatalogByPreapprovalOrRefForWebhook(
+  preapprovalId?: string,
+  externalRef?: string
+) {
+  if (preapprovalId) {
+    const byCatalog = await prisma.catalog.findFirst({
+      where: { mpPreapprovalId: preapprovalId },
+    });
+    if (byCatalog) return byCatalog;
+
+    const byPayment = await prisma.catalogPayment.findFirst({
+      where: { gatewayId: preapprovalId },
+      include: { catalog: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (byPayment?.catalog) return byPayment.catalog;
+  }
+
+  if (externalRef) {
+    return prisma.catalog.findUnique({
+      where: { id: externalRef },
+    });
+  }
+
+  return null;
+}
+
+export async function updateCatalogSubscriptionFieldsForWebhook(params: {
+  catalogId: string;
+  userId: string;
+  data: Prisma.CatalogUpdateInput;
+}) {
+  return prisma.catalog.update({
+    where: { id: params.catalogId, userId: params.userId },
+    data: params.data,
+  });
+}
+
+export async function confirmAuthorizedSubscriptionPaymentTx(params: {
+  catalogId: string;
+  authorizedPaymentId: string;
+  preapprovalId?: string;
+  planCode: string;
+  planMonths: number;
+  resolveNextPlanType: (catalog: {
+    planType: 'ESSENTIAL' | 'PRO';
+    expiresAt: Date | null;
+  }) => 'ESSENTIAL' | 'PRO';
+  amountCents: number;
+  feeCents: number;
+  netAmountCents: number;
+  nextBillingAt?: Date;
+  nowMs: number;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const catalog = await tx.catalog.findUnique({
+      where: { id: params.catalogId },
+      include: {
+        user: {
+          select: { name: true, email: true },
+        },
+      },
+    });
+
+    if (!catalog) {
+      return null;
+    }
+
+    const paymentType: 'CREATION' | 'RENEWAL' =
+      catalog.status === 'DRAFT' &&
+      catalog.renewalCount === 0 &&
+      !catalog.expiresAt
+        ? 'CREATION'
+        : 'RENEWAL';
+
+    const existingPreapprovalPayment = params.preapprovalId
+      ? await tx.catalogPayment.findFirst({
+          where: {
+            catalogId: catalog.id,
+            gatewayId: params.preapprovalId,
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+      : null;
+
+    if (existingPreapprovalPayment?.status === 'PAID') {
+      if (existingPreapprovalPayment.gatewayId !== params.authorizedPaymentId) {
+        await tx.catalogPayment.update({
+          where: { id: existingPreapprovalPayment.id },
+          data: {
+            gatewayId: params.authorizedPaymentId,
+            feeCents: params.feeCents,
+            netAmountCents: params.netAmountCents,
+          },
+        });
+      }
+      return null;
+    }
+
+    if (existingPreapprovalPayment?.status === 'PENDING') {
+      await tx.catalogPayment.update({
+        where: { id: existingPreapprovalPayment.id },
+        data: {
+          status: 'PAID',
+          gatewayId: params.authorizedPaymentId,
+          paidAt: new Date(),
+          feeCents: params.feeCents,
+          netAmountCents: params.netAmountCents,
+        },
+      });
+    } else {
+      await tx.catalogPayment.create({
+        data: {
+          userId: catalog.userId,
+          catalogId: catalog.id,
+          type: paymentType,
+          planCode: params.planCode,
+          status: 'PAID',
+          amountCents: params.amountCents,
+          feeCents: params.feeCents,
+          netAmountCents: params.netAmountCents,
+          gatewayId: params.authorizedPaymentId,
+          paidAt: new Date(),
+        },
+      });
+    }
+
+    const previousPreapproval = {
+      mpPreapprovalId: catalog.mpPreapprovalId,
+      autoRenew: catalog.autoRenew,
+      subscriptionStatus: catalog.subscriptionStatus,
+    };
+
+    const baseTime =
+      catalog.expiresAt && catalog.expiresAt.getTime() > params.nowMs
+        ? catalog.expiresAt.getTime()
+        : params.nowMs;
+    const expiresAt = addCalendarMonths(new Date(baseTime), params.planMonths);
+
+    const updatedCatalog = await tx.catalog.update({
+      where: { id: catalog.id, userId: catalog.userId },
+      data: {
+        status: 'ACTIVE',
+        isTrial: false,
+        planType: params.resolveNextPlanType(catalog),
+        expiresAt,
+        billingType: 'CARD_RECURRING',
+        mpPreapprovalId: params.preapprovalId ?? catalog.mpPreapprovalId,
+        subscriptionStatus: 'ACTIVE',
+        autoRenew: true,
+        canceledAt: null,
+        nextBillingAt: params.nextBillingAt ?? expiresAt,
+        notified7DaysBefore: false,
+        notifiedExpiration: false,
+        ...(paymentType === 'RENEWAL' ? { renewalCount: { increment: 1 } } : {}),
+      },
+    });
+
+    return {
+      catalog: updatedCatalog,
+      user: catalog.user,
+      paymentType,
+      previousPreapproval,
+    };
   });
 }
