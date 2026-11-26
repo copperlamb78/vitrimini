@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
+  createCardSubscription,
   getMyCatalogs,
   getSafeErrorMessage,
   renewCatalog,
@@ -26,7 +27,7 @@ import type {
   MyCatalogItem,
 } from '../types/catalog';
 import { getStoreInitials, getTheme } from '../constants/themes';
-import { resolveImageUrl } from '../utils/format';
+import { resolveImageUrl, safeRedirect } from '../utils/format';
 import { applyPageSeo } from '../utils/seo';
 import { PixPaymentModal } from '../components/PixPaymentModal';
 import { PlanSelectorModal, type PlanOption } from '../components/PlanSelectorModal';
@@ -66,6 +67,7 @@ export function MyCatalogsPage() {
     useState<PlanOption | null>(null);
   const [planTargetCatalog, setPlanTargetCatalog] =
     useState<MyCatalogItem | null>(null);
+  const [planModalError, setPlanModalError] = useState<string | null>(null);
   const [mpInviteCatalogId, setMpInviteCatalogId] = useState<string | null>(
     null
   );
@@ -131,6 +133,35 @@ export function MyCatalogsPage() {
         getSafeErrorMessage(
           err,
           'Não foi possível gerar o QR Code Pix agora. Tente novamente.'
+        )
+      );
+    } finally {
+      setRenewingId(null);
+    }
+  }
+
+  async function handleSelectCardSubscription(plan: PlanOption) {
+    if (!planTargetCatalog) return;
+    setRenewingId(planTargetCatalog.id);
+    setError(null);
+    setPlanModalError(null);
+    try {
+      const res = await createCardSubscription(planTargetCatalog.id, {
+        planCode: plan.code,
+        autoRenewConsent: true,
+      });
+      if (safeRedirect(res.initPoint)) {
+        setPlanTargetCatalog(null);
+      } else {
+        setPlanModalError(
+          'Não foi possível abrir a página de pagamento do Mercado Pago. Tente novamente.'
+        );
+      }
+    } catch (err) {
+      setPlanModalError(
+        getSafeErrorMessage(
+          err,
+          'Não foi possível iniciar a assinatura no cartão agora. Tente novamente.'
         )
       );
     } finally {
@@ -315,7 +346,7 @@ export function MyCatalogsPage() {
                       ) : (
                         <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 font-medium text-amber-800">
                           <Sparkles className="h-3.5 w-3.5 text-amber-600" />
-                          Pague o Pix para ativar por 90 dias
+                          Pague o Pix para ativar sua vitrine
                         </span>
                       )}
 
@@ -325,6 +356,21 @@ export function MyCatalogsPage() {
                           Renovada {cat.renewalCount}x
                         </span>
                       )}
+
+                      {cat.billingType === 'CARD_RECURRING' && cat.autoRenew && (
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-800">
+                          Cartão • Renovação automática
+                        </span>
+                      )}
+
+                      {cat.billingType === 'CARD_RECURRING' &&
+                        !cat.autoRenew &&
+                        !cat.isExpired &&
+                        formattedDate && (
+                          <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 font-semibold text-amber-800">
+                            Renovação cancelada • Acesso até {formattedDate}
+                          </span>
+                        )}
                     </div>
 
                     {(cat.status === 'EXPIRED' || cat.isExpired) &&
@@ -409,7 +455,11 @@ export function MyCatalogsPage() {
                       className={`flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                         cat.status === 'DRAFT'
                           ? 'bg-rose-600 text-white hover:bg-rose-700'
-                          : 'border border-rose-200 bg-rose-50/70 text-rose-700 hover:bg-rose-100'
+                          : cat.billingType === 'CARD_RECURRING' &&
+                              !cat.autoRenew &&
+                              !cat.isExpired
+                            ? 'border border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100'
+                            : 'border border-rose-200 bg-rose-50/70 text-rose-700 hover:bg-rose-100'
                       }`}
                     >
                       {isRenewing ? (
@@ -420,7 +470,11 @@ export function MyCatalogsPage() {
                       {cat.status === 'DRAFT'
                         ? 'Escolher plano e ativar'
                         : cat.isTrial && !cat.isExpired
-                        ? 'Escolher plano (a partir de R$ 24,90)'
+                        ? 'Escolher plano'
+                        : cat.billingType === 'CARD_RECURRING' &&
+                            !cat.autoRenew &&
+                            !cat.isExpired
+                        ? 'Reativar ou trocar plano após o vencimento'
                         : 'Renovar / Mudar plano'}
                     </button>
                   </div>
@@ -435,15 +489,26 @@ export function MyCatalogsPage() {
         <PlanSelectorModal
           storeName={planTargetCatalog.storeName}
           initialPlan={
-            planTargetCatalog.planType === 'PRO' ? 'PRO_90D' : 'ESSENTIAL_90D'
+            planTargetCatalog.planType === 'PRO' ? 'PRO_30' : 'ESSENTIAL_30'
           }
           currentPlanType={planTargetCatalog.planType}
           hasActiveDays={Boolean(
             !planTargetCatalog.isExpired && planTargetCatalog.expiresAt
           )}
+          billingType={planTargetCatalog.billingType}
+          autoRenew={planTargetCatalog.autoRenew}
+          subscriptionStatus={planTargetCatalog.subscriptionStatus}
+          expiresAt={planTargetCatalog.expiresAt}
           loading={renewingId === planTargetCatalog.id}
+          error={planModalError}
           onSelectPlan={(plan) => void handleConfirmPlanSelection(plan)}
-          onClose={() => setPlanTargetCatalog(null)}
+          onSelectCardSubscription={(plan) =>
+            void handleSelectCardSubscription(plan)
+          }
+          onClose={() => {
+            setPlanModalError(null);
+            setPlanTargetCatalog(null);
+          }}
         />
       )}
 
@@ -462,7 +527,7 @@ export function MyCatalogsPage() {
           onConfirmed={(info) => {
             void fetchCatalogs();
             if (
-              selectedPlanForModal?.code !== 'ESSENTIAL_90D' &&
+              selectedPlanForModal?.code !== 'ESSENTIAL_30' &&
               !isMpInviteDismissed(info.catalogId)
             ) {
               setPaymentModalData(null);
