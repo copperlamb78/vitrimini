@@ -48,8 +48,13 @@ export function isSafeExternalUrl(url: string | null | undefined): boolean {
   if (!trimmed) return false;
   try {
     const parsed = new URL(trimmed);
+    const isMercadoPagoHost =
+      parsed.hostname === 'mercadopago.com' ||
+      parsed.hostname.endsWith('.mercadopago.com') ||
+      parsed.hostname === 'mercadopago.com.br' ||
+      parsed.hostname.endsWith('.mercadopago.com.br');
     if (parsed.protocol === 'https:' && trimmed.startsWith('https://')) {
-      return true;
+      return isMercadoPagoHost;
     }
     if (
       import.meta.env.DEV &&
@@ -66,7 +71,10 @@ export function isSafeExternalUrl(url: string | null | undefined): boolean {
 }
 
 export function safeRedirect(url: string | null | undefined): boolean {
-  if (!isSafeExternalUrl(url)) return false;
+  if (!isSafeExternalUrl(url)) {
+    console.warn('[safeRedirect] URL bloqueada ou inválida:', url);
+    return false;
+  }
   window.location.assign(url!.trim());
   return true;
 }
