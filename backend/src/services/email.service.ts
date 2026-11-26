@@ -531,7 +531,7 @@ export async function sendCatalogPublishedEmail({
 
   const bodyHtml = `
     <p style="margin: 0 0 14px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
-      Olá, <strong>${safeFirstName}</strong>! O pagamento Pix de <strong>R$ 24,90</strong> foi confirmado e a vitrine <strong>${safeStoreName}</strong> já está no ar por 90 dias (válida até <strong>${safeFormattedExpires}</strong>).
+      Olá, <strong>${safeFirstName}</strong>! O pagamento da sua vitrine <strong>${safeStoreName}</strong> foi confirmado e ela já está no ar (válida até <strong>${safeFormattedExpires}</strong>).
     </p>
     <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
       Guarde este e-mail: abaixo estão os dois links essenciais da sua vitrine:
@@ -576,7 +576,7 @@ export async function sendCatalogPublishedEmail({
   const text = [
     `Olá, ${firstName}!`,
     '',
-    `O pagamento Pix de R$ 24,90 foi confirmado e a vitrine "${storeName}" está ativa por 90 dias (válida até ${formattedExpires}).`,
+    `O pagamento da vitrine "${storeName}" foi confirmado e ela já está ativa (válida até ${formattedExpires}).`,
     '',
     '1. LINK PÚBLICO DA VITRINE (envie aos seus clientes):',
     publicUrl,
@@ -598,7 +598,7 @@ export async function sendCatalogPublishedEmail({
 }
 
 /**
- * 5. E-mail de Vitrine Renovada (+90 dias)
+ * 5. E-mail de Vitrine Renovada
  */
 export async function sendCatalogRenewedEmail({
   to,
@@ -629,7 +629,7 @@ export async function sendCatalogRenewedEmail({
 
   const bodyHtml = `
     <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
-      Olá, <strong>${safeFirstName}</strong>! O pagamento Pix de renovação (<strong>R$ 24,90</strong>) foi aprovado e a vitrine <strong>${safeStoreName}</strong> ganhou mais 90 dias no ar.
+      Olá, <strong>${safeFirstName}</strong>! A renovação da vitrine <strong>${safeStoreName}</strong> foi aprovada e sua loja continua no ar.
     </p>
     <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;">
       <p style="margin: 0; font-size: 13px; color: #065f46;">
@@ -651,7 +651,7 @@ export async function sendCatalogRenewedEmail({
   `;
 
   const html = renderBaseEmailLayout({
-    title: 'Renovação confirmada! Sua vitrine ganhou +90 dias',
+    title: 'Renovação confirmada! Sua vitrine continua no ar',
     bodyHtml,
     ctaLabel: 'Acessar Minha Vitrine',
     ctaUrl: publicUrl,
@@ -661,7 +661,7 @@ export async function sendCatalogRenewedEmail({
   const text = [
     `Olá, ${firstName}!`,
     '',
-    `A renovação de R$ 24,90 da vitrine "${storeName}" foi confirmada!`,
+    `A renovação da vitrine "${storeName}" foi confirmada!`,
     `Nova data de validade: ${formattedExpires}`,
     '',
     `Link público da vitrine: ${publicUrl}`,
@@ -674,7 +674,7 @@ export async function sendCatalogRenewedEmail({
     type: 'CATALOG_RENEWED',
     to,
     toName: name,
-    subject: 'Renovação confirmada! Sua vitrine ganhou +90 dias',
+    subject: 'Renovação confirmada! Sua vitrine continua no ar',
     text,
     html,
   });
@@ -709,27 +709,27 @@ export async function sendCatalogExpiringSoonEmail({
 
   const bodyHtml = `
     <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
-      Olá, <strong>${safeFirstName}</strong>. O ciclo de 90 dias da sua vitrine <strong>${safeStoreName}</strong> (<code>/c/${safeSlug}</code>) vence em <strong>${safeFormattedExpires}</strong>.
+      Olá, <strong>${safeFirstName}</strong>. O ciclo atual da sua vitrine <strong>${safeStoreName}</strong> (<code>/c/${safeSlug}</code>) vence em <strong>${safeFormattedExpires}</strong>.
     </p>
     <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
-      Após essa data, a vitrine pausa o recebimento de novas encomendas até ser renovada. Para continuar recebendo pedidos sem interrupção, renove por mais 90 dias no seu painel:
+      Após essa data, a vitrine pausa o recebimento de novas encomendas até ser renovada. Para continuar recebendo pedidos sem interrupção, escolha um plano mensal (R$ 9,90 ou R$ 14,90) ou anual (R$ 149,00) no seu painel:
     </p>
   `;
 
   const html = renderBaseEmailLayout({
     title: 'Sua vitrine na VitriMini vence em 7 dias',
     bodyHtml,
-    ctaLabel: 'Renovar Minha Vitrine (+90 dias)',
+    ctaLabel: 'Renovar Minha Vitrine',
     ctaUrl: dashboardUrl,
   });
 
   const text = [
     `Olá, ${firstName}!`,
     '',
-    `O ciclo de 90 dias da sua vitrine "${storeName}" (/c/${slug}) vence em ${formattedExpires}.`,
+    `O ciclo atual da sua vitrine "${storeName}" (/c/${slug}) vence em ${formattedExpires}.`,
     'Após essa data, a vitrine pausa o recebimento de pedidos até ser renovada.',
     '',
-    `Para renovar por mais 90 dias sem interromper suas vendas, acesse: ${dashboardUrl}`,
+    `Para renovar (planos mensais de R$ 9,90 ou R$ 14,90 e anual de R$ 149,00) sem interromper suas vendas, acesse: ${dashboardUrl}`,
     '',
     `Dúvidas ou suporte: ${SUPPORT_EMAIL}`,
   ].join('\n');
@@ -773,7 +773,7 @@ export async function sendCatalogExpiredEmail({
 
   const bodyHtml = `
     <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
-      Olá, <strong>${safeFirstName}</strong>. O prazo de 90 dias da sua vitrine <strong>${safeStoreName}</strong> (<code>/c/${safeSlug}</code>) encerrou em <strong>${safeFormattedExpires}</strong> e ela foi pausada temporariamente.
+      Olá, <strong>${safeFirstName}</strong>. O ciclo da sua vitrine <strong>${safeStoreName}</strong> (<code>/c/${safeSlug}</code>) encerrou em <strong>${safeFormattedExpires}</strong> e ela foi pausada temporariamente.
     </p>
     <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 14px 16px; margin-bottom: 20px;">
       <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #78350f;">
@@ -792,7 +792,7 @@ export async function sendCatalogExpiredEmail({
   const text = [
     `Olá, ${firstName}!`,
     '',
-    `O prazo de 90 dias da sua vitrine "${storeName}" (/c/${slug}) encerrou em ${formattedExpires} e ela saiu do ar temporariamente.`,
+    `O ciclo da sua vitrine "${storeName}" (/c/${slug}) encerrou em ${formattedExpires} e ela saiu do ar temporariamente.`,
     'Fique tranquilo(a): todas as suas fotos, produtos e configurações continuam guardados por 30 dias e voltam ao ar imediatamente após a renovação.',
     '',
     `Reative sua vitrine em: ${dashboardUrl}`,
