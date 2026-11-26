@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { getOptionalAuthUserId } from '../middlewares/auth.js';
 import { AppError, FRIENDLY_ERRORS } from '../middlewares/errorHandler.js';
 import {
+  cancelCatalogSubscription,
+  createCardSubscriptionForCatalog,
   createCatalog,
   getCatalogStatus,
   getMyCatalogs,
@@ -13,6 +15,7 @@ import {
   processPixWebhook,
   renewCatalog,
   resolveCatalogEditToken,
+  syncCatalogSubscriptionForOwner,
   updateOwnedCatalog,
   ValidatedCatalogUpdatePayload,
 } from '../services/catalog.service.js';
@@ -20,6 +23,7 @@ import {
   bioLinksConfigSchema,
   brazilianPhoneSchema,
   catalogMetadataSchema,
+  createCardSubscriptionSchema,
   productInputSchema,
   sanitizePlainText,
   storeAppearanceSchema,
@@ -255,6 +259,71 @@ export async function renewCatalogHandler(
       userEmail: req.user!.email,
       planCode: req.body?.planCode,
     });
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function createCardSubscriptionHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const catalogId = uuidParamSchema.parse(req.params.id);
+    const body = createCardSubscriptionSchema.parse(req.body);
+    const result = await createCardSubscriptionForCatalog(
+      catalogId,
+      req.user!.id,
+      body
+    );
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function cancelCardSubscriptionHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const catalogId = uuidParamSchema.parse(req.params.id);
+    const result = await cancelCatalogSubscription(catalogId, req.user!.id);
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+const syncCardSubscriptionSchema = z
+  .object({
+    preapprovalId: z
+      .string()
+      .trim()
+      .regex(/^[a-zA-Z0-9_-]{1,100}$/, 'Identificador de assinatura inválido.')
+      .optional(),
+  })
+  .optional();
+
+export async function syncCardSubscriptionHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const catalogId = uuidParamSchema.parse(req.params.id);
+    const parsedBody = syncCardSubscriptionSchema.parse(req.body);
+    const result = await syncCatalogSubscriptionForOwner(
+      catalogId,
+      req.user!.id,
+      parsedBody?.preapprovalId
+    );
 
     res.json(result);
   } catch (error) {
