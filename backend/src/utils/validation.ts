@@ -355,6 +355,22 @@ export const updateOrderStatusSchema = z.object({
   ]),
 });
 
+export const createCardSubscriptionSchema = z.object({
+  planCode: z.enum([
+    'ESSENTIAL_30',
+    'PRO_30',
+    'PRO_365',
+    'ESSENTIAL_90D',
+    'PRO_90D',
+    'ESSENTIAL_90',
+    'PRO_90',
+    'PRO_365D',
+  ]),
+  autoRenewConsent: z.literal(true, {
+    message: 'Confirme a autorização da cobrança recorrente para continuar.',
+  }),
+});
+
 function isSafeHttpUrl(raw: string): boolean {
   const trimmed = raw.trim();
   if (!/^https?:\/\//i.test(trimmed)) return false;
