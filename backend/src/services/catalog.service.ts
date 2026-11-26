@@ -6,11 +6,14 @@ import { AppError, FRIENDLY_ERRORS } from '../middlewares/errorHandler.js';
 import {
   activateCatalogFromMockWebhook,
   activateOwnedCatalogMockDirect,
+  cancelOwnedCatalogSubscriptionDb,
+  confirmAuthorizedSubscriptionPaymentTx,
   confirmCatalogPaymentTx,
   createCatalogPaymentRecord,
   createDraftCatalog,
   createTrialCatalogTx,
   findCatalogByIdForWebhook,
+  findCatalogByPreapprovalOrRefForWebhook,
   findCatalogPaymentByGatewayId,
   findFallbackPendingPaymentForWebhook,
   findOwnedCatalogById,
@@ -24,8 +27,11 @@ import {
   findPublicCatalogBySlug,
   findTrialEligibilityData,
   findUserCatalogsAndTrialFlag,
+  findUserEmailById,
   markOwnedCatalogExpired,
   PreparedProductPersistenceItem,
+  savePendingPreapprovalOnCatalog,
+  updateCatalogSubscriptionFieldsForWebhook,
   updateOwnedCatalogAndProductsTx,
   updateOwnedCatalogPaymentId,
 } from '../repositories/catalog.repository.js';
@@ -39,10 +45,21 @@ import {
 } from './email.service.js';
 import { hasProFeatures } from './mpOAuth.service.js';
 import {
+  addCalendarMonths,
   calculatePixFeeFallback,
+  cancelMercadoPagoPreapproval,
+  createCardSubscription,
   createPixPayment,
+  fetchMercadoPagoAuthorizedPayment,
+  fetchMercadoPagoPayment,
+  fetchMercadoPagoPreapproval,
   isMockPixEnabled,
+  LEGACY_PLAN_MAP,
+  type LegacyPlanCode,
+  PLAN_CATALOG,
+  PlanCode,
   resolvePlanDefinition,
+  searchMercadoPagoAuthorizedPaymentsByPreapproval,
   validateMercadoPagoWebhookSignature,
   verifyMercadoPagoOrder,
 } from './payment.service.js';
@@ -56,8 +73,8 @@ import {
 } from '../utils/validation.js';
 
 const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
-const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const THIRTY_DAYS_MS = 30 * DAY_MS;
 
 export const ALLOWED_THEMES = new Set([
   'rose',
@@ -136,6 +153,29 @@ function resolveNextPlanType(
   return purchasedPlanType;
 }
 
+async function cancelPreviousPreapprovalIfActive(
+  previous: {
+    mpPreapprovalId: string | null;
+    autoRenew: boolean;
+    subscriptionStatus: string | null;
+  } | null | undefined,
+  newPreapprovalId?: string
+) {
+  if (!previous?.mpPreapprovalId) return;
+  if (newPreapprovalId && previous.mpPreapprovalId === newPreapprovalId) return;
+  const isActiveOrPaused =
+    previous.autoRenew === true ||
+    previous.subscriptionStatus === 'ACTIVE' ||
+    previous.subscriptionStatus === 'PAUSED';
+  if (!isActiveOrPaused) return;
+
+  try {
+    await cancelMercadoPagoPreapproval(previous.mpPreapprovalId);
+  } catch (cancelErr) {
+    console.warn('[Cancel Previous Preapproval Error]:', cancelErr);
+  }
+}
+
 async function confirmCatalogPayment(
   paymentRecordId: string,
   feeOverride?: { feeCents?: number; netAmountCents?: number }
@@ -151,7 +191,6 @@ async function confirmCatalogPayment(
 
       const nowMs = Date.now();
       const planDef = resolvePlanDefinition(paymentRecord.planCode);
-      const planDurationMs = planDef.days * DAY_MS;
       const nextPlanType = resolveNextPlanType(
         paymentRecord.catalog,
         planDef.planType,
@@ -161,7 +200,7 @@ async function confirmCatalogPayment(
       return {
         feeCents,
         netAmountCents,
-        planDurationMs,
+        planMonths: planDef.months,
         nextPlanType,
         nowMs,
       };
@@ -170,6 +209,11 @@ async function confirmCatalogPayment(
 
   if (!txResult) {
     throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
+  }
+
+  // Cancela assinatura anterior ativa para evitar cobrança dupla ao migrar para Pix avulso
+  if (txResult.justConfirmed) {
+    await cancelPreviousPreapprovalIfActive(txResult.previousPreapproval);
   }
 
   // Dispara e-mail em background apenas na transição efetiva de PENDING -> PAID
@@ -404,6 +448,213 @@ export async function renewCatalog(params: {
   };
 }
 
+export async function createCardSubscriptionForCatalog(
+  catalogId: string,
+  userId: string,
+  body: { planCode: PlanCode | LegacyPlanCode; autoRenewConsent: true }
+) {
+  const catalog = await findOwnedCatalogById(catalogId, userId);
+  if (!catalog) {
+    throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
+  }
+
+  const dbUser = await findUserEmailById(userId);
+  if (!dbUser) {
+    throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
+  }
+
+  const planDef = resolvePlanDefinition(body.planCode);
+  const paymentType =
+    catalog.status === 'DRAFT' &&
+    catalog.renewalCount === 0 &&
+    !catalog.expiresAt
+      ? 'CREATION'
+      : 'RENEWAL';
+
+  const frontendBaseUrl =
+    (process.env.FRONTEND_URL || '')
+      .split(',')[0]
+      ?.trim()
+      .replace(/\/+$/, '') ||
+    (process.env.NODE_ENV === 'production'
+      ? 'https://vitrimini.com.br'
+      : 'http://localhost:5173');
+  const backUrl = `${frontendBaseUrl}/painel/${catalog.id}?subscription=return`;
+
+  const subscription = await createCardSubscription({
+    catalogId: catalog.id,
+    storeName: catalog.storeName,
+    planCode: planDef.code,
+    payerEmail: dbUser.email,
+    backUrl,
+    externalReference: catalog.id,
+  });
+
+  const paymentRecord = await createCatalogPaymentRecord({
+    userId,
+    catalogId: catalog.id,
+    type: paymentType,
+    planCode: planDef.code,
+    amountCents: planDef.amountCents,
+    gatewayId: subscription.preapprovalId,
+    autoRenewConsentAt: new Date(),
+    autoRenewConsentVersion: '2.2',
+  });
+
+  const hasActiveSubscription =
+    Boolean(catalog.mpPreapprovalId) &&
+    (catalog.autoRenew ||
+      catalog.subscriptionStatus === 'ACTIVE' ||
+      catalog.subscriptionStatus === 'PAUSED');
+
+  if (!hasActiveSubscription) {
+    await savePendingPreapprovalOnCatalog(
+      catalog.id,
+      userId,
+      subscription.preapprovalId
+    );
+  }
+
+  return {
+    initPoint: subscription.initPoint,
+    preapprovalId: subscription.preapprovalId,
+    paymentRecordId: paymentRecord.id,
+  };
+}
+
+export async function cancelCatalogSubscription(
+  catalogId: string,
+  userId: string
+) {
+  const catalog = await findOwnedCatalogById(catalogId, userId);
+  if (!catalog) {
+    throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
+  }
+
+  if (!catalog.mpPreapprovalId) {
+    throw new AppError(
+      400,
+      'Esta vitrine não possui uma assinatura recorrente vinculada.'
+    );
+  }
+
+  await cancelMercadoPagoPreapproval(catalog.mpPreapprovalId);
+
+  const canceledAt = new Date();
+  const updated = await cancelOwnedCatalogSubscriptionDb(
+    catalog.id,
+    userId,
+    canceledAt
+  );
+
+  return {
+    subscriptionStatus: updated.subscriptionStatus ?? 'CANCELLED',
+    autoRenew: updated.autoRenew,
+    canceledAt: updated.canceledAt,
+    expiresAt: updated.expiresAt,
+  };
+}
+
+export async function syncCatalogSubscriptionForOwner(
+  catalogId: string,
+  userId: string,
+  preapprovalIdHint?: string
+) {
+  const catalog = await findOwnedCatalogById(catalogId, userId);
+  if (!catalog) {
+    throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
+  }
+
+  const targetPreapprovalId =
+    preapprovalIdHint?.trim() || catalog.mpPreapprovalId || undefined;
+
+  if (targetPreapprovalId && !isMockPixEnabled()) {
+    const preapproval = await fetchMercadoPagoPreapproval(targetPreapprovalId);
+    const refOk =
+      !preapproval?.external_reference ||
+      preapproval.external_reference.trim() === catalog.id ||
+      catalog.mpPreapprovalId === targetPreapprovalId;
+
+    if (preapproval && refOk) {
+      const mpStatus = preapproval.status?.toLowerCase();
+      if (mpStatus === 'authorized') {
+        const authPayments =
+          await searchMercadoPagoAuthorizedPaymentsByPreapproval(
+            targetPreapprovalId
+          );
+        const paidMatch = authPayments.find((item) => {
+          const st = (item.payment?.status || item.status || '').toLowerCase();
+          return st === 'processed' || st === 'approved';
+        });
+
+        const canonicalPaymentId = paidMatch?.payment?.id
+          ? String(paidMatch.payment.id)
+          : paidMatch?.id
+            ? String(paidMatch.id)
+            : targetPreapprovalId;
+
+        const pendingPreapprovalRecord =
+          await findCatalogPaymentByGatewayId(targetPreapprovalId);
+
+        const needsSync =
+          catalog.subscriptionStatus !== 'ACTIVE' ||
+          !catalog.autoRenew ||
+          catalog.mpPreapprovalId !== targetPreapprovalId ||
+          pendingPreapprovalRecord?.status === 'PENDING';
+
+        if (needsSync) {
+          await confirmSubscriptionCharge({
+            catalog: {
+              id: catalog.id,
+              planType: catalog.planType,
+            },
+            canonicalPaymentId,
+            preapprovalId: targetPreapprovalId,
+            preapproval,
+            transactionAmount:
+              paidMatch?.transaction_amount ??
+              preapproval.auto_recurring?.transaction_amount,
+            netReceivedAmount: paidMatch?.net_received_amount,
+          });
+        }
+      } else if (
+        mpStatus === 'cancelled' &&
+        catalog.mpPreapprovalId === targetPreapprovalId &&
+        catalog.subscriptionStatus !== 'CANCELLED'
+      ) {
+        await updateCatalogSubscriptionFieldsForWebhook({
+          catalogId: catalog.id,
+          userId: catalog.userId,
+          data: {
+            subscriptionStatus: 'CANCELLED',
+            autoRenew: false,
+            canceledAt: catalog.canceledAt ?? new Date(),
+          },
+        });
+      }
+    }
+  }
+
+  const fresh = await findOwnedCatalogDetail({ id: catalogId, userId });
+  if (!fresh) {
+    throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
+  }
+
+  return {
+    status: fresh.status,
+    isTrial: fresh.isTrial,
+    expiresAt: fresh.expiresAt,
+    planType: fresh.planType,
+    billingType: fresh.billingType,
+    mpPreapprovalId: fresh.mpPreapprovalId,
+    subscriptionStatus: fresh.subscriptionStatus,
+    autoRenew: fresh.autoRenew,
+    canceledAt: fresh.canceledAt,
+    nextBillingAt: fresh.nextBillingAt,
+    hasProAccess: hasProFeatures(fresh),
+  };
+}
+
 export async function getMyCatalogs(userId: string) {
   void cleanupExpiredCatalogs();
 
@@ -552,7 +803,7 @@ export async function mockPayCatalog(params: {
     existing.expiresAt && existing.expiresAt.getTime() > now
       ? existing.expiresAt.getTime()
       : now;
-  const expiresAt = new Date(baseTime + planDef.days * DAY_MS);
+  const expiresAt = addCalendarMonths(new Date(baseTime), planDef.months);
 
   const updated = await activateOwnedCatalogMockDirect({
     id: existing.id,
@@ -562,6 +813,351 @@ export async function mockPayCatalog(params: {
   });
 
   return { ...updated, paymentPaid: true };
+}
+
+function resolvePlanFromSubscriptionWebhook(params: {
+  pendingPlanCode?: string | null;
+  transactionAmount?: number;
+  frequency?: number;
+  fallbackPlanType: 'ESSENTIAL' | 'PRO';
+}) {
+  if (
+    params.pendingPlanCode &&
+    (params.pendingPlanCode in PLAN_CATALOG ||
+      params.pendingPlanCode in LEGACY_PLAN_MAP)
+  ) {
+    return resolvePlanDefinition(params.pendingPlanCode);
+  }
+
+  if (
+    typeof params.transactionAmount === 'number' &&
+    Number.isFinite(params.transactionAmount)
+  ) {
+    const cents = Math.round(params.transactionAmount * 100);
+    const matched = Object.values(PLAN_CATALOG).find(
+      (p) => p.amountCents === cents
+    );
+    if (matched) return matched;
+  }
+
+  if (typeof params.frequency === 'number' && params.frequency >= 12) {
+    return PLAN_CATALOG.PRO_365;
+  }
+
+  return params.fallbackPlanType === 'PRO'
+    ? PLAN_CATALOG.PRO_30
+    : PLAN_CATALOG.ESSENTIAL_30;
+}
+
+async function handleSubscriptionPreapprovalWebhook(preapprovalId: string) {
+  const preapproval = await fetchMercadoPagoPreapproval(preapprovalId);
+  if (!preapproval) return;
+
+  const parsedRefUuid = preapproval.external_reference
+    ? z.string().uuid().safeParse(preapproval.external_reference.trim())
+    : null;
+  const catalog = await findCatalogByPreapprovalOrRefForWebhook(
+    preapprovalId,
+    parsedRefUuid?.success ? parsedRefUuid.data : undefined
+  );
+  if (!catalog) return;
+
+  const status = preapproval.status?.toLowerCase();
+  if (status === 'cancelled') {
+    if (catalog.mpPreapprovalId && catalog.mpPreapprovalId !== preapprovalId) {
+      return;
+    }
+    await updateCatalogSubscriptionFieldsForWebhook({
+      catalogId: catalog.id,
+      userId: catalog.userId,
+      data: {
+        subscriptionStatus: 'CANCELLED',
+        autoRenew: false,
+        canceledAt: catalog.canceledAt ?? new Date(),
+      },
+    });
+    return;
+  }
+
+  if (status === 'paused') {
+    if (catalog.mpPreapprovalId && catalog.mpPreapprovalId !== preapprovalId) {
+      return;
+    }
+    await updateCatalogSubscriptionFieldsForWebhook({
+      catalogId: catalog.id,
+      userId: catalog.userId,
+      data: {
+        subscriptionStatus: 'PAUSED',
+      },
+    });
+    return;
+  }
+
+  if (status === 'authorized') {
+    await cancelPreviousPreapprovalIfActive(
+      {
+        mpPreapprovalId: catalog.mpPreapprovalId,
+        autoRenew: catalog.autoRenew,
+        subscriptionStatus: catalog.subscriptionStatus,
+      },
+      preapprovalId
+    );
+
+    const parsedNextBilling = preapproval.next_payment_date
+      ? new Date(preapproval.next_payment_date)
+      : null;
+
+    await updateCatalogSubscriptionFieldsForWebhook({
+      catalogId: catalog.id,
+      userId: catalog.userId,
+      data: {
+        subscriptionStatus: 'ACTIVE',
+        billingType: 'CARD_RECURRING',
+        mpPreapprovalId: preapprovalId,
+        autoRenew: true,
+        canceledAt: null,
+        ...(parsedNextBilling && !Number.isNaN(parsedNextBilling.getTime())
+          ? { nextBillingAt: parsedNextBilling }
+          : {}),
+      },
+    });
+  }
+}
+
+async function confirmSubscriptionCharge(params: {
+  catalog: { id: string; planType: 'ESSENTIAL' | 'PRO' };
+  canonicalPaymentId: string;
+  preapprovalId?: string;
+  preapproval?: Awaited<ReturnType<typeof fetchMercadoPagoPreapproval>>;
+  transactionAmount?: number;
+  netReceivedAmount?: number;
+  feeCentsOverride?: number;
+}) {
+  const pendingPreapprovalRecord = params.preapprovalId
+    ? await findCatalogPaymentByGatewayId(params.preapprovalId)
+    : null;
+
+  const planDef = resolvePlanFromSubscriptionWebhook({
+    pendingPlanCode: pendingPreapprovalRecord?.planCode,
+    transactionAmount:
+      params.transactionAmount ??
+      params.preapproval?.auto_recurring?.transaction_amount,
+    frequency: params.preapproval?.auto_recurring?.frequency,
+    fallbackPlanType: params.catalog.planType,
+  });
+
+  const amountCents =
+    typeof params.transactionAmount === 'number' &&
+    Number.isFinite(params.transactionAmount) &&
+    params.transactionAmount > 0
+      ? Math.round(params.transactionAmount * 100)
+      : planDef.amountCents;
+
+  let netAmountCents: number;
+  let feeCents: number;
+  if (
+    typeof params.netReceivedAmount === 'number' &&
+    Number.isFinite(params.netReceivedAmount) &&
+    params.netReceivedAmount >= 0
+  ) {
+    netAmountCents = Math.min(
+      amountCents,
+      Math.round(params.netReceivedAmount * 100)
+    );
+    feeCents = Math.max(0, amountCents - netAmountCents);
+  } else if (
+    typeof params.feeCentsOverride === 'number' &&
+    Number.isFinite(params.feeCentsOverride) &&
+    params.feeCentsOverride >= 0
+  ) {
+    feeCents = Math.min(amountCents, params.feeCentsOverride);
+    netAmountCents = Math.max(0, amountCents - feeCents);
+  } else {
+    netAmountCents = amountCents;
+    feeCents = 0;
+  }
+
+  const parsedNextBilling = params.preapproval?.next_payment_date
+    ? new Date(params.preapproval.next_payment_date)
+    : null;
+  const nextBillingAt =
+    parsedNextBilling && !Number.isNaN(parsedNextBilling.getTime())
+      ? parsedNextBilling
+      : undefined;
+
+  const nowMs = Date.now();
+  try {
+    const result = await confirmAuthorizedSubscriptionPaymentTx({
+      catalogId: params.catalog.id,
+      authorizedPaymentId: params.canonicalPaymentId,
+      preapprovalId: params.preapprovalId,
+      planCode: planDef.code,
+      planMonths: planDef.months,
+      resolveNextPlanType: (current) =>
+        resolveNextPlanType(current, planDef.planType, nowMs),
+      amountCents,
+      feeCents,
+      netAmountCents,
+      nextBillingAt,
+      nowMs,
+    });
+
+    if (!result) return;
+
+    await cancelPreviousPreapprovalIfActive(
+      result.previousPreapproval,
+      params.preapprovalId
+    );
+
+    if (result.catalog.expiresAt) {
+      if (result.paymentType === 'CREATION') {
+        void sendCatalogPublishedEmail({
+          to: result.user.email,
+          name: result.user.name,
+          storeName: result.catalog.storeName,
+          slug: result.catalog.slug,
+          editToken: result.catalog.editToken,
+          expiresAt: result.catalog.expiresAt,
+        }).catch((mailErr) => {
+          console.error('[Catalog Published Email Error]:', mailErr);
+        });
+      } else {
+        void sendCatalogRenewedEmail({
+          to: result.user.email,
+          name: result.user.name,
+          storeName: result.catalog.storeName,
+          slug: result.catalog.slug,
+          editToken: result.catalog.editToken,
+          expiresAt: result.catalog.expiresAt,
+        }).catch((mailErr) => {
+          console.error('[Catalog Renewed Email Error]:', mailErr);
+        });
+      }
+    }
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === 'P2002'
+    ) {
+      return;
+    }
+    throw err;
+  }
+}
+
+async function handleSubscriptionAuthorizedPaymentWebhook(
+  authorizedPaymentId: string
+) {
+  const authPayment =
+    await fetchMercadoPagoAuthorizedPayment(authorizedPaymentId);
+  if (!authPayment) return;
+
+  const rawStatus = (
+    authPayment.payment?.status ||
+    authPayment.status ||
+    ''
+  ).toLowerCase();
+  if (rawStatus !== 'processed' && rawStatus !== 'approved') {
+    return;
+  }
+
+  const preapprovalId = authPayment.preapproval_id
+    ? String(authPayment.preapproval_id)
+    : undefined;
+  const preapproval = preapprovalId
+    ? await fetchMercadoPagoPreapproval(preapprovalId)
+    : null;
+
+  const rawExternalRef =
+    authPayment.external_reference ?? preapproval?.external_reference;
+  const parsedRefUuid = rawExternalRef
+    ? z.string().uuid().safeParse(rawExternalRef.trim())
+    : null;
+
+  const catalog = await findCatalogByPreapprovalOrRefForWebhook(
+    preapprovalId,
+    parsedRefUuid?.success ? parsedRefUuid.data : undefined
+  );
+  if (!catalog) return;
+
+  const canonicalPaymentId = authPayment.payment?.id
+    ? String(authPayment.payment.id)
+    : String(authorizedPaymentId);
+
+  await confirmSubscriptionCharge({
+    catalog,
+    canonicalPaymentId,
+    preapprovalId,
+    preapproval,
+    transactionAmount: authPayment.transaction_amount,
+    netReceivedAmount: authPayment.net_received_amount,
+  });
+}
+
+async function handleMercadoPagoPaymentWebhookForSubscription(
+  paymentId: string
+): Promise<boolean> {
+  const mpPayment = await fetchMercadoPagoPayment(paymentId);
+  if (!mpPayment) return false;
+
+  if (mpPayment.status?.toLowerCase() !== 'approved') {
+    return false;
+  }
+
+  const preapprovalIdRaw =
+    mpPayment.preapproval_id ??
+    mpPayment.metadata?.preapproval_id ??
+    mpPayment.point_of_interaction?.transaction_data?.subscription_id;
+  const preapprovalId =
+    typeof preapprovalIdRaw === 'string' && preapprovalIdRaw.trim()
+      ? preapprovalIdRaw.trim()
+      : undefined;
+
+  const parsedRefUuid = mpPayment.external_reference
+    ? z.string().uuid().safeParse(mpPayment.external_reference.trim())
+    : null;
+
+  const catalog = await findCatalogByPreapprovalOrRefForWebhook(
+    preapprovalId,
+    parsedRefUuid?.success ? parsedRefUuid.data : undefined
+  );
+  if (!catalog) return false;
+
+  const isSubscriptionCatalog =
+    Boolean(preapprovalId) ||
+    catalog.billingType === 'CARD_RECURRING' ||
+    Boolean(catalog.mpPreapprovalId);
+  if (!isSubscriptionCatalog) return false;
+
+  const resolvedPreapprovalId =
+    preapprovalId ?? catalog.mpPreapprovalId ?? undefined;
+  const preapproval = resolvedPreapprovalId
+    ? await fetchMercadoPagoPreapproval(resolvedPreapprovalId)
+    : null;
+
+  const sumCollectorFee = Array.isArray(mpPayment.fee_details)
+    ? mpPayment.fee_details
+        .filter((f) => !f.fee_payer || f.fee_payer === 'collector')
+        .reduce(
+          (acc, f) => acc + (typeof f.amount === 'number' ? f.amount : 0),
+          0
+        )
+    : undefined;
+
+  await confirmSubscriptionCharge({
+    catalog,
+    canonicalPaymentId: String(mpPayment.id ?? paymentId),
+    preapprovalId: resolvedPreapprovalId,
+    preapproval,
+    transactionAmount: mpPayment.transaction_amount,
+    netReceivedAmount: mpPayment.transaction_details?.net_received_amount,
+    feeCentsOverride:
+      typeof sumCollectorFee === 'number'
+        ? Math.max(0, Math.round(sumCollectorFee * 100))
+        : undefined,
+  });
+
+  return true;
 }
 
 export async function processPixWebhook(params: {
@@ -577,6 +1173,12 @@ export async function processPixWebhook(params: {
       : undefined;
   const bodyDataId = rawBodyData?.id ? String(rawBodyData.id) : undefined;
   const mpOrderId = queryDataId || bodyDataId;
+  const eventType =
+    typeof body.type === 'string'
+      ? body.type
+      : typeof body.topic === 'string'
+        ? body.topic
+        : undefined;
 
   if (!isMockPixEnabled()) {
     if (!mpOrderId) {
@@ -591,6 +1193,16 @@ export async function processPixWebhook(params: {
 
     if (!isSignatureValid) {
       throw new AppError(401, 'Assinatura de webhook inválida.');
+    }
+
+    if (eventType === 'subscription_preapproval') {
+      await handleSubscriptionPreapprovalWebhook(mpOrderId);
+      return { received: true };
+    }
+
+    if (eventType === 'subscription_authorized_payment') {
+      await handleSubscriptionAuthorizedPaymentWebhook(mpOrderId);
+      return { received: true };
     }
 
     const paymentRecord = await findCatalogPaymentByGatewayId(mpOrderId);
@@ -613,6 +1225,14 @@ export async function processPixWebhook(params: {
         });
       }
     } else {
+      if (eventType === 'payment') {
+        const handledAsSubscription =
+          await handleMercadoPagoPaymentWebhookForSubscription(mpOrderId);
+        if (handledAsSubscription) {
+          return { received: true };
+        }
+      }
+
       const verification = await verifyMercadoPagoOrder(mpOrderId);
       const parsedVerifiedUuid = verification.catalogId
         ? z.string().uuid().safeParse(verification.catalogId.trim())
@@ -704,7 +1324,7 @@ export async function processPixWebhook(params: {
         await activateCatalogFromMockWebhook(
           catalog.id,
           catalog.userId,
-          new Date(Date.now() + NINETY_DAYS_MS)
+          addCalendarMonths(new Date(), 1)
         );
       }
     }
