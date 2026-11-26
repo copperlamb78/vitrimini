@@ -2,6 +2,8 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { upload } from '../config/upload.js';
 import {
+  cancelCardSubscriptionHandler,
+  createCardSubscriptionHandler,
   createCatalogHandler,
   getCatalogByIdHandler,
   getCatalogByManageTokenHandler,
@@ -12,6 +14,7 @@ import {
   pixWebhookHandler,
   renewCatalogHandler,
   resolveCatalogTokenHandler,
+  syncCardSubscriptionHandler,
   updateCatalogByIdHandler,
   updateCatalogByManageTokenHandler,
 } from '../controllers/catalog.controller.js';
@@ -74,6 +77,30 @@ router.post(
   requireMerchant,
   catalogWriteRateLimiter,
   renewCatalogHandler
+);
+
+// POST /api/catalogs/:id/subscription/card (Exclusiva de lojista)
+router.post(
+  '/catalogs/:id/subscription/card',
+  requireMerchant,
+  catalogWriteRateLimiter,
+  createCardSubscriptionHandler
+);
+
+// POST /api/catalogs/:id/subscription/cancel (Exclusiva de lojista)
+router.post(
+  '/catalogs/:id/subscription/cancel',
+  requireMerchant,
+  catalogWriteRateLimiter,
+  cancelCardSubscriptionHandler
+);
+
+// POST /api/catalogs/:id/subscription/sync (Exclusiva de lojista)
+router.post(
+  '/catalogs/:id/subscription/sync',
+  requireMerchant,
+  catalogWriteRateLimiter,
+  syncCardSubscriptionHandler
 );
 
 // GET /api/my-catalogs (Aberta a qualquer usuário autenticado)
