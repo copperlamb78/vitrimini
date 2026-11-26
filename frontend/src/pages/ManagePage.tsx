@@ -41,11 +41,14 @@ import { resolveStoreTheme } from '../utils/storeTheme';
 import { SettingsSectionCard } from '../components/SettingsSectionCard';
 import { AppearanceControls } from '../components/AppearanceControls';
 import {
+  cancelCatalogSubscription,
+  createCardSubscription,
   disconnectMercadoPago,
   getCatalogById,
   getMercadoPagoConnectUrl,
   getSafeErrorMessage,
   renewCatalog,
+  syncCardSubscription,
   toggleMercadoPagoOnlinePayment,
   updateCatalogById,
 } from '../services/api';
@@ -97,7 +100,14 @@ interface EditableProduct {
 }
 
 type ManageTab = 'orders' | 'analytics' | 'catalog' | 'biolink';
-type CatalogSectionId = 'identity' | 'appearance' | 'payments' | 'schedule';
+type CatalogSectionId = 'plan' | 'identity' | 'appearance' | 'payments' | 'schedule';
+
+function formatPlanDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleDateString('pt-BR');
+}
 
 const SHAPE_LABELS: Record<ButtonShape, string> = {
   professional: 'Profissional',
@@ -122,6 +132,7 @@ export function ManagePage() {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [renewingTrial, setRenewingTrial] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [planModalError, setPlanModalError] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanOption | null>(null);
   const [mpLoading, setMpLoading] = useState(false);
   const [mpInviteCatalogId, setMpInviteCatalogId] = useState<string | null>(
@@ -131,6 +142,12 @@ export function ManagePage() {
     type: 'success' | 'error';
     text: string;
   } | null>(null);
+  const [subscriptionFeedback, setSubscriptionFeedback] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
+  const [cancelSubModalOpen, setCancelSubModalOpen] = useState(false);
+  const [cancelingSubscription, setCancelingSubscription] = useState(false);
   const [paymentModalData, setPaymentModalData] =
     useState<CreateCatalogResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,6 +163,12 @@ export function ManagePage() {
     | 'isTrial'
     | 'expiresAt'
     | 'planType'
+    | 'billingType'
+    | 'mpPreapprovalId'
+    | 'subscriptionStatus'
+    | 'autoRenew'
+    | 'canceledAt'
+    | 'nextBillingAt'
     | 'onlinePaymentEnabled'
     | 'mpConnected'
     | 'hasProAccess'
@@ -244,7 +267,53 @@ export function ManagePage() {
       searchParams.delete('mp');
       setSearchParams(searchParams, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+
+    const subStatus = searchParams.get('subscription');
+    if (subStatus === 'return') {
+      const preapprovalId = searchParams.get('preapproval_id');
+      setActiveTab('catalog');
+      setOpenSection('plan');
+      searchParams.delete('subscription');
+      searchParams.delete('preapproval_id');
+      setSearchParams(searchParams, { replace: true });
+
+      if (catalogId) {
+        void syncCardSubscription(catalogId, preapprovalId)
+          .then((synced) => {
+            setCatalogMeta((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    status: synced.status,
+                    isTrial: synced.isTrial,
+                    expiresAt: synced.expiresAt,
+                    planType: synced.planType,
+                    billingType: synced.billingType,
+                    mpPreapprovalId: synced.mpPreapprovalId,
+                    subscriptionStatus: synced.subscriptionStatus,
+                    autoRenew: synced.autoRenew,
+                    canceledAt: synced.canceledAt,
+                    nextBillingAt: synced.nextBillingAt,
+                    hasProAccess: synced.hasProAccess,
+                  }
+                : prev
+            );
+            setSubscriptionFeedback({
+              type: 'success',
+              text: synced.autoRenew
+                ? 'Assinatura no cartão confirmada! Renovação automática ativa.'
+                : 'Recebemos o retorno da sua assinatura no cartão! Se o pagamento acabou de ser aprovado, seu plano será atualizado em instantes.',
+            });
+          })
+          .catch(() => {
+            setSubscriptionFeedback({
+              type: 'success',
+              text: 'Recebemos o retorno da sua assinatura no cartão! Se o pagamento acabou de ser aprovado, seu plano será atualizado em instantes.',
+            });
+          });
+      }
+    }
+  }, [catalogId, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (authLoading || !catalogId) return;
@@ -267,6 +336,12 @@ export function ManagePage() {
           isTrial: data.isTrial,
           expiresAt: data.expiresAt,
           planType: data.planType,
+          billingType: data.billingType,
+          mpPreapprovalId: data.mpPreapprovalId,
+          subscriptionStatus: data.subscriptionStatus,
+          autoRenew: data.autoRenew,
+          canceledAt: data.canceledAt,
+          nextBillingAt: data.nextBillingAt,
           onlinePaymentEnabled: data.onlinePaymentEnabled,
           mpConnected: data.mpConnected,
           hasProAccess: data.hasProAccess,
@@ -624,7 +699,7 @@ export function ManagePage() {
                 onClick={() => setPlanModalOpen(true)}
                 className="cursor-pointer rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Garantir +90 dias ou Pro
+                Garantir +1 mês ou Pro
               </button>
             </div>
           )}
@@ -641,6 +716,24 @@ export function ManagePage() {
             <button
               type="button"
               onClick={() => setMpFeedback(null)}
+              className="cursor-pointer rounded-lg p-1 hover:bg-black/5"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+        {subscriptionFeedback && (
+          <div
+            className={`mb-4 flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-xs font-semibold ${
+              subscriptionFeedback.type === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-red-200 bg-red-50 text-red-700'
+            }`}
+          >
+            <span>{subscriptionFeedback.text}</span>
+            <button
+              type="button"
+              onClick={() => setSubscriptionFeedback(null)}
               className="cursor-pointer rounded-lg p-1 hover:bg-black/5"
             >
               <X className="h-3.5 w-3.5" />
@@ -956,6 +1049,120 @@ export function ManagePage() {
             </div>
           </section>
 
+          {/* 0. Plano & Assinatura */}
+          {catalogMeta && (() => {
+            const planLabel = catalogMeta.planType === 'PRO' ? 'Pro' : 'Essencial';
+            const formattedExpiry = formatPlanDate(catalogMeta.expiresAt);
+            const formattedNextBilling = formatPlanDate(
+              catalogMeta.nextBillingAt || catalogMeta.expiresAt
+            );
+            const hasRemainingDays = Boolean(
+              catalogMeta.expiresAt &&
+                new Date(catalogMeta.expiresAt).getTime() > Date.now()
+            );
+            const isCardActive =
+              catalogMeta.billingType === 'CARD_RECURRING' &&
+              Boolean(catalogMeta.autoRenew);
+            const isCardCancelledWithDays =
+              catalogMeta.billingType === 'CARD_RECURRING' &&
+              !catalogMeta.autoRenew &&
+              hasRemainingDays;
+
+            const planStatusText = isCardActive
+              ? `Plano ${planLabel} • Válido até ${formattedExpiry} — próxima cobrança em ${formattedNextBilling}`
+              : isCardCancelledWithDays
+                ? `Plano ${planLabel} • Renovação cancelada — acesso garantido até ${formattedExpiry}`
+                : `Plano ${planLabel} • Pix Avulso — válido até ${formattedExpiry}`;
+
+            return (
+              <SettingsSectionCard
+                title="Plano & Assinatura"
+                subtitle={planStatusText}
+                icon={<CreditCard className="h-5 w-5" />}
+                isOpen={openSection === 'plan'}
+                onToggle={() =>
+                  setOpenSection((prev) => (prev === 'plan' ? null : 'plan'))
+                }
+                badge={
+                  catalogMeta.isTrial ? (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                      Teste grátis
+                    </span>
+                  ) : isCardActive ? (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                      Cartão cadastrado • Renovação automática ativa
+                    </span>
+                  ) : isCardCancelledWithDays ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                      Renovação cancelada • Acesso garantido até {formattedExpiry}
+                    </span>
+                  ) : null
+                }
+              >
+                <div className="space-y-4">
+                  <div
+                    className={`rounded-xl border p-3.5 text-xs ${
+                      isCardActive
+                        ? 'border-emerald-200 bg-emerald-50/70 text-emerald-950'
+                        : isCardCancelledWithDays
+                          ? 'border-amber-200 bg-amber-50/70 text-amber-950'
+                          : 'border-zinc-200 bg-zinc-50/70 text-zinc-700'
+                    }`}
+                  >
+                    <p className="font-semibold">{planStatusText}</p>
+                    {isCardActive && (
+                      <p className="mt-1.5 text-emerald-800">
+                        Tudo certo com sua assinatura! Seu cartão está cadastrado e a renovação acontecerá automaticamente no vencimento — você não precisa refazer o pagamento manualmente.
+                      </p>
+                    )}
+                    {isCardCancelledWithDays && (
+                      <p className="mt-1.5 text-amber-900">
+                        A cobrança automática foi encerrada e nenhuma nova parcela será cobrada no seu cartão. Seu plano continua 100% ativo até{' '}
+                        <strong>{formattedExpiry}</strong> — você não precisa refazer a assinatura antes dessa data.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <button
+                      type="button"
+                      disabled={renewingTrial}
+                      onClick={() => setPlanModalOpen(true)}
+                      style={
+                        isCardCancelledWithDays
+                          ? undefined
+                          : {
+                              backgroundColor: resolvedStoreTheme.primaryColor,
+                              color: resolvedStoreTheme.textOnPrimary,
+                            }
+                      }
+                      className={
+                        isCardCancelledWithDays
+                          ? 'inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-xs font-bold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60'
+                          : 'inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold shadow-xs transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60'
+                      }
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      {isCardCancelledWithDays
+                        ? 'Reativar ou trocar plano após o vencimento'
+                        : 'Renovar ou mudar plano'}
+                    </button>
+
+                    {catalogMeta.autoRenew && catalogMeta.mpPreapprovalId && (
+                      <button
+                        type="button"
+                        onClick={() => setCancelSubModalOpen(true)}
+                        className="inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-bold text-red-700 transition hover:bg-red-100"
+                      >
+                        Cancelar renovação automática
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </SettingsSectionCard>
+            );
+          })()}
+
           {/* 1. Identidade da Loja */}
           <SettingsSectionCard
             title="Identidade da Loja"
@@ -1210,7 +1417,7 @@ export function ManagePage() {
                         Receba pagamentos automáticos no Pix e Cartão direto na
                         sua conta Mercado Pago, com baixa automática dos pedidos
                         pagos. Disponível no <strong>Plano Pro</strong> (R$
-                        39,90 por 90 dias ou R$ 99,90 por ano).
+                        14,90/mês ou R$ 149,00/ano).
                       </p>
                       <button
                         type="button"
@@ -1545,13 +1752,19 @@ export function ManagePage() {
       {planModalOpen && catalogMeta && (
         <PlanSelectorModal
           storeName={storeName || 'Minha Vitrine'}
-          initialPlan="PRO_90D"
+          initialPlan="PRO_30"
           currentPlanType={catalogMeta.planType}
           hasActiveDays={Boolean(
             catalogMeta.expiresAt &&
               new Date(catalogMeta.expiresAt).getTime() > Date.now()
           )}
+          billingType={catalogMeta.billingType}
+          autoRenew={catalogMeta.autoRenew}
+          subscriptionStatus={catalogMeta.subscriptionStatus}
+          expiresAt={catalogMeta.expiresAt}
           loading={renewingTrial}
+          accentColor={resolvedStoreTheme.primaryColor}
+          accentTextColor={resolvedStoreTheme.textOnPrimary}
           onSelectPlan={async (plan) => {
             setRenewingTrial(true);
             try {
@@ -1570,8 +1783,125 @@ export function ManagePage() {
               setRenewingTrial(false);
             }
           }}
-          onClose={() => setPlanModalOpen(false)}
+          onSelectCardSubscription={async (plan) => {
+            setPlanModalError(null);
+            setRenewingTrial(true);
+            try {
+              const res = await createCardSubscription(catalogMeta.id, {
+                planCode: plan.code,
+                autoRenewConsent: true,
+              });
+              if (safeRedirect(res.initPoint)) {
+                setPlanModalOpen(false);
+              } else {
+                setPlanModalError(
+                  'Não foi possível abrir a página de pagamento do Mercado Pago. Tente novamente.'
+                );
+              }
+            } catch (err) {
+              setPlanModalError(
+                getSafeErrorMessage(
+                  err,
+                  'Não foi possível iniciar a assinatura no cartão agora.'
+                )
+              );
+            } finally {
+              setRenewingTrial(false);
+            }
+          }}
+          error={planModalError}
+          onClose={() => {
+            setPlanModalError(null);
+            setPlanModalOpen(false);
+          }}
         />
+      )}
+
+      {cancelSubModalOpen && catalogMeta && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+          onClick={() => {
+            if (!cancelingSubscription) setCancelSubModalOpen(false);
+          }}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-extrabold text-zinc-900">
+              Cancelar renovação automática?
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+              Ao confirmar, não haverá novas cobranças no seu cartão. Seu acesso continua funcionando normalmente até{' '}
+              <strong className="text-zinc-900">
+                {formatPlanDate(catalogMeta.expiresAt)}
+              </strong>
+              .
+            </p>
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={cancelingSubscription}
+                onClick={() => setCancelSubModalOpen(false)}
+                className="min-h-[44px] cursor-pointer rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-xs font-bold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Manter assinatura
+              </button>
+              <button
+                type="button"
+                disabled={cancelingSubscription}
+                onClick={async () => {
+                  setCancelingSubscription(true);
+                  try {
+                    const res = await cancelCatalogSubscription(catalogMeta.id);
+                    setCatalogMeta((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            autoRenew: res.autoRenew,
+                            subscriptionStatus: res.subscriptionStatus,
+                            canceledAt: res.canceledAt,
+                            expiresAt: res.expiresAt ?? prev.expiresAt,
+                          }
+                        : prev
+                    );
+                    setCancelSubModalOpen(false);
+                    setSubscriptionFeedback({
+                      type: 'success',
+                      text: `Renovação automática cancelada. Seu acesso segue ativo até ${formatPlanDate(
+                        res.expiresAt ?? catalogMeta.expiresAt
+                      )}.`,
+                    });
+                  } catch (err) {
+                    setSubscriptionFeedback({
+                      type: 'error',
+                      text: getSafeErrorMessage(
+                        err,
+                        'Não foi possível cancelar a renovação automática agora.'
+                      ),
+                    });
+                    setCancelSubModalOpen(false);
+                  } finally {
+                    setCancelingSubscription(false);
+                  }
+                }}
+                className="inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {cancelingSubscription ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cancelando...
+                  </>
+                ) : (
+                  'Confirmar cancelamento'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {paymentModalData && (
@@ -1584,7 +1914,7 @@ export function ManagePage() {
           onCancelDraft={() => setPaymentModalData(null)}
           onCloseAfterPaid={() => setPaymentModalData(null)}
           onConfirmed={(info) => {
-            const isProSelected = selectedPlan?.code !== 'ESSENTIAL_90D';
+            const isProSelected = selectedPlan?.code !== 'ESSENTIAL_30';
             setCatalogMeta((prev) =>
               prev
                 ? {
