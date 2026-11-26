@@ -105,33 +105,39 @@ const HOW_IT_WORKS_STEPS = [
 const CORE_FUNCTIONALITIES = [
   {
     icon: Store,
-    title: 'Vitrine Virtual',
+    title: 'Catálogo + Carrinho no WhatsApp',
     description:
-      'Catálogo leve e personalizável — cores, formato de botões, estilo do negócio — produtos com foto, datas/turnos e cobrança flexível 0%, 50% ou 100%.',
-  },
-  {
-    icon: ClipboardList,
-    title: 'Gestão de Pedidos',
-    description:
-      'Pedidos registrados automaticamente no Painel de Gestão e enviados prontos no WhatsApp, com controle de status e link de acompanhamento.',
-  },
-  {
-    icon: CreditCard,
-    title: 'Integração via Mercado Pago',
-    description:
-      'Receba via Pix e Cartão de Crédito direto na sua conta Mercado Pago, com confirmação e baixa automática no painel.',
+      'Vitrine digital leve com a cor da sua marca, fotos, preços, carrinho simples e pedido já somado no seu WhatsApp e no painel.',
   },
   {
     icon: Link2,
-    title: 'VitriLink (Hub de Links)',
+    title: 'VitriLink para Bio do Instagram e TikTok',
     description:
-      'Página de links para bio do Instagram e TikTok conectada à vitrine, com banner de capa, cartões com foto e visual sincronizado.',
+      'Hub de links conectado à sua vitrine com banner de capa, cartões com foto e visual sincronizado para transformar seguidores em pedidos.',
+  },
+  {
+    icon: CreditCard,
+    title: 'Pagamento Online via Mercado Pago',
+    description:
+      'No Plano Pro, receba Pix e Cartão de Crédito direto na sua conta Mercado Pago com confirmação e baixa automática no painel.',
+  },
+  {
+    icon: CalendarClock,
+    title: 'Agendamento por Data e Turno',
+    description:
+      'Defina datas disponíveis e turnos recorrentes (manhã, tarde ou noite) para entregas ou retiradas sem bagunça na agenda.',
+  },
+  {
+    icon: ClipboardList,
+    title: 'Gestão de Pedidos em Tempo Real',
+    description:
+      'Pedidos organizados no Painel de Gestão com atualização de status em 1 clique e link exclusivo de acompanhamento para o cliente.',
   },
   {
     icon: BarChart3,
-    title: 'Painel Financeiro',
+    title: 'Painel Financeiro Sem Planilhas',
     description:
-      'Resumo claro de faturamento, pedidos pagos e valores a receber em tempo real, sem planilhas.',
+      'Resumo claro de faturamento, pedidos pagos e valores a receber em tempo real, com 0% de comissão sobre suas vendas.',
   },
 ];
 
@@ -146,13 +152,13 @@ const FEATURES = [
     icon: Radar,
     title: 'Acompanhamento em tempo real',
     description:
-      'Gere um link exclusivo (/pedido/codigo) para o cliente acompanhar cada etapa do pedido direto no navegador, sem baixar app.',
+      'Gere um link exclusivo para o cliente acompanhar cada etapa do pedido direto no navegador, sem baixar aplicativo.',
   },
   {
     icon: CalendarClock,
     title: 'Datas, turnos recorrentes e entrega',
     description:
-      'Controle quando aceita encomendas com agenda de datas, turnos recorrentes e opção de retirada no local ou entrega.',
+      'Controle quando aceita encomendas com agenda por data e turno e opção de retirada no local ou entrega.',
   },
   {
     icon: Wallet,
@@ -231,10 +237,10 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
   const faqItems = nicheConfig?.faqItems ?? LANDING_FAQ_ITEMS;
   const pageTitle =
     nicheConfig?.seoTitle ??
-    'VitriMini | Catálogo Online e Pedidos pelo WhatsApp';
+    'VitriMini | Vitrine Digital, Catálogo Online para WhatsApp e Link na Bio';
   const pageDescription =
     nicheConfig?.seoDescription ??
-    'Crie sua vitrine digital e catálogo online com pedidos organizados no painel e no WhatsApp, pagamento flexível no pedido e 0% de comissão. Comece com 15 dias grátis.';
+    'Crie sua vitrine digital e catálogo online para WhatsApp com VitriLink na bio, agendamento por data e turno, pagamento online via Mercado Pago e 0% de comissão. 15 dias grátis sem cartão. Planos a partir de R$ 9,90/mês (Pro R$ 14,90/mês ou R$ 149,00/ano).';
   const canonicalPath = nicheConfig?.path ?? '/';
 
   useEffect(() => {
@@ -261,9 +267,11 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
           url: `https://vitrimini.com.br${canonicalPath}`,
           description: pageDescription,
           offers: {
-            '@type': 'Offer',
-            price: '24.90',
+            '@type': 'AggregateOffer',
+            lowPrice: '9.90',
+            highPrice: '149.00',
             priceCurrency: 'BRL',
+            offerCount: '3',
             availability: 'https://schema.org/InStock',
           },
         },
@@ -398,16 +406,16 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
               {/* Texto e CTAs */}
               <div className="vm-hero-enter space-y-6 lg:col-span-6">
                 <div className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3.5 py-1.5 text-xs font-bold text-rose-700">
-                  <Sparkles className="h-3.5 w-3.5 text-rose-600" />
+                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-rose-600" />
                   <span>
                     {nicheConfig?.badgeText ??
-                      '15 dias grátis na 1ª vitrine • 0% de comissão • Cancele quando quiser'}
+                      '15 dias grátis sem cartão na 1ª vitrine • 0% de comissão'}
                   </span>
                 </div>
 
-                <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.65rem] lg:leading-[1.12]">
+                <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.55rem] lg:leading-[1.12]">
                   {nicheConfig?.h1 ??
-                    'Catálogo Online e Vitrine Digital com Pedidos no WhatsApp'}
+                    'Vitrine Digital e Catálogo Online para WhatsApp e Link na Bio — Venda sem Comissão'}
                 </h1>
 
                 {nicheConfig ? (
@@ -416,9 +424,9 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                   </p>
                 ) : (
                   <p className="text-base leading-relaxed text-zinc-600">
-                    Chega de mandar PDF pesado e responder preço o dia inteiro. Publique sua vitrine em minutos com{' '}
-                    <strong className="font-bold text-zinc-900">15 dias grátis</strong>{' '}
-                    e receba pedidos organizados com{' '}
+                    Chega de mandar PDF pesado e responder preço o dia inteiro. Publique sua vitrine digital com{' '}
+                    <strong className="font-bold text-zinc-900">15 dias grátis sem cartão</strong>,{' '}
+                    VitriLink na bio, agendamento por data e turno, pagamento online via Mercado Pago e{' '}
                     <strong className="font-bold text-zinc-900">0% de comissão</strong>.
                   </p>
                 )}
@@ -443,7 +451,7 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                 </div>
 
                 <p className="text-xs text-zinc-500">
-                  Teste na prática com seus clientes por 15 dias. Cancele quando quiser, sem multa.
+                  Teste na prática por 15 dias sem cartão de crédito. Sem cobrança automática e cancele quando quiser.
                 </p>
               </div>
 
@@ -833,27 +841,27 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                 );
               })}
             </div>
-            {nicheConfig && (
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-zinc-600">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-2.5 text-xs font-semibold text-zinc-600">
+              {nicheConfig && (
                 <Link
                   to="/"
-                  className="rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 transition hover:border-rose-200 hover:text-rose-600"
+                  className="cursor-pointer rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 transition hover:border-rose-200 hover:text-rose-600"
                 >
                   Página Inicial VitriMini
                 </Link>
-                {NICHE_LINKS_LIST.filter((n) => n.slug !== nicheConfig.slug).map(
-                  (n) => (
-                    <Link
-                      key={n.slug}
-                      to={n.path}
-                      className="rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 transition hover:border-rose-200 hover:text-rose-600"
-                    >
-                      {n.navLabel}
-                    </Link>
-                  )
-                )}
-              </div>
-            )}
+              )}
+              {NICHE_LINKS_LIST.filter(
+                (n) => !nicheConfig || n.slug !== nicheConfig.slug
+              ).map((n) => (
+                <Link
+                  key={n.slug}
+                  to={n.path}
+                  className="cursor-pointer rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 transition hover:border-rose-200 hover:text-rose-600"
+                >
+                  {n.navLabel}
+                </Link>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -866,30 +874,30 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
             <Reveal className="mx-auto max-w-2xl text-center">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-700">
                 <Store className="h-3.5 w-3.5" />
-                15 Dias Grátis na 1ª Vitrine • 0% de Comissão
+                15 Dias Grátis sem Cartão na 1ª Vitrine • 0% de Comissão
               </span>
               <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-zinc-900 sm:text-3xl">
-                Comece grátis hoje. Escolha seu plano quando quiser continuar.
+                Comece grátis hoje sem cartão. Escolha seu plano quando quiser continuar.
               </h2>
               <p className="mt-2 text-sm text-zinc-600">
-                Ative seu plano em minutos e receba todo o valor das vendas direto na sua conta.
+                Ative seu plano em minutos e receba todo o valor das vendas direto na sua conta, com 0% de comissão da VitriMini.
               </p>
             </Reveal>
 
-            <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2">
-              {/* Plano Essencial */}
+            <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-3">
+              {/* Plano Essencial Mensal */}
               <Reveal className="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-zinc-50/40 p-7 shadow-2xs">
                 <div>
                   <span className="inline-block rounded-full bg-zinc-200/80 px-3 py-1 text-xs font-bold text-zinc-700">
-                    Essencial • 90 dias
+                    Essencial Mensal
                   </span>
                   <div className="mt-4 flex items-baseline gap-1">
                     <span className="text-sm font-bold text-zinc-500">R$</span>
                     <span className="text-4xl font-black tracking-tight text-zinc-900">
-                      24,90
+                      9,90
                     </span>
                     <span className="text-xs font-semibold text-zinc-500">
-                      / 90 dias
+                      / mês
                     </span>
                   </div>
                   <p className="mt-1.5 text-xs text-zinc-600">
@@ -916,33 +924,28 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                 </Link>
               </Reveal>
 
-              {/* Plano Pro */}
+              {/* Plano Pro Mensal */}
               <Reveal className="flex flex-col justify-between rounded-2xl border-2 border-rose-500 bg-rose-50/30 p-7 shadow-sm">
                 <div>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="inline-block rounded-full bg-rose-600 px-3 py-1 text-xs font-bold text-white">
-                      Plano Pro • Pagamento Automático
+                      Pro Mensal
                     </span>
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
-                      Anual: economize R$ 59,70
-                    </span>
-                  </div>
-                  <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-sm font-bold text-zinc-500">R$</span>
-                      <span className="text-4xl font-black tracking-tight text-zinc-900">
-                        39,90
-                      </span>
-                      <span className="text-xs font-semibold text-rose-700">
-                        / 90 dias
-                      </span>
-                    </div>
-                    <span className="text-xs font-bold text-zinc-500">
-                      ou <strong className="text-zinc-900">R$ 99,90 / ano</strong> (365 dias)
+                    <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-700">
+                      Mais popular
                     </span>
                   </div>
-                  <p className="mt-1.5 text-xs text-zinc-600">
-                    Para quem quer VitriLink na bio e receber Pix e Cartão automaticamente via Mercado Pago.
+                  <div className="mt-4 flex items-baseline gap-1">
+                    <span className="text-sm font-bold text-zinc-500">R$</span>
+                    <span className="text-4xl font-black tracking-tight text-zinc-900">
+                      14,90
+                    </span>
+                    <span className="text-xs font-semibold text-rose-700">
+                      / mês
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-xs font-medium text-rose-700">
+                    Apenas R$ 5,00 a mais que o Essencial para receber Pix e Cartão automaticamente via Mercado Pago.
                   </p>
                   <ul className="mt-5 space-y-2.5 text-sm text-zinc-700">
                     {PRO_BENEFITS.map((benefit) => (
@@ -964,7 +967,79 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Reveal>
+
+              {/* Plano Pro Anual */}
+              <Reveal className="flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-7 shadow-2xs">
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-block rounded-full bg-zinc-900 px-3 py-1 text-xs font-bold text-white">
+                      Pro Anual
+                    </span>
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
+                      2 meses grátis
+                    </span>
+                  </div>
+                  <div className="mt-4 flex items-baseline gap-1">
+                    <span className="text-sm font-bold text-zinc-500">R$</span>
+                    <span className="text-4xl font-black tracking-tight text-zinc-900">
+                      149,00
+                    </span>
+                    <span className="text-xs font-semibold text-zinc-500">
+                      / ano
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-xs font-medium text-emerald-700">
+                    Equivalente a R$ 12,41/mês — economia de R$ 29,80 no ano inteiro.
+                  </p>
+                  <ul className="mt-5 space-y-2.5 text-sm text-zinc-700">
+                    {PRO_BENEFITS.map((benefit) => (
+                      <li key={benefit} className="flex items-start gap-2.5">
+                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+                          <Check className="h-3 w-3 stroke-[3]" />
+                        </span>
+                        <span>{benefit}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <Link
+                  to="/criar"
+                  className="mt-7 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-zinc-300 bg-white px-6 py-3.5 text-sm font-bold text-zinc-900 transition hover:bg-zinc-50"
+                >
+                  Testar Pro por 15 dias grátis
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Reveal>
             </div>
+
+            <Reveal className="mt-8 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-extrabold text-zinc-900">
+                    Pague como preferir
+                  </h3>
+                  <p className="text-xs leading-relaxed text-zinc-600 sm:text-sm">
+                    Escolha entre <strong className="font-bold text-zinc-900">Pix</strong> (sem renovação automática) ou{' '}
+                    <strong className="font-bold text-zinc-900">Cartão de Crédito</strong> (cobrança todo mês ou ano no mesmo dia, com cancelamento direto no painel).
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-3 text-xs font-semibold text-zinc-600">
+                  <Link
+                    to="/termos"
+                    className="cursor-pointer underline decoration-zinc-300 underline-offset-4 transition hover:text-rose-600"
+                  >
+                    Termos de Uso
+                  </Link>
+                  <Link
+                    to="/privacidade"
+                    className="cursor-pointer underline decoration-zinc-300 underline-offset-4 transition hover:text-rose-600"
+                  >
+                    Política de Privacidade
+                  </Link>
+                </div>
+              </div>
+            </Reveal>
           </div>
         </section>
 
