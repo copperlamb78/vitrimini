@@ -127,6 +127,12 @@ model Catalog {
 
   paymentId            String?
   expiresAt            DateTime?
+  billingType          String           @default("PIX_ONE_OFF")
+  mpPreapprovalId      String?
+  subscriptionStatus   String?
+  autoRenew            Boolean          @default(false)
+  canceledAt           DateTime?
+  nextBillingAt        DateTime?
   mpUserId             String?
   mpAccessToken        String?
   mpRefreshToken       String?
@@ -146,6 +152,7 @@ model Catalog {
   @@index([userId])
   @@index([status])
   @@index([whatsapp, isTrial])
+  @@index([mpPreapprovalId])
 }
 
 model Product {
@@ -177,10 +184,13 @@ model CatalogPayment {
   amountCents    Int                 // Ex: 2490
   feeCents       Int?
   netAmountCents Int?
-  gatewayId      String?             // ID da Order/Payment no Mercado Pago
-  paidAt      DateTime?
-  createdAt   DateTime            @default(now())
+  gatewayId               String?             // ID da Order/Payment no Mercado Pago
+  autoRenewConsentAt      DateTime?
+  autoRenewConsentVersion String?
+  paidAt                  DateTime?
+  createdAt               DateTime            @default(now())
 
+  @@unique([gatewayId])
   @@index([status, createdAt])
 }
 
