@@ -39,8 +39,8 @@ export function PixPaymentModal({
   paymentData,
   isRenewal = false,
   planName = 'VitriMini',
-  planPriceLabel = 'R$ 24,90',
-  planDays = 90,
+  planPriceLabel = 'R$ 9,90',
+  planDays = 30,
   onCancelDraft,
   onCloseAfterPaid,
   onConfirmed,
@@ -246,13 +246,13 @@ export function PixPaymentModal({
               />
               <h2 className="text-xl font-bold text-stone-900">
                 {isRenewal
-                  ? `${planName} (+${planDays} dias — ${planPriceLabel})`
-                  : `Pague ${planPriceLabel} (${planDays} dias)`}
+                  ? `${planName} (+${planDays >= 365 ? '1 ano' : '1 mês'} — ${planPriceLabel})`
+                  : `Pague ${planPriceLabel} (${planDays >= 365 ? '1 ano' : '1 mês'})`}
               </h2>
               <p className="mt-1 text-xs text-stone-500">
                 {isRenewal
-                  ? `Ao pagar o Pix, sua vitrine ganha mais ${planDays} dias de validade automaticamente.`
-                  : `Sua vitrine ficará ativa por ${planDays} dias com produtos ilimitados e salva na sua conta.`}
+                  ? `Ao pagar o Pix, sua vitrine ganha mais ${planDays >= 365 ? '1 ano' : '1 mês'} de validade automaticamente (mantendo o dia do vencimento).`
+                  : `Sua vitrine ficará ativa por ${planDays >= 365 ? '1 ano' : '1 mês'} com produtos ilimitados e salva na sua conta.`}
               </p>
 
               {paymentData.qrCodeBase64 && (
@@ -338,7 +338,7 @@ export function PixPaymentModal({
             </div>
             <h2 className="mt-3 text-xl font-bold text-stone-900">
               {isRenewal
-                ? 'Vitrine Renovada por +90 dias!'
+                ? `Vitrine Renovada por +${planDays} dias!`
                 : 'Vitrine Publicada no VitriMini!'}
             </h2>
             <p className="mt-1 text-sm text-stone-500">
