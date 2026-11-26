@@ -1142,8 +1142,7 @@ export function BioLinksTab({
             <p className="mt-4 text-sm leading-relaxed text-zinc-600">
               No Plano Essencial você pode montar e visualizar seu VitriLink no
               simulador à vontade. Para deixá-lo público no ar, faça o upgrade
-              para o <strong>Plano Pro</strong> (a partir de R$ 39,90 por 90
-              dias).
+              para o <strong>Plano Pro</strong> (a partir de R$ 14,90/mês).
             </p>
 
             <div className="mt-5 flex items-center justify-end gap-2.5">
