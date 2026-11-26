@@ -23,8 +23,8 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
   terms: {
     title: 'Termos de Uso — VitriMini',
     subtitle:
-      'Condições gerais de contratação avulsa por ciclo, uso da plataforma SaaS e Acordo de Tratamento de Dados (Versão 2.1)',
-    updatedAt: '24 de novembro de 2026',
+      'Condições gerais de contratação avulsa ou recorrente, uso da plataforma SaaS e Acordo de Tratamento de Dados (Versão 2.3)',
+    updatedAt: '25 de novembro de 2026',
     sections: [
       {
         number: '1',
@@ -86,18 +86,30 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
       },
       {
         number: '4',
-        title: 'Planos, Avaliação Gratuita (15 dias), Contratação Avulsa e Upgrade',
+        title: 'Planos, Avaliação Gratuita (15 dias), Modalidades de Pagamento e Upgrade',
         paragraphs: [
           'Na criação da primeira vitrine, o Lojista conta com um período único de avaliação gratuita de 15 (quinze) dias corridos, sem exigência de cartão prévio, sem cobrança automática e sem geração de qualquer dívida ao término do teste. A continuidade em plano pago depende sempre de contratação expressa pelo Lojista.',
         ],
         bullets: [
           {
-            boldPrefix: 'Contratação Avulsa/Pré-paga por Ciclo:',
-            text: 'Os planos pagos da VitriMini (Plano Essencial de 90 dias e Plano Pro de 90 dias ou 365 dias) operam exclusivamente na modalidade de contratação avulsa/pré-paga por ciclo via Pix ou Cartão de Crédito processados pelo Mercado Pago. A VitriMini não realiza renovação automática nem débito automático recorrente.',
+            boldPrefix: 'Planos vigentes:',
+            text: 'A VitriMini oferece os planos Essencial Mensal (R$ 9,90/mês), Pro Mensal (R$ 14,90/mês) e Pro Anual (R$ 149,00/ano), cujas funcionalidades e limites constam na tela de contratação.',
           },
           {
-            boldPrefix: 'Regra de Upgrade antes do Vencimento:',
-            text: 'Ao realizar upgrade do Plano Essencial para o Plano Pro antes do término do ciclo vigente, o Lojista paga o valor integral do novo ciclo contratado e recebe imediatamente os recursos do Plano Pro, somando-se integralmente os dias restantes do ciclo anterior ao novo prazo contratado (por exemplo: 45 dias restantes + 90 dias Pro resultam em 135 dias de acesso Pro).',
+            boldPrefix: 'Regra de renovação por aniversário no calendário:',
+            text: 'A validade e a cobrança de cada ciclo seguem a data de aniversário no calendário: o vencimento ou a renovação ocorre sempre no mesmo dia do mês da contratação (ou no mesmo dia e mês do ano seguinte, no plano anual). Em meses mais curtos, a data é ajustada automaticamente para o último dia válido do mês (por exemplo, contratação em 31/01 vence ou renova em 28/02, ou 29/02 em anos bissextos).',
+          },
+          {
+            boldPrefix: 'Pix Avulso (pagamento único por ciclo):',
+            text: 'O Lojista pode escolher o pagamento via Pix Avulso em qualquer plano (Essencial Mensal, Pro Mensal ou Pro Anual), realizando pagamento único por ciclo via Mercado Pago, sem renovação automática e sem débito automático recorrente.',
+          },
+          {
+            boldPrefix: 'Assinatura Recorrente via Cartão de Crédito (Mercado Pago):',
+            text: 'O Lojista também pode optar pela assinatura recorrente com Cartão de Crédito via Mercado Pago (/preapproval), mediante autorização expressa da recorrência antes da confirmação do checkout. A cobrança renova automaticamente conforme o ciclo contratado (mensal ou anual, respeitando a regra de aniversário no calendário) e permite cancelamento imediato direto pelo painel a qualquer momento, sem multa, bloqueando futuras cobranças e mantendo o acesso até o fim do ciclo já pago.',
+          },
+          {
+            boldPrefix: 'Regra de Upgrade, Troca de Modalidade e Cancelamento Automático da Assinatura Anterior:',
+            text: 'Ao realizar upgrade do Plano Essencial para o Plano Pro antes do término do ciclo vigente, o Lojista paga o valor integral do novo ciclo contratado e recebe imediatamente os recursos do Plano Pro, somando-se o novo ciclo (1 mês ou 1 ano) à data de vencimento restante do ciclo anterior. Em qualquer upgrade ou troca de modalidade (inclusive migração entre Cartão Recorrente e Pix Avulso), eventual assinatura recorrente anterior ativa no Mercado Pago é cancelada automaticamente após a confirmação do novo pagamento, evitando cobrança dupla.',
           },
         ],
       },
@@ -105,7 +117,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
         number: '5',
         title: 'Expiração, Retenção e Exclusão de Dados (30 dias)',
         paragraphs: [
-          'Encerrado o período de avaliação gratuita ou o ciclo contratado sem nova contratação avulsa, a vitrine pública é desativada e entra em período de carência de 30 (trinta) dias corridos, mantendo os dados acessíveis no painel apenas para eventual reativação.',
+          'Encerrado o período de avaliação gratuita ou o ciclo contratado sem nova contratação ou renovação, a vitrine pública é desativada e entra em período de carência de 30 (trinta) dias corridos, mantendo os dados acessíveis no painel apenas para eventual reativação.',
           'Decorridos 30 (trinta) dias corridos após a expiração sem renovação, uma rotina automatizada remove os dados operacionais da vitrine, o catálogo de produtos, os pedidos vinculados e as imagens armazenadas no Cloudflare R2, ressalvadas as hipóteses legais de conservação para cumprimento de obrigação legal ou regulatória, exercício regular de direitos (art. 16 da LGPD) e os ciclos técnicos de eliminação de backups dos provedores de nuvem.',
         ],
       },
@@ -114,12 +126,12 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
         title: 'Direito de Arrependimento (Art. 49 do CDC) e Cancelamento',
         bullets: [
           {
-            boldPrefix: 'Ausência de Renovação Automática:',
-            text: 'Como os planos operam em contratação avulsa por ciclo, não há assinatura recorrente a cancelar: caso não deseje continuar, basta não contratar um novo ciclo ao final do prazo vigente.',
+            boldPrefix: 'Cancelamento conforme a modalidade contratada:',
+            text: 'No Pix Avulso, não há renovação automática: caso não deseje continuar, basta não contratar um novo ciclo ao final do prazo vigente. Na Assinatura Recorrente via Cartão de Crédito, o Lojista realiza o cancelamento direto pelo painel da VitriMini a qualquer momento, sem multa, com bloqueio imediato de futuras cobranças e manutenção integral do acesso até o término do período já pago.',
           },
           {
             boldPrefix: 'Direito de Arrependimento (Art. 49 do CDC):',
-            text: 'Nos termos do art. 49 do Código de Defesa do Consumidor, o Lojista pode exercer o direito de arrependimento e solicitar o reembolso integral em até 7 (sete) dias corridos contados da contratação do plano pago, enviando mensagem pelo e-mail titular da conta para suporte@vitrimini.com.br. Solicitações enviadas em finais de semana ou feriados dentro do prazo de 7 (sete) dias corridos preservam integralmente a tempestividade do pedido para análise e processamento do estorno no próximo dia útil. Efetuado o reembolso, a vitrine vinculada ao ciclo estornado é desativada.',
+            text: 'Nos termos do art. 49 do Código de Defesa do Consumidor, o Lojista pode exercer o direito de arrependimento e solicitar o reembolso integral em até 7 (sete) dias corridos contados da contratação do plano pago, diretamente pelo painel ou enviando mensagem pelo e-mail titular da conta para suporte@vitrimini.com.br. Solicitações enviadas em finais de semana ou feriados dentro do prazo de 7 (sete) dias corridos preservam integralmente a tempestividade do pedido para análise e processamento do estorno no próximo dia útil. Efetuado o reembolso, eventual assinatura recorrente vinculada é cancelada e a vitrine do ciclo estornado é desativada.',
           },
         ],
       },
@@ -183,8 +195,8 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
   privacy: {
     title: 'Política de Privacidade (LGPD) — VitriMini',
     subtitle:
-      'Transparência sobre o tratamento, bases legais, cookies, suboperadores e proteção de dados pessoais (Versão 2.1)',
-    updatedAt: '24 de novembro de 2026',
+      'Transparência sobre o tratamento, bases legais, cookies, suboperadores e proteção de dados pessoais (Versão 2.3)',
+    updatedAt: '25 de novembro de 2026',
     sections: [
       {
         number: '1',
@@ -220,8 +232,8 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
             text: 'A chave Pix cadastrada (que pode constituir dado pessoal, como CPF, e-mail ou número de telefone) é utilizada exclusivamente para exibição na vitrine e cálculo de sinal ao comprador, viabilizando o recebimento direto na conta do Lojista.',
           },
           {
-            boldPrefix: 'Credenciais OAuth e transações de planos (Execução de Contrato — Art. 7º, V e Obrigação Legal — Art. 7º, II):',
-            text: 'Tokens OAuth de integração com o Mercado Pago (criptografados em repouso) e metadados de contratação dos ciclos pagos (identificador da transação, status, valor e data). Finalidade: integração de checkout no Plano Pro, gestão de vigência e cumprimento de obrigações legais/fiscais.',
+            boldPrefix: 'Credenciais OAuth, assinaturas e transações de planos (Execução de Contrato — Art. 7º, V e Obrigação Legal — Art. 7º, II):',
+            text: 'Tokens OAuth de integração com o Mercado Pago (criptografados em repouso), identificador da assinatura recorrente (mpPreapprovalId), status da assinatura e histórico técnico de cobranças dos planos (CatalogPayment, com identificador de gateway, status, valor e data). Finalidade: integração de checkout no Plano Pro, gestão de vigência/renovação de planos e cumprimento de obrigações legais/fiscais.',
           },
           {
             boldPrefix: 'Dados de pedidos de Compradores finais (Execução de Contrato pelo Lojista — Art. 7º, V):',
@@ -238,7 +250,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
         title: 'Segurança Técnica e Delimitação PCI-DSS',
         paragraphs: [
           'A VitriMini adota controles técnicos proporcionais ao risco do serviço: senhas armazenadas exclusivamente com hash criptográfico bcrypt, refresh tokens protegidos com hash SHA-256 em cookies HttpOnly com atributos Secure e SameSite, tokens OAuth do Mercado Pago criptografados em repouso com AES-256-GCM, tráfego sob HTTPS/TLS e proteção por rate limiting.',
-          'A VitriMini não possui certificação PCI-DSS própria e não coleta nem armazena números completos de cartão de crédito ou códigos de segurança (CVV). Todo pagamento com cartão de crédito (tanto na contratação de planos da plataforma quanto nas vitrines conectadas ao Plano Pro) ocorre diretamente no ambiente próprio do Mercado Pago, armazenando-se na VitriMini apenas identificadores de transação, status e tokens OAuth.',
+          'A VitriMini não possui certificação PCI-DSS própria e não coleta nem armazena números de cartão de crédito ou códigos de segurança (CVV) em seus servidores. Tanto no Pix Avulso quanto na Assinatura Recorrente via Cartão de Crédito, a VitriMini redireciona o Lojista para o checkout hospedado do Mercado Pago (init_point), armazenando exclusivamente o identificador da assinatura (mpPreapprovalId), o status e o histórico técnico de cobranças (CatalogPayment), além dos tokens OAuth e identificadores de transação nas vitrines conectadas ao Plano Pro.',
         ],
       },
       {
