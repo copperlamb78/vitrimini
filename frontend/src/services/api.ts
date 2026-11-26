@@ -3,10 +3,12 @@ import type {
   AdminOverviewResponse,
   AuthResponse,
   AuthUser,
+  CancelSubscriptionResponse,
   Catalog,
   CatalogAnalytics,
   CatalogPlanCode,
   CatalogStatusResponse,
+  CreateCardSubscriptionResponse,
   CreateCatalogResponse,
   CreateOrderResponse,
   DeliveryType,
@@ -375,7 +377,7 @@ export async function createCatalog(
 
 export async function renewCatalog(
   catalogId: string,
-  planCode: CatalogPlanCode = 'ESSENTIAL_90D'
+  planCode: CatalogPlanCode = 'ESSENTIAL_30'
 ): Promise<CreateCatalogResponse> {
   return safeRequest<CreateCatalogResponse>(
     `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}/renew`,
@@ -388,6 +390,55 @@ export async function renewCatalog(
       body: JSON.stringify({ planCode }),
     },
     'Não foi possível gerar o Pix de renovação agora. Tente novamente em instantes.'
+  );
+}
+
+export async function createCardSubscription(
+  catalogId: string,
+  input: { planCode: CatalogPlanCode; autoRenewConsent: true }
+): Promise<CreateCardSubscriptionResponse> {
+  return safeRequest<CreateCardSubscriptionResponse>(
+    `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}/subscription/card`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(input),
+    },
+    'Não foi possível iniciar a assinatura no cartão agora. Tente novamente em instantes.'
+  );
+}
+
+export async function cancelCatalogSubscription(
+  catalogId: string
+): Promise<CancelSubscriptionResponse> {
+  return safeRequest<CancelSubscriptionResponse>(
+    `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}/subscription/cancel`,
+    {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    },
+    'Não foi possível cancelar a renovação automática agora. Tente novamente em instantes.'
+  );
+}
+
+export async function syncCardSubscription(
+  catalogId: string,
+  preapprovalId?: string | null
+): Promise<import('../types/catalog').SyncSubscriptionResponse> {
+  return safeRequest<import('../types/catalog').SyncSubscriptionResponse>(
+    `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}/subscription/sync`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(preapprovalId ? { preapprovalId } : {}),
+    },
+    'Não foi possível sincronizar o status da assinatura agora.'
   );
 }
 
