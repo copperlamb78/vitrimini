@@ -51,7 +51,7 @@ export const NICHE_PAGES: Record<NicheKey, NichePageConfig> = {
     afterItems: [
       'Link leve que abre em 1 segundo direto no WhatsApp ou Instagram da loja.',
       'Pedido chega formatado com itens, endereço de entrega, troco ou Pix e link de status em tempo real.',
-      '0% de comissão sobre as vendas: 15 dias grátis para testar e depois apenas R$ 24,90 por 90 dias.',
+      '0% de comissão sobre as vendas: 15 dias grátis na primeira vitrine para testar sem compromisso.',
     ],
     ctaHeadline:
       'Pronto para colocar o cardápio digital da sua lanchonete ou marmitaria no ar?',
@@ -128,7 +128,7 @@ export const NICHE_PAGES: Record<NicheKey, NichePageConfig> = {
       {
         question: 'Posso aceitar cartão de crédito e Pix automático na minha loja de roupas?',
         answer:
-          'Sim! No Plano Pro (R$ 39,90 por 90 dias ou R$ 99,90 por ano), você conecta sua própria conta do Mercado Pago e recebe Pix e Cartão automaticamente, com 0% de taxa da VitriMini.',
+          'Sim! No Plano Pro (R$ 14,90/mês ou R$ 149,00/ano), você conecta sua própria conta do Mercado Pago e recebe Pix e Cartão automaticamente, com 0% de taxa da VitriMini.',
       },
       {
         question: 'O link do catálogo funciona bem na bio do Instagram?',
@@ -195,7 +195,7 @@ export const NICHE_PAGES: Record<NicheKey, NichePageConfig> = {
       {
         question: 'Quanto custa depois dos 15 dias grátis?',
         answer:
-          'Para continuar após os 15 dias grátis, você escolhe entre o Plano Essencial (R$ 24,90 por 90 dias via Pix) ou o Plano Pro com Mercado Pago integrado (R$ 39,90 por 90 dias ou R$ 99,90 por 365 dias).',
+          'Para continuar após os 15 dias grátis, você escolhe entre o Plano Essencial ou o Plano Pro (com VitriLink e Mercado Pago integrado) na tela de assinatura.',
       },
     ],
   },
@@ -252,7 +252,7 @@ export const NICHE_PAGES: Record<NicheKey, NichePageConfig> = {
       {
         question: 'Como funciona o pagamento da plataforma?',
         answer:
-          'Você tem 15 dias grátis na primeira vitrine para testar à vontade. Depois, se quiser continuar, escolhe o plano a partir de R$ 24,90 por 90 dias na modalidade avulsa ou recorrente disponível na tela de assinatura, com cancelamento simples pelo painel.',
+          'Você tem 15 dias grátis na primeira vitrine para testar à vontade. Depois, se quiser continuar, escolhe um dos planos disponíveis na tela de assinatura.',
       },
     ],
   },
