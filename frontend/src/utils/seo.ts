@@ -9,7 +9,7 @@ export interface PageSeoOptions {
 }
 
 const SITE_URL = 'https://vitrimini.com.br';
-const DEFAULT_OG_IMAGE = `${SITE_URL}/og-cover.png?v=20261126`;
+const DEFAULT_OG_IMAGE = `${SITE_URL}/og-cover.png?v=20261127`;
 const JSON_LD_SCRIPT_ID = 'vitrimini-jsonld';
 
 function upsertMeta(attr: 'name' | 'property', key: string, content: string): void {
