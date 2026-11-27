@@ -32,6 +32,8 @@ import {
   ShieldCheck,
   CheckCircle2,
   Smartphone,
+  Play,
+  Pause,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { DemoStoreModal } from '../components/DemoStoreModal';
@@ -257,6 +259,84 @@ const PRO_BENEFITS = [
   '0% de comissão da VitriMini sobre suas vendas',
 ];
 
+type PracticeTabKey = 'client' | 'merchant';
+
+interface PracticeDemoConfig {
+  key: PracticeTabKey;
+  tabLabel: string;
+  badge: string;
+  title: string;
+  subtitle: string;
+  videoSrc: string;
+  posterSrc: string;
+  videoAriaLabel: string;
+  bullets: {
+    title: string;
+    description: string;
+  }[];
+}
+
+const PRACTICE_DEMOS: Record<PracticeTabKey, PracticeDemoConfig> = {
+  client: {
+    key: 'client',
+    tabLabel: 'Visão do Cliente',
+    badge: 'Experiência no celular do cliente',
+    title: 'Pedido pronto em segundos, direto pelo celular',
+    subtitle:
+      'Seu cliente abre o link da vitrine, monta o carrinho sem baixar aplicativo e já recebe tudo calculado para confirmar.',
+    videoSrc: '/videos/cliente-demo.mp4',
+    posterSrc: '/videos/cliente-poster.webp',
+    videoAriaLabel:
+      'Demonstração em vídeo da visão do cliente fazendo um pedido na vitrine',
+    bullets: [
+      {
+        title: 'Catálogo rápido sem PDF',
+        description:
+          'Fotos, preços e carrinho leve que abrem na hora na bio ou no WhatsApp.',
+      },
+      {
+        title: 'Escolha de data e turno disponível',
+        description:
+          'O cliente seleciona apenas os dias e horários que você liberou para entrega ou retirada.',
+      },
+      {
+        title: 'Cálculo automático de 50% de sinal no Pix',
+        description:
+          'Total do pedido e valor de entrada calculados automaticamente, sem conta manual.',
+      },
+    ],
+  },
+  merchant: {
+    key: 'merchant',
+    tabLabel: 'Painel do Lojista',
+    badge: 'Gestão simples no dia a dia',
+    title: 'Pedidos e recebimentos organizados em um só lugar',
+    subtitle:
+      'Acompanhe a produção por horário, atualize o andamento em um toque e receba direto na sua conta.',
+    videoSrc: '/videos/painel-demo.mp4',
+    posterSrc: '/videos/painel-poster.webp',
+    videoAriaLabel:
+      'Demonstração em vídeo do painel do lojista com pedidos organizados e recebimento via Mercado Pago',
+    bullets: [
+      {
+        title: 'Pedidos organizados por turno e status',
+        description:
+          'Visualize a fila de produção por data e atualize cada etapa do pedido em um clique.',
+      },
+      {
+        title: 'Recebimento direto via Mercado Pago (0% comissão)',
+        description:
+          'O valor cai direto na sua conta com confirmação automática e zero comissão da VitriMini.',
+      },
+      {
+        title: 'Planos a partir de R$ 9,90/mês',
+        description:
+          'Comece com 15 dias grátis sem cartão e continue com mensalidade fixa que cabe no negócio.',
+      },
+    ],
+  },
+};
+
 interface LandingPageProps {
   nicheConfig?: NichePageConfig;
 }
@@ -264,8 +344,166 @@ interface LandingPageProps {
 export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
   const { user, loading: authLoading, logout } = useAuth();
   const [demoOpen, setDemoOpen] = useState(false);
-  const [practiceTab, setPracticeTab] = useState<'client' | 'merchant'>('client');
+  const [practiceTab, setPracticeTab] = useState<PracticeTabKey>('client');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+  const practiceSectionRef = useRef<HTMLDivElement | null>(null);
+  const practiceVideoRef = useRef<HTMLVideoElement | null>(null);
+  const loadedVideoSrcRef = useRef<string | null>(null);
+  const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
+  const [isPracticeVisible, setIsPracticeVisible] = useState(false);
+  const [userPlaybackIntent, setUserPlaybackIntent] = useState<
+    'auto' | 'playing' | 'paused'
+  >('auto');
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  });
+
+  const activeDemo = PRACTICE_DEMOS[practiceTab];
+
+  const playbackStateRef = useRef({
+    shouldLoadVideo,
+    isPracticeVisible,
+    userPlaybackIntent,
+    prefersReducedMotion,
+  });
+  playbackStateRef.current = {
+    shouldLoadVideo,
+    isPracticeVisible,
+    userPlaybackIntent,
+    prefersReducedMotion,
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handleChange = (event: MediaQueryListEvent) => {
+      setPrefersReducedMotion(event.matches);
+    };
+    setPrefersReducedMotion(mediaQuery.matches);
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  useEffect(() => {
+    const sectionEl = practiceSectionRef.current;
+    if (!sectionEl) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShouldLoadVideo(true);
+          setIsPracticeVisible(true);
+        } else {
+          setIsPracticeVisible(false);
+        }
+      },
+      { rootMargin: '150px 0px', threshold: 0.25 }
+    );
+
+    observer.observe(sectionEl);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const video = practiceVideoRef.current;
+      if (!video) return;
+
+      const state = playbackStateRef.current;
+      if (document.visibilityState === 'hidden') {
+        video.pause();
+        if (state.prefersReducedMotion && state.userPlaybackIntent === 'playing') {
+          setUserPlaybackIntent('auto');
+        }
+        return;
+      }
+
+      if (
+        state.shouldLoadVideo &&
+        state.isPracticeVisible &&
+        state.userPlaybackIntent !== 'paused' &&
+        !state.prefersReducedMotion
+      ) {
+        void video.play().catch(() => {
+          setIsVideoPlaying(false);
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const video = practiceVideoRef.current;
+    if (!video) return;
+
+    if (!shouldLoadVideo) {
+      video.pause();
+      setIsVideoPlaying(false);
+      return;
+    }
+
+    if (loadedVideoSrcRef.current !== activeDemo.videoSrc) {
+      loadedVideoSrcRef.current = activeDemo.videoSrc;
+      video.pause();
+      video.currentTime = 0;
+      video.load();
+    }
+
+    const canAutoplay = !prefersReducedMotion && userPlaybackIntent === 'auto';
+    const shouldPlay =
+      isPracticeVisible &&
+      document.visibilityState === 'visible' &&
+      (userPlaybackIntent === 'playing' || canAutoplay);
+
+    if (shouldPlay) {
+      void video.play().catch(() => {
+        setIsVideoPlaying(false);
+      });
+    } else {
+      video.pause();
+    }
+  }, [
+    activeDemo.videoSrc,
+    shouldLoadVideo,
+    isPracticeVisible,
+    userPlaybackIntent,
+    prefersReducedMotion,
+  ]);
+
+  const handlePracticeTabChange = (nextTab: PracticeTabKey) => {
+    if (nextTab === practiceTab) return;
+    practiceVideoRef.current?.pause();
+    setIsVideoPlaying(false);
+    setUserPlaybackIntent('auto');
+    setPracticeTab(nextTab);
+  };
+
+  const handleTogglePracticeVideo = () => {
+    const video = practiceVideoRef.current;
+    if (!video) return;
+
+    if (!video.paused) {
+      video.pause();
+      setUserPlaybackIntent('paused');
+      return;
+    }
+
+    setUserPlaybackIntent('playing');
+    if (!shouldLoadVideo) {
+      setShouldLoadVideo(true);
+      return;
+    }
+
+    void video.play().catch(() => {
+      setIsVideoPlaying(false);
+    });
+  };
 
   const faqItems = nicheConfig?.faqItems ?? LANDING_FAQ_ITEMS;
   const pageTitle =
@@ -684,15 +922,18 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
             </div>
 
             {/* Prova Visual Real — "Veja na prática" */}
-            <div className="mt-12 rounded-3xl border border-zinc-200 bg-zinc-50/70 p-5 sm:p-8">
+            <div
+              ref={practiceSectionRef}
+              className="mt-12 overflow-hidden rounded-3xl border border-slate-200 bg-slate-50/70 p-5 sm:p-8 lg:p-10"
+            >
               <div className="mx-auto max-w-2xl text-center">
                 <span className="text-xs font-extrabold uppercase tracking-wider text-rose-600">
                   Veja na prática
                 </span>
-                <h2 className="mt-1.5 text-2xl font-extrabold tracking-tight text-zinc-900 sm:text-3xl">
+                <h2 className="mt-1.5 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
                   Como o cliente pede e como você recebe no painel
                 </h2>
-                <p className="mt-2 text-sm text-zinc-600">
+                <p className="mt-2 text-sm text-slate-600">
                   Alterne entre a tela do seu cliente no celular e o seu painel de pedidos.
                 </p>
 
@@ -700,210 +941,160 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                 <div
                   role="tablist"
                   aria-label="Visualização da vitrine e do painel"
-                  className="mt-5 inline-flex flex-wrap justify-center gap-2 rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-2xs"
+                  className="mt-5 inline-flex flex-wrap justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xs sm:gap-2"
                 >
                   <button
                     type="button"
                     role="tab"
+                    id="practice-tab-client"
+                    aria-controls="practice-tabpanel"
                     aria-selected={practiceTab === 'client'}
-                    onClick={() => setPracticeTab('client')}
-                    className={`inline-flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition sm:text-sm ${
+                    onClick={() => handlePracticeTabChange('client')}
+                    className={`inline-flex cursor-pointer items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold transition sm:px-4 sm:text-sm ${
                       practiceTab === 'client'
                         ? 'bg-rose-600 text-white shadow-xs'
-                        : 'bg-white text-zinc-700 hover:bg-zinc-100'
+                        : 'bg-white text-slate-700 hover:bg-slate-100'
                     }`}
                   >
-                    <Smartphone className="h-4 w-4" />
+                    <Smartphone className="h-4 w-4 shrink-0" />
                     Visão do Cliente
                   </button>
                   <button
                     type="button"
                     role="tab"
+                    id="practice-tab-merchant"
+                    aria-controls="practice-tabpanel"
                     aria-selected={practiceTab === 'merchant'}
-                    onClick={() => setPracticeTab('merchant')}
-                    className={`inline-flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition sm:text-sm ${
+                    onClick={() => handlePracticeTabChange('merchant')}
+                    className={`inline-flex cursor-pointer items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold transition sm:px-4 sm:text-sm ${
                       practiceTab === 'merchant'
                         ? 'bg-rose-600 text-white shadow-xs'
-                        : 'bg-white text-zinc-700 hover:bg-zinc-100'
+                        : 'bg-white text-slate-700 hover:bg-slate-100'
                     }`}
                   >
-                    <LayoutDashboard className="h-4 w-4" />
+                    <LayoutDashboard className="h-4 w-4 shrink-0" />
                     Painel do Lojista
                   </button>
                 </div>
               </div>
 
-              {/* Conteúdo das Abas */}
-              <div className="mt-7">
-                {practiceTab === 'client' ? (
-                  <div className="mx-auto max-w-sm overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-lg">
-                    <div className="bg-gradient-to-r from-rose-600 to-pink-600 px-4 py-3.5 text-white">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-black">
-                            DC
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-extrabold">
-                              Doces da Clara
-                            </p>
-                            <p className="text-[11px] text-white/90">
-                              Sinal de 50% no Pix • Encomendas
-                            </p>
-                          </div>
-                        </div>
-                        <span className="shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-bold">
-                          Aberto
-                        </span>
-                      </div>
-                    </div>
+              {/* Conteúdo das Abas: Vídeo em cima no mobile (>=360px) e 2 colunas no desktop */}
+              <div
+                role="tabpanel"
+                id="practice-tabpanel"
+                aria-labelledby={
+                  practiceTab === 'client'
+                    ? 'practice-tab-client'
+                    : 'practice-tab-merchant'
+                }
+                className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-center lg:gap-12"
+              >
+                {/* Coluna 1: Mockup de Smartphone Premium com Vídeo Real */}
+                <div className="relative mx-auto flex w-full max-w-[320px] justify-center">
+                  {/* Brilho ambiente discreto rosa-coral + azul escuro */}
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -inset-4 rounded-[3rem] bg-gradient-to-tr from-rose-600/20 via-slate-900/15 to-rose-500/20 blur-2xl"
+                  />
 
-                    <div className="space-y-3 p-4">
-                      {/* Produtos */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 p-2.5">
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-bold text-zinc-900">
-                              Bolo Natalino Frutas
-                            </p>
-                            <p className="text-[11px] text-zinc-500">R$ 135,00</p>
-                          </div>
-                          <span className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700">
-                            1x no carrinho
-                          </span>
-                        </div>
+                  <div className="relative mx-auto w-full max-w-[300px] rounded-[2.25rem] border-[8px] border-slate-900 bg-slate-900 shadow-2xl">
+                    {/* Detalhe discreto de topo do aparelho */}
+                    <div
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-1/2 top-2 z-10 h-1.5 w-16 -translate-x-1/2 rounded-full bg-slate-900/80 ring-1 ring-white/15"
+                    />
 
-                        <div className="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 p-2.5">
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-bold text-zinc-900">
-                              Chocotone Trufado 900g
-                            </p>
-                            <p className="text-[11px] text-zinc-500">R$ 89,90</p>
-                          </div>
-                          <span className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700">
-                            1x no carrinho
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Seletor de Data e Turno */}
-                      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                        <p className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-700">
-                          <Calendar className="h-3.5 w-3.5 text-rose-600" />
-                          Data e Turno de entrega/retirada
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          <span className="rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-bold text-white">
-                            24/12 • Manhã (09h–12h)
-                          </span>
-                          <span className="rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-600">
-                            Retirada no local
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Cálculo automático de 50% de sinal no Pix */}
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs">
-                        <div className="flex items-center justify-between text-zinc-600">
-                          <span>Total do pedido</span>
-                          <strong className="text-zinc-900">R$ 224,90</strong>
-                        </div>
-                        <div className="mt-1 flex items-center justify-between text-emerald-900">
-                          <span className="font-bold">Sinal automático (50% no Pix)</span>
-                          <strong className="text-sm font-black">R$ 112,45</strong>
-                        </div>
-                        <p className="mt-1 text-[10px] text-emerald-700">
-                          Restante de R$ 112,45 na retirada
-                        </p>
-                      </div>
+                    {/* Viewport fixa 430x932 para CLS = 0 */}
+                    <div className="relative aspect-[430/932] w-full overflow-hidden rounded-[1.7rem] bg-slate-900">
+                      <video
+                        ref={practiceVideoRef}
+                        src={shouldLoadVideo ? activeDemo.videoSrc : undefined}
+                        poster={activeDemo.posterSrc}
+                        muted
+                        loop
+                        playsInline
+                        preload="none"
+                        aria-label={activeDemo.videoAriaLabel}
+                        onPlay={() => setIsVideoPlaying(true)}
+                        onPause={() => setIsVideoPlaying(false)}
+                        className="h-full w-full object-cover"
+                      />
 
                       <button
                         type="button"
-                        onClick={() => setDemoOpen(true)}
-                        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3 text-xs font-bold text-white shadow-xs transition hover:bg-rose-700"
+                        onClick={handleTogglePracticeVideo}
+                        aria-label={
+                          isVideoPlaying
+                            ? 'Pausar demonstração em vídeo'
+                            : 'Reproduzir demonstração em vídeo'
+                        }
+                        aria-pressed={isVideoPlaying}
+                        className="absolute bottom-3 right-3 z-10 inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-slate-900/80 text-white shadow-lg backdrop-blur-md transition hover:scale-105 hover:bg-rose-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
                       >
-                        Finalizar pedido rápido
-                        <ArrowRight className="h-3.5 w-3.5" />
+                        {isVideoPlaying ? (
+                          <Pause className="h-4 w-4 fill-current" />
+                        ) : (
+                          <Play className="h-4 w-4 translate-x-[1px] fill-current" />
+                        )}
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <div className="mx-auto max-w-2xl overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-lg">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 bg-zinc-50 px-5 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-600 text-white">
-                          <LayoutDashboard className="h-4 w-4" />
-                        </span>
-                        <div>
-                          <p className="text-xs font-extrabold text-zinc-900">
-                            Painel do Lojista — Pedido #1048
-                          </p>
-                          <p className="text-[11px] text-zinc-500">
-                            Cliente: Mariana Silva • (75) 99999-0000
-                          </p>
-                        </div>
-                      </div>
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-800">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                        Baixa automática via Mercado Pago
-                      </span>
-                    </div>
+                </div>
 
-                    <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
-                      <div className="space-y-3">
-                        <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-3">
-                          <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
-                            Turno agendado
-                          </p>
-                          <p className="mt-1 text-xs font-extrabold text-zinc-900">
-                            24/12 (Qui) • Manhã (09h–12h)
-                          </p>
-                          <p className="mt-0.5 text-[11px] text-zinc-600">
-                            Modalidade: Retirada no local
-                          </p>
-                        </div>
-
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-                          <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
-                            Status do pagamento
-                          </p>
-                          <p className="mt-1 text-xs font-extrabold text-emerald-950">
-                            Sinal pago: R$ 112,45 (50% via Pix)
-                          </p>
-                          <p className="mt-0.5 text-[11px] text-emerald-800">
-                            Restante a receber na retirada: R$ 112,45
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-3.5">
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
-                            Resumo pronto para produção
-                          </p>
-                          <ul className="mt-2 space-y-1.5 text-xs text-zinc-700">
-                            <li className="flex justify-between">
-                              <span>1x Bolo Natalino Frutas</span>
-                              <strong className="text-zinc-900">R$ 135,00</strong>
-                            </li>
-                            <li className="flex justify-between">
-                              <span>1x Chocotone Trufado 900g</span>
-                              <strong className="text-zinc-900">R$ 89,90</strong>
-                            </li>
-                          </ul>
-                          <p className="mt-2.5 rounded-lg bg-zinc-50 px-2.5 py-1.5 text-[11px] text-zinc-600">
-                            <strong className="text-zinc-800">Obs.:</strong> Sem nozes na cobertura
-                          </p>
-                        </div>
-
-                        <div className="mt-3 flex items-center justify-between border-t border-zinc-100 pt-2.5 text-[11px] font-bold text-rose-600">
-                          <span>Status: Em preparo</span>
-                          <span>0% de comissão</span>
-                        </div>
-                      </div>
-                    </div>
+                {/* Coluna 2: Copy Curta + 3 Bullets + CTAs */}
+                <div className="min-w-0 space-y-5">
+                  <div className="space-y-2.5">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200/80 bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700">
+                      {activeDemo.badge}
+                    </span>
+                    <h3 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
+                      {activeDemo.title}
+                    </h3>
+                    <p className="text-sm leading-relaxed text-slate-600">
+                      {activeDemo.subtitle}
+                    </p>
                   </div>
-                )}
+
+                  <ul className="space-y-3.5">
+                    {activeDemo.bullets.map((bullet) => (
+                      <li
+                        key={bullet.title}
+                        className="flex items-start gap-3 rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-2xs"
+                      >
+                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white">
+                          <Check className="h-3.5 w-3.5 stroke-[3]" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-extrabold text-slate-900">
+                            {bullet.title}
+                          </p>
+                          <p className="mt-0.5 text-xs leading-relaxed text-slate-600 sm:text-sm">
+                            {bullet.description}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap">
+                    <Link
+                      to="/criar"
+                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-rose-600 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:-translate-y-0.5 hover:bg-rose-700"
+                    >
+                      Criar minha vitrine grátis
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => setDemoOpen(true)}
+                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-5 py-3.5 text-sm font-bold text-slate-900 transition hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50"
+                    >
+                      <Eye className="h-4 w-4 text-rose-600" />
+                      Testar vitrine interativa
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
