@@ -231,12 +231,16 @@ export async function createCatalogHandler(
     const validatedProducts = productsArraySchema.parse(rawProducts);
     const files = (req.files as Express.Multer.File[]) || [];
 
+    const deferPayment =
+      req.body.deferPayment === true || req.body.deferPayment === 'true';
+
     const result = await createCatalog({
       userId: req.user!.id,
       userEmail: req.user!.email,
       meta,
       validatedProducts,
       planCode: req.body.planCode,
+      deferPayment,
       files,
     });
 
