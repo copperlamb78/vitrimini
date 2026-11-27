@@ -1,3 +1,5 @@
+import { SITE_CONFIG } from './siteConfig';
+
 export interface LegalSection {
   number: string;
   title: string;
@@ -42,11 +44,11 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
             ['CPF', '094.580.405-90'],
             [
               'Endereço comercial / correspondência',
-              'Feira de Santana – BA (CEP 44085-370) — endereço completo para correspondência fornecido mediante solicitação pelo canal suporte@vitrimini.com.br',
+              `${SITE_CONFIG.cityState} (CEP 44085-370) — endereço completo para correspondência fornecido mediante solicitação pelo canal ${SITE_CONFIG.supportEmail}`,
             ],
             [
               'Canal oficial de atendimento e suporte',
-              'suporte@vitrimini.com.br',
+              `${SITE_CONFIG.supportEmail} • WhatsApp ${SITE_CONFIG.supportWhatsapp.display}`,
             ],
           ],
         },
@@ -161,7 +163,7 @@ export const LEGAL_DOCS: Record<'terms' | 'privacy', LegalDocument> = {
           },
           {
             boldPrefix: 'Disponibilidade e Foro:',
-            text: 'A plataforma opera em infraestrutura em nuvem sujeita a janelas de manutenção técnica e indisponibilidades causadas por serviços de terceiros (como Mercado Pago, WhatsApp, sistema Pix ou operadoras de telecomunicações), sem afastar a responsabilidade própria da VitriMini por falhas do serviço nos limites da lei. Fica eleito o foro da Comarca de Feira de Santana – BA para dirimir controvérsias, ressalvado expressamente o foro de domicílio assegurado por lei ao consumidor quando aplicável.',
+            text: `A plataforma opera em infraestrutura em nuvem sujeita a janelas de manutenção técnica e indisponibilidades causadas por serviços de terceiros (como Mercado Pago, WhatsApp, sistema Pix ou operadoras de telecomunicações), sem afastar a responsabilidade própria da VitriMini por falhas do serviço nos limites da lei. Fica eleito o foro da Comarca de ${SITE_CONFIG.cityState} para dirimir controvérsias, ressalvado expressamente o foro de domicílio assegurado por lei ao consumidor quando aplicável.`,
           },
         ],
       },
