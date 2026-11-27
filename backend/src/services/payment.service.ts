@@ -96,10 +96,7 @@ export function resolvePlanDefinition(rawCode?: unknown): PlanDefinition {
       return PLAN_CATALOG[LEGACY_PLAN_MAP[rawCode as LegacyPlanCode]];
     }
   }
-  return {
-    ...PLAN_CATALOG.ESSENTIAL_30,
-    amountCents: getCatalogPriceCents(),
-  };
+  return PLAN_CATALOG.ESSENTIAL_30;
 }
 
 export interface CreatePixPaymentInput {
@@ -118,13 +115,9 @@ export interface PixPaymentResult {
   mockMode: boolean;
 }
 
-const DEFAULT_AMOUNT_CENTS = 990; // R$ 9,90
+const DEFAULT_AMOUNT_CENTS = PLAN_CATALOG.ESSENTIAL_30.amountCents; // R$ 9,90
 
 export function getCatalogPriceCents(): number {
-  const raw = Number(process.env.CATALOG_PRICE_CENTS);
-  if (Number.isFinite(raw) && raw > 0) {
-    return Math.round(raw);
-  }
   return DEFAULT_AMOUNT_CENTS;
 }
 
