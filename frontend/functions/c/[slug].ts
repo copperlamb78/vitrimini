@@ -32,7 +32,16 @@ declare class HTMLRewriter {
 const SLUG_REGEX = /^[a-z0-9-]{1,120}$/;
 const CRAWLER_UA_REGEX =
   /WhatsApp|facebookexternalhit|Facebot|Twitterbot|LinkedInBot|Slackbot|TelegramBot|Discordbot|Googlebot|bingbot|Applebot|Pinterest/i;
-const DEFAULT_OG_IMAGE = 'https://vitrimini.com.br/og-cover.png';
+const DEFAULT_OG_IMAGE = 'https://vitrimini.com.br/og-cover.png?v=20261127';
+
+function resolveAbsoluteLogoUrl(logoUrl?: string | null): string | null {
+  if (typeof logoUrl !== 'string') return null;
+  const trimmed = logoUrl.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('https://')) return trimmed;
+  if (trimmed.startsWith('/')) return `https://api.vitrimini.com.br${trimmed}`;
+  return null;
+}
 
 export async function onRequestGet(context: {
   request: Request;
@@ -65,10 +74,9 @@ export async function onRequestGet(context: {
       `Confira os produtos de ${storeName} e faça sua encomenda online direto pelo WhatsApp.`;
     const canonicalUrl = `https://vitrimini.com.br/c/${encodeURIComponent(slug)}`;
 
-    const hasHttpsLogo =
-      typeof store.logoUrl === 'string' &&
-      store.logoUrl.trim().startsWith('https://');
-    const ogImage = hasHttpsLogo ? store.logoUrl!.trim() : DEFAULT_OG_IMAGE;
+    const resolvedLogo = resolveAbsoluteLogoUrl(store.logoUrl);
+    const hasHttpsLogo = Boolean(resolvedLogo);
+    const ogImage = resolvedLogo ?? DEFAULT_OG_IMAGE;
     const ogImageWidth = hasHttpsLogo ? '512' : '1200';
     const ogImageHeight = hasHttpsLogo ? '512' : '630';
 
@@ -136,6 +144,11 @@ export async function onRequestGet(context: {
         },
       })
       .on('meta[property="og:image"]', {
+        element(el) {
+          el.setAttribute('content', ogImage);
+        },
+      })
+      .on('meta[property="og:image:secure_url"]', {
         element(el) {
           el.setAttribute('content', ogImage);
         },
