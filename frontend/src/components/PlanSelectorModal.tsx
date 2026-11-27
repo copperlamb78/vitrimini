@@ -202,7 +202,10 @@ export function PlanSelectorModal({
               <button
                 key={plan.code}
                 type="button"
-                onClick={() => setSelected(plan.code)}
+                onClick={() => {
+                  setSelected(plan.code);
+                  setAutoRenewConsent(false);
+                }}
                 style={
                   isSelected
                     ? {
