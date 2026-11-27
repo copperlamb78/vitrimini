@@ -9,6 +9,11 @@ export interface NicheFaqItem {
   answer: string;
 }
 
+export interface NicheHighlightItem {
+  title: string;
+  description: string;
+}
+
 export interface NichePageConfig {
   slug: NicheKey;
   path: `/${NicheKey}`;
@@ -22,6 +27,7 @@ export interface NichePageConfig {
   beforeItems: string[];
   afterTitle: string;
   afterItems: string[];
+  highlights?: NicheHighlightItem[];
   ctaHeadline: string;
   ctaSubtitle: string;
   faqItems: NicheFaqItem[];
@@ -33,226 +39,297 @@ export const NICHE_PAGES: Record<NicheKey, NichePageConfig> = {
     path: '/cardapio-digital-whatsapp',
     navLabel: 'Cardápio Digital para WhatsApp',
     seoTitle:
-      'Cardápio Digital para WhatsApp sem Taxas por Pedido | VitriMini',
+      'Cardápio Digital para WhatsApp sem Taxa de Delivery | VitriMini',
     seoDescription:
-      'Crie seu cardápio digital para WhatsApp ideal para lanchonetes, marmitarias e delivery. Receba pedidos prontos com 0% de comissão e 15 dias grátis.',
+      'Substitua o PDF pesado na sua marmitaria, hamburgueria ou lanchonete. Cardápio digital para WhatsApp com turnos de almoço/jantar, pausa em 1 clique e 0% de comissão.',
     badgeText:
-      'Ideal para Lanchonetes, Marmitarias e Delivery • 0% de comissão',
+      'Para Marmitarias, Hamburguerias e Delivery • 0% de comissão por pedido',
     h1: 'Cardápio Digital para WhatsApp sem Taxas por Pedido',
     heroSubtitle:
-      'Organize os pedidos da sua lanchonete, marmitaria ou delivery sem pagar comissão para aplicativos. O cliente escolhe os itens no celular, informa entrega ou retirada e o pedido já chega somado no seu WhatsApp.',
-    beforeTitle: 'Sem cardápio digital (atendimento lento no horário de pico)',
+      'Pare de perder até 27% do faturamento em aplicativos de entrega. Na sua marmitaria ou lanchonete, o cliente escolhe Marmita Executiva ou Combo Smash Burger no celular, seleciona entrega ou retirada e envia o pedido somado no seu WhatsApp.',
+    beforeTitle: 'Atendimento travado no horário do almoço e jantar',
     beforeItems: [
-      'Cliente pedindo cardápio em foto ou PDF que demora para carregar no celular.',
-      'Erros de anotação no endereço, forma de pagamento ou itens da marmita e lanche.',
-      'Taxas altas de aplicativos de delivery comendo até 27% do seu lucro.',
+      'Enviar PDF de 12 MB que não abre no 4G quando o cliente está com pressa para almoçar.',
+      'Anotar errado o ponto da carne, a troca de acompanhamento ou o troco para R$ 50 no meio do pico.',
+      'Pagar mensalidade cara e comissão alta por cada marmita ou lanche vendido fora do balcão.',
     ],
-    afterTitle: 'Com seu Cardápio Digital VitriMini',
+    afterTitle: 'Operação enxuta com Cardápio Digital VitriMini',
     afterItems: [
-      'Link leve que abre em 1 segundo direto no WhatsApp ou Instagram da loja.',
-      'Pedido chega formatado com itens, endereço de entrega, troco ou Pix e link de status em tempo real.',
-      '0% de comissão sobre as vendas: 15 dias grátis na primeira vitrine para testar sem compromisso.',
+      'Abertura instantânea no WhatsApp com fotos leves e categorias (Marmitas, Lanches, Bebidas).',
+      'Agendamento separado por turno — Almoço (11h–14h) e Jantar (18h–23h) — com entrega ou retirada.',
+      'Botão de "Esgotado" em 1 toque para pausar a feijoada ou o combo que acabou sem apagar o prato.',
+    ],
+    highlights: [
+      {
+        title: 'Turnos de Almoço e Jantar sob controle',
+        description:
+          'Libere horários específicos para marmitas do dia ou pedidos noturnos e evite fila desorganizada na cozinha.',
+      },
+      {
+        title: 'Pedido pronto e sem erro de troco',
+        description:
+          'O resumo chega no WhatsApp com itens, observações, endereço completo e pagamento (Pix ou Mercado Pago).',
+      },
+      {
+        title: 'Acompanhamento sem baixar app',
+        description:
+          'Seu cliente vê pelo link quando o pedido passou para Em preparo, Pronto para retirada ou Saiu para entrega.',
+      },
     ],
     ctaHeadline:
-      'Pronto para colocar o cardápio digital da sua lanchonete ou marmitaria no ar?',
+      'Coloque o cardápio da sua cozinha no WhatsApp sem pagar comissão',
     ctaSubtitle:
-      'Comece agora com 15 dias grátis na sua primeira vitrine, 0% de comissão sobre suas vendas e cancele quando quiser.',
+      'Publique hoje com 15 dias grátis sem cartão, 0% de taxa sobre os pedidos e planos a partir de R$ 9,90/mês.',
     faqItems: [
       {
-        question: 'A VitriMini cobra porcentagem sobre os pedidos do meu delivery?',
+        question: 'Quanto a VitriMini desconta de cada marmita ou lanche vendido?',
         answer:
-          'Não. Cobramos 0% de comissão sobre suas vendas. Todo o dinheiro dos pedidos vai 100% para você, seja via Pix direto na sua chave ou pagamento online integrado ao seu Mercado Pago no Plano Pro.',
+          'Zero. A VitriMini cobra 0% de comissão sobre o seu faturamento. Se você vendeu R$ 3.000 no mês pelo cardápio, os R$ 3.000 ficam integralmente com a sua cozinha.',
       },
       {
-        question: 'Consigo pausar um prato ou lanche que acabou no meio do expediente?',
+        question: 'Consigo pausar um prato do dia que acabou às 13h sem refazer o cardápio?',
         answer:
-          'Sim! No painel da sua vitrine você marca qualquer item como "Esgotado" em 1 clique, sem precisar apagar a foto nem o cadastro do produto.',
+          'Sim. No painel pelo celular você toca em "Esgotado" no item específico — como Marmita de Strogonoff ou Batata Cheddar — e ele sai de venda na hora, mantendo foto e preço salvos para amanhã.',
       },
       {
-        question: 'O cliente consegue escolher entre entrega (delivery) e retirada no balcão?',
+        question: 'Dá para separar horários de almoço e jantar no delivery?',
         answer:
-          'Sim. Ao finalizar o pedido, o cliente seleciona Entrega (preenchendo o endereço completo) ou Retirada no local, além do turno ou horário disponível.',
+          'Sim. Você configura seus dias e turnos de atendimento (por exemplo, Almoço 11h às 14h e Jantar 18h às 22h30) e o cliente escolhe entre entrega no endereço ou retirada no balcão.',
       },
       {
-        question: 'Como o cliente sabe se o pedido saiu para entrega?',
+        question: 'Como o cliente acompanha se o motoboy já saiu com o pedido?',
         answer:
-          'Cada pedido gera um link exclusivo de acompanhamento em tempo real (/pedido/codigo). Quando você muda o status para "Em preparo" ou "Saiu para entrega" no painel, o cliente vê na hora pelo navegador.',
+          'Todo pedido gera um código de acompanhamento no navegador. Ao mudar a etapa no seu painel para "Em preparo" ou "Saiu para entrega", a tela do cliente atualiza automaticamente sem precisar mandar áudio.',
       },
       {
-        question: 'Tem fidelidade ou multa para usar o cardápio digital?',
+        question: 'Preciso cadastrar cartão de crédito para testar os 15 dias grátis?',
         answer:
-          'Não há fidelidade nem multa de cancelamento. Você testa grátis por 15 dias na primeira vitrine e, quando quiser continuar, escolhe o plano na modalidade avulsa ou recorrente disponível na tela de assinatura, com cancelamento simples pelo painel.',
+          'Não. Sua primeira vitrine entra no ar por 15 dias grátis sem cartão e sem cobrança automática. Depois, você escolhe entre Essencial (R$ 9,90/mês) ou Pro (R$ 14,90/mês ou R$ 149,00/ano) no Pix ou Cartão.',
       },
     ],
   },
+
   'catalogo-online-roupas': {
     slug: 'catalogo-online-roupas',
     path: '/catalogo-online-roupas',
     navLabel: 'Catálogo Online de Roupas',
     seoTitle:
-      'Catálogo Online para Loja de Roupas e Moda com Pedidos no WhatsApp | VitriMini',
+      'Catálogo Online para Loja de Roupas, Calçados e Acessórios | VitriMini',
     seoDescription:
-      'Monte seu catálogo online para loja de roupas, calçados e acessórios. Divulgue no Instagram e receba pedidos organizados no WhatsApp com 0% de comissão.',
+      'Mostre looks, numerações e coleções sem mandar 30 fotos no WhatsApp. Catálogo online de moda com baixa automática no Mercado Pago e 0% de comissão.',
     badgeText:
-      'Para Lojas de Roupas, Calçados e Acessórios • 15 dias grátis',
+      'Para Lojas de Moda Feminina, Calçados e Semijoias • 15 dias grátis',
     h1: 'Catálogo Online para Loja de Roupas e Moda',
     heroSubtitle:
-      'Transforme suas seguidores em clientes com um catálogo online elegante e rápido. Exiba fotos das peças, preços e tamanhos na descrição, pause peças únicas vendidas em 1 toque e receba os pedidos prontos no WhatsApp.',
-    beforeTitle: 'Sem catálogo online (Direct e WhatsApp congestionados)',
+      'Chega de passar a tarde enviando dezenas de fotos soltas no WhatsApp. Exiba Vestido Midi Linho, Tênis Casual ou Kits de Semijoias com preço visível, pause peças únicas em 1 toque e receba no Pix ou Cartão direto na sua conta.',
+    beforeTitle: 'Vendas travadas no Direct e em álbuns soltos',
     beforeItems: [
-      'Horas enviando dezenas de fotos soltas no WhatsApp para cada cliente que pede novidades.',
-      'Clientes perguntando "quanto custa?" e "ainda tem disponível?" no Direct o dia todo.',
-      'Duas clientes tentando comprar a mesma peça única porque não deu tempo de avisar que esgotou.',
+      'Responder "qual o valor?" e "tem tamanho M?" dezenas de vezes nos comentários e no Direct.',
+      'Duas clientes pagarem pela mesma peça única de coleção porque não deu tempo de apagar o Story.',
+      'Perder vendas por falta de link rápido com pagamento em cartão de crédito no celular.',
     ],
-    afterTitle: 'Com seu Catálogo de Moda na VitriMini',
+    afterTitle: 'Sua vitrine de moda organizada e pronta para fechar',
     afterItems: [
-      'Vitrine com a cor da sua marca para colocar na bio do Instagram e enviar nas listas de transmissão.',
-      'Cliente escolhe as peças no carrinho, informa tamanho/cor nas observações e fecha no WhatsApp.',
-      'Vendeu a última peça? Marque como esgotada em 1 segundo pelo celular.',
+      'Link elegante com a paleta da sua marca para fixar na bio do Instagram e enviar nas listas VIP.',
+      'Descrição clara com grade (P/M/G ou 34 ao 39), tecido e campo de observação para cor e tamanho.',
+      'Integração com Mercado Pago no Plano Pro para receber Pix e Cartão com confirmação automática.',
+    ],
+    highlights: [
+      {
+        title: 'Peça única vendida? Pause em 1 segundo',
+        description:
+          'Evite constrangimento de vender o último Vestido ou Sandália duas vezes marcando o item como esgotado direto do caixa.',
+      },
+      {
+        title: 'Retirada na loja ou envio por motoboy',
+        description:
+          'A cliente escolhe receber em casa ou buscar a sacola no turno da tarde na sua loja física ou ateliê.',
+      },
+      {
+        title: 'Pix e Cartão sem taxa extra da vitrine',
+        description:
+          'No Plano Pro, conecte seu Mercado Pago e ofereça pagamento online na hora com 0% de comissão da VitriMini.',
+      },
     ],
     ctaHeadline:
-      'Pronta para criar o catálogo online da sua loja de roupas?',
+      'Transforme suas seguidoras em compradoras com um catálogo profissional',
     ctaSubtitle:
-      'Teste grátis por 15 dias na sua primeira vitrine, divulgue na bio do Instagram e venda mais pelo WhatsApp sem pagar comissão.',
+      'Crie seu catálogo de moda em minutos com 15 dias grátis sem cartão e zero comissão sobre cada peça vendida.',
     faqItems: [
       {
-        question: 'Posso cadastrar quantas roupas, calçados ou acessórios no catálogo?',
+        question: 'Há limite de peças, coleções ou fotos que posso subir no catálogo?',
         answer:
-          'O cadastro de produtos é ilimitado em todos os planos. Você pode adicionar quantas peças e coleções quiser com foto, descrição (tamanhos, cores e tecido) e preço.',
+          'Não. Todos os planos permitem cadastrar produtos ilimitados — você pode publicar toda a coleção de verão, calçados, bolsas e acessórios com foto, descrição e preço.',
       },
       {
-        question: 'Como faço quando uma peça única ou tamanho esgota?',
+        question: 'Como indico tamanhos P, M, G ou numeração de calçados para a cliente?',
         answer:
-          'Basta tocar no botão "Esgotado" do produto no seu painel. A peça continua visível na vitrine com o selo de esgotada (ou você pode editá-la quando chegar reposição).',
+          'Você informa a grade disponível na descrição da peça (ex.: "Veste P ao G • Linho misto") e a cliente escreve o tamanho e a cor escolhidos no campo de observações ao fechar o carrinho.',
       },
       {
-        question: 'Posso aceitar cartão de crédito e Pix automático na minha loja de roupas?',
+        question: 'O que acontece quando acaba o último tamanho de uma peça exclusiva?',
         answer:
-          'Sim! No Plano Pro (R$ 14,90/mês ou R$ 149,00/ano), você conecta sua própria conta do Mercado Pago e recebe Pix e Cartão automaticamente, com 0% de taxa da VitriMini.',
+          'Basta tocar em "Esgotado" no painel da vitrine. A peça recebe o aviso visual na hora, impedindo novos pedidos enquanto você aguarda reposição.',
       },
       {
-        question: 'O link do catálogo funciona bem na bio do Instagram?',
+        question: 'Consigo parcelar ou aceitar cartão de crédito na minha loja de roupas?',
         answer:
-          'Sim. A vitrine foi desenhada para abrir instantaneamente no navegador interno do Instagram e do WhatsApp, sem exigir que a cliente baixe aplicativo.',
+          'Sim. No Plano Pro (R$ 14,90/mês ou R$ 149,00/ano), você conecta sua conta do Mercado Pago e a cliente paga via Pix ou Cartão de Crédito com baixa automática no painel.',
       },
       {
-        question: 'Como funciona após os 15 dias grátis?',
+        question: 'O catálogo funciona bem quando a cliente clica pelo Instagram no iPhone ou Android?',
         answer:
-          'Você cria e publica sua primeira vitrine com 15 dias grátis para testar à vontade. Depois desse período, basta escolher um dos planos na modalidade avulsa ou recorrente disponíveis na tela de assinatura, com cancelamento simples pelo painel.',
+          'Sim. A VitriMini foi otimizada para abrir rápido dentro do navegador do Instagram e do WhatsApp, sem exigir download nem cadastro prévio da compradora.',
       },
     ],
   },
+
   'vitrine-digital-confeitaria': {
     slug: 'vitrine-digital-confeitaria',
     path: '/vitrine-digital-confeitaria',
     navLabel: 'Vitrine Digital para Confeitaria',
     seoTitle:
-      'Vitrine Digital e Link de Pedidos para Confeitaria e Encomendas | VitriMini',
+      'Vitrine Digital para Confeitaria, Bolos e Encomendas com Sinal Pix | VitriMini',
     seoDescription:
-      'Crie sua vitrine digital para confeitaria, bolos, doces e datas comemorativas. Calcule sinal de 50% no Pix automaticamente e organize encomendas no WhatsApp.',
+      'Organize encomendas de bolos, doces, Páscoa e Natal. Calcule sinal de 50% no Pix automaticamente, bloqueie datas lotadas por turno e receba tudo no WhatsApp.',
     badgeText:
-      'Feito para Confeitarias, Bolos, Doces e Datas Comemorativas',
+      'Para Confeitarias, Bolos Artesanais e Datas Comemorativas • 0% de taxa',
     h1: 'Vitrine Digital e Link de Pedidos para Confeitaria',
     heroSubtitle:
-      'Pare de perder tempo calculando sinal e conferindo agenda entre uma fornada e outra. Configure suas datas e turnos disponíveis, exiba o valor do sinal via Pix automaticamente e receba encomendas prontas no WhatsApp.',
-    beforeTitle: 'Encomendas anotadas no caderno e PDF pesado',
+      'Pare de fazer conta de 50% de sinal na calculadora entre uma fornada e outra. Mostre Bolo Vulcão, Caixa de Brigadeiros ou Ovos de Colher com agenda por data e turno e cálculo automático do sinal no Pix.',
+    beforeTitle: 'Encomendas espalhadas em caderno, áudios e PDF',
     beforeItems: [
-      'Cardápio em PDF pesado que o cliente não consegue abrir ou precisa ficar dando zoom.',
-      'Cálculo manual de 50% de sinal no Pix para cada orçamento enviado no WhatsApp.',
-      'Confusão de datas e horários de retirada em épocas de pico como Páscoa, Dia das Mães e Natal.',
+      'Gastar horas no WhatsApp explicando sabores, pesos e calculando metade do valor para cada orçamento.',
+      'Cliente pedindo bolo decorado para o mesmo dia ou em horário que você já fechou a produção.',
+      'Anotar frase de topo de bolo ou alergia alimentar em papel solto e correr risco na Páscoa ou Natal.',
     ],
-    afterTitle: 'Com sua Vitrine de Encomendas VitriMini',
+    afterTitle: 'Produção tranquila com agenda e sinal automático',
     afterItems: [
-      'Agenda inteligente: o cliente só escolhe entre as datas e turnos (manhã/tarde) que você liberar.',
-      'Cálculo automático do sinal (ex.: 50%) com botão para o cliente copiar sua chave Pix na hora.',
-      'Painel de pedidos e resumo financeiro para você produzir com tranquilidade e 0% de comissão.',
+      'Calendário inteligente: a pessoa só escolhe datas e turnos (Manhã 9h–12h ou Tarde 14h–18h) liberados por você.',
+      'Cálculo automático do sinal no Pix (ex.: 50%) com botão "Copiar chave Pix" já na finalização.',
+      'Campo de observações para frase no topo, sabor do recheio e recado de presente direto no painel.',
+    ],
+    highlights: [
+      {
+        title: 'Sinal de 50% no Pix sem fazer conta',
+        description:
+          'Defina a porcentagem de reserva na sua vitrine; o sistema calcula a entrada na hora para garantir o compromisso do cliente.',
+      },
+      {
+        title: 'Datas sazonais sem overbooking',
+        description:
+          'Crie janelas específicas para Dia das Mães, Páscoa e Natal e encerre turnos lotados sem precisar responder um por um.',
+      },
+      {
+        title: 'Resumo financeiro das encomendas',
+        description:
+          'Acompanhe no painel o total vendido, o que já entrou de sinal e o que falta receber na entrega ou retirada.',
+      },
     ],
     ctaHeadline:
-      'Organize suas encomendas de bolos e doces hoje mesmo',
+      'Organize sua confeitaria e pare de perder encomendas por demora no orçamento',
     ctaSubtitle:
-      'Experimente por 15 dias grátis na sua primeira vitrine e veja como é simples receber encomendas com sinal calculado no WhatsApp.',
+      'Teste grátis por 15 dias sem cartão, configure seu sinal no Pix em 2 minutos e pague 0% de comissão sobre seus doces.',
     faqItems: [
       {
-        question: 'Como funciona o cálculo automático de sinal no Pix para encomendas?',
+        question: 'Como funciona o cálculo automático de sinal no Pix para bolos e doces?',
         answer:
-          'Você define a porcentagem de sinal desejada (por exemplo, 50%). Quando o cliente monta a encomenda, a vitrine já mostra o valor exato do sinal para reservar e exibe sua chave Pix pronta para copiar.',
+          'Você escolhe a porcentagem de entrada (por exemplo, 30% ou 50%). Quando o cliente fecha um pedido de R$ 180, a vitrine exibe exatamente R$ 90 de sinal e libera sua chave Pix para ele copiar e pagar na hora.',
       },
       {
-        question: 'Consigo limitar quais dias e turnos aceito encomendas?',
+        question: 'Posso bloquear pedidos de última hora e aceitar só com antecedência ou datas fixas?',
         answer:
-          'Sim! Você pode cadastrar datas específicas (como véspera de Natal ou Páscoa) ou dias da semana recorrentes com turnos (Manhã, Tarde, Noite), evitando pedidos fora da sua agenda.',
+          'Sim. Você cadastra apenas os dias da semana ou datas comemorativas específicas (como 24/12 ou domingo de Páscoa) e os turnos disponíveis, impedindo encomendas fora da sua capacidade de forno.',
       },
       {
-        question: 'O cliente pode escrever observações, como frase no topo do bolo?',
+        question: 'Onde o cliente escreve a frase do topo do bolo ou detalhes da decoração?',
         answer:
-          'Sim. Na finalização da encomenda há um campo de observações onde o cliente informa detalhes como escrita no bolo, restrições ou preferências, e tudo chega junto no seu WhatsApp e no painel.',
+          'Na tela de confirmação existe um campo dedicado para observações. O texto vai anexado ao pedido tanto no seu painel quanto na mensagem formatada do WhatsApp.',
       },
       {
-        question: 'Tem taxa por encomenda recebida?',
+        question: 'Posso receber o valor total no cartão de crédito para kits festa?',
         answer:
-          'Nenhuma. A VitriMini cobra 0% de comissão. O pagamento do cliente vai direto para a sua conta bancária.',
+          'Sim. No Plano Pro (R$ 14,90/mês ou R$ 149,00/ano), você conecta seu Mercado Pago e aceita Cartão de Crédito ou Pix automático com 0% de comissão da VitriMini.',
       },
       {
-        question: 'Quanto custa depois dos 15 dias grátis?',
+        question: 'E se eu quiser parar de usar depois da campanha de Páscoa ou Natal?',
         answer:
-          'Para continuar após os 15 dias grátis, você escolhe entre o Plano Essencial ou o Plano Pro (com VitriLink e Mercado Pago integrado) na tela de assinatura.',
+          'Não existe multa nem fidelidade. Você pode optar pelo Pix Avulso apenas no mês que quiser divulgar ou cancelar a renovação pelo próprio painel a qualquer momento.',
       },
     ],
   },
+
   'link-pedidos-instagram': {
     slug: 'link-pedidos-instagram',
     path: '/link-pedidos-instagram',
     navLabel: 'Vitrine para Bio do Instagram',
     seoTitle:
-      'Vitrine Digital para Link da Bio no Instagram e Pedidos no WhatsApp | VitriMini',
+      'VitriLink: Link na Bio com Vitrine Digital e Pedidos no WhatsApp | VitriMini',
     seoDescription:
-      'Coloque uma vitrine digital no link da bio do Instagram e transforme seguidores em pedidos organizados no WhatsApp. 15 dias grátis e 0% de comissão.',
+      'Troque o link comum da bio por uma vitrine rápida com VitriLink, capa, botões com foto, QR Code para embalagens e carrinho direto no WhatsApp. 15 dias grátis.',
     badgeText:
-      'Do Link da Bio direto para o seu WhatsApp • Sem comissão',
+      'VitriLink + Catálogo na Bio do Instagram e TikTok • 0% de comissão',
     h1: 'Vitrine Digital para Link da Bio no Instagram',
     heroSubtitle:
-      'Substitua listas de links confusas por uma vitrine digital rápida que vende por você 24 horas por dia. Seu seguidor clica no link da bio, monta o carrinho em segundos e envia o pedido pronto para o seu WhatsApp.',
-    beforeTitle: 'Link da bio comum (apenas joga para o WhatsApp vazio)',
+      'Quando o seguidor clica na sua bio e cai num WhatsApp vazio, metade desiste antes de você responder. Com o VitriLink e a vitrine VitriMini, ele vê fotos, preços e monta o pedido sozinho em segundos.',
+    beforeTitle: 'Link da bio genérico que desperdiça cliques dos Reels',
     beforeItems: [
-      'O seguidor clica no link da bio, cai no WhatsApp em branco e pergunta "o que vocês têm hoje?".',
-      'Demora no atendimento faz o cliente desistir da compra antes de você responder.',
-      'Destaques dos Stories desatualizados com preços antigos que geram atrito na venda.',
+      'Seguidor entra no WhatsApp perguntando "oi, quanto tá aquele kit do último vídeo?" e esfria esperando resposta.',
+      'Árvore de links sem foto que manda a pessoa para vários lugares e não fecha nenhuma venda.',
+      'Destaques dos Stories com preços desatualizados gerando atrito e desistência no atendimento.',
     ],
-    afterTitle: 'Com a VitriMini no Link da Bio do Instagram',
+    afterTitle: 'Bio vendedora 24h com VitriLink + Carrinho',
     afterItems: [
-      'Catálogo sempre atualizado com fotos, preços e carrinho de compras direto no navegador.',
-      'O cliente já chega no seu WhatsApp com o pedido decidido, somado e pronto para pagar.',
-      'Gera QR Code exclusivo da sua vitrine para imprimir em embalagens, sacolas e balcão.',
+      'Página de bio com sua capa, cartões visuais com foto e acesso direto ao catálogo de produtos.',
+      'Seguidor adiciona Kit Skincare ou Vela Aromática no carrinho e já chega no WhatsApp pronto para pagar.',
+      'Cartão com QR Code da sua vitrine pronto para imprimir em sacolas, caixas e cartões de agradecimento.',
+    ],
+    highlights: [
+      {
+        title: 'VitriLink com capa e cartões visuais',
+        description:
+          'No Plano Pro, destaque lançamentos, vitrine principal, WhatsApp e localização em uma página bonita com a sua identidade.',
+      },
+      {
+        title: 'QR Code para gerar recompra na embalagem',
+        description:
+          'Baixe o cartão com QR Code no painel e cole nas sacolas e caixas para o cliente escanear e pedir de novo sem buscar seu @.',
+      },
+      {
+        title: 'Venda no piloto automático de madrugada',
+        description:
+          'Mesmo fora do horário comercial, o seguidor navega, escolhe turno de entrega/retirada e deixa o pedido registrado.',
+      },
     ],
     ctaHeadline:
-      'Transforme o link da sua bio em uma máquina de pedidos',
+      'Faça cada clique na bio do Instagram virar pedido pronto no WhatsApp',
     ctaSubtitle:
-      'Crie sua vitrine digital em 2 minutos, coloque na bio do Instagram e aproveite 15 dias grátis para vender sem taxas.',
+      'Configure sua vitrine em 2 minutos, teste grátis por 15 dias sem cartão e receba 100% do valor das suas vendas.',
     faqItems: [
       {
-        question: 'Por que usar uma vitrine na bio em vez de um link direto para o WhatsApp?',
+        question: 'Qual a diferença entre o VitriLink na bio e um agregador de links comum?',
         answer:
-          'Quando o link abre apenas a conversa vazia no WhatsApp, o cliente precisa perguntar preços e esperar resposta. Com a VitriMini na bio, ele vê fotos e valores na hora, monta o carrinho sozinho e já envia o pedido fechado.',
+          'Agregadores comuns mostram apenas botões de texto. Na VitriMini, você tem cartões com foto no VitriLink (Plano Pro) integrados ao seu catálogo com carrinho, sinal no Pix, agendamento por turno e pagamento direto.',
       },
       {
-        question: 'Posso personalizar a vitrine com a logo e a cor do meu Instagram?',
+        question: 'Posso usar meu próprio nome ou marca no link da bio?',
         answer:
-          'Sim! Você envia a logo da sua loja e escolhe a paleta de cores que combina com a identidade visual da sua marca.',
+          'Sim. Ao criar sua vitrine você escolhe um endereço curto e amigável (vitrimini.com.br/sualoja) para colocar direto na bio do Instagram, TikTok e perfil do WhatsApp Business.',
       },
       {
-        question: 'A vitrine também gera QR Code para colocar nas minhas embalagens?',
+        question: 'Como funciona o QR Code para colocar nas sacolas e balcão?',
         answer:
-          'Sim. No painel "Minhas Vitrines" você baixa o cartão com QR Code pronto da sua loja para imprimir em sacolas, caixas, cartões de visita ou exibir no balcão.',
+          'Dentro do painel "Minhas Vitrines", você gera e baixa em 1 clique um cartão com o QR Code exclusivo da sua loja para imprimir e enviar junto com os pedidos.',
       },
       {
-        question: 'Meus seguidores precisam instalar algum aplicativo para comprar?',
+        question: 'Quem clica no link precisa criar conta ou senha para comprar?',
         answer:
-          'Não. A vitrine abre direto no navegador do celular em 1 clique, tanto pelo Instagram quanto pelo WhatsApp.',
+          'Não. Seu seguidor escolhe os itens, informa nome, entrega ou retirada e envia o pedido em poucos segundos, sem cadastro burocrático.',
       },
       {
-        question: 'Como funciona o pagamento da plataforma?',
+        question: 'O VitriLink já vem liberado nos 15 dias grátis?',
         answer:
-          'Você tem 15 dias grátis na primeira vitrine para testar à vontade. Depois, se quiser continuar, escolhe um dos planos disponíveis na tela de assinatura.',
+          'Você testa sua primeira vitrine por 15 dias grátis sem cartão. Para manter o VitriLink com cartões com foto e o pagamento automático via Mercado Pago após o teste, basta escolher o Plano Pro (R$ 14,90/mês ou R$ 149,00/ano).',
       },
     ],
   },
