@@ -9,7 +9,7 @@ const publicDir = path.resolve(__dirname, '../public');
 const baseIndexPath = path.join(distDir, 'index.html');
 
 const SITE_URL = 'https://vitrimini.com.br';
-const OG_IMAGE = `${SITE_URL}/og-cover.png?v=20261126`;
+const OG_IMAGE = `${SITE_URL}/og-cover.png?v=20261127`;
 const SITEMAP_LASTMOD = '2026-11-26';
 
 function escapeHtml(str) {
