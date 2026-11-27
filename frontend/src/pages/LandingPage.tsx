@@ -28,6 +28,10 @@ import {
   CreditCard,
   Link2,
   ClipboardList,
+  Lock,
+  ShieldCheck,
+  CheckCircle2,
+  Smartphone,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { DemoStoreModal } from '../components/DemoStoreModal';
@@ -35,6 +39,7 @@ import { Footer } from '../components/Footer';
 import { applyPageSeo } from '../utils/seo';
 import { LANDING_FAQ_ITEMS } from '../data/landingFaq';
 import { NICHE_LINKS_LIST, type NichePageConfig } from '../data/nichePages';
+import { SITE_CONFIG } from '../data/siteConfig';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
 interface RevealProps {
@@ -77,6 +82,33 @@ function Reveal({ children, className = '', delayMs = 0 }: RevealProps) {
     </div>
   );
 }
+
+const FOUR_PILLARS = [
+  {
+    icon: CalendarClock,
+    title: 'Agendamento por Data e Turno',
+    description:
+      'Escolha os dias e horários disponíveis para entrega ou retirada sem bagunça na agenda.',
+  },
+  {
+    icon: Wallet,
+    title: 'Sinal Automático no Pix (ex.: 50%)',
+    description:
+      'Calcule e cobre metade ou o valor total na encomenda para evitar furos e prejuízo.',
+  },
+  {
+    icon: CreditCard,
+    title: 'Recebimento Direto via Mercado Pago',
+    description:
+      'O dinheiro cai direto na sua conta com baixa automática no painel e 0% de comissão.',
+  },
+  {
+    icon: Link2,
+    title: 'VitriLink + Catálogo no mesmo link',
+    description:
+      'Sua bio do Instagram e seu catálogo de pedidos unidos no mesmo visual da marca.',
+  },
+];
 
 const HOW_IT_WORKS_STEPS = [
   {
@@ -232,6 +264,7 @@ interface LandingPageProps {
 export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
   const { user, loading: authLoading, logout } = useAuth();
   const [demoOpen, setDemoOpen] = useState(false);
+  const [practiceTab, setPracticeTab] = useState<'client' | 'merchant'>('client');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   const faqItems = nicheConfig?.faqItems ?? LANDING_FAQ_ITEMS;
@@ -253,9 +286,22 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
         {
           '@context': 'https://schema.org',
           '@type': 'Organization',
-          name: 'VitriMini',
+          name: SITE_CONFIG.brandName,
           url: 'https://vitrimini.com.br/',
-          logo: 'https://vitrimini.com.br/og-cover.png',
+          logo: 'https://vitrimini.com.br/og-cover.png?v=20261126',
+          contactPoint: {
+            '@type': 'ContactPoint',
+            telephone: '+55-75-99219-7406',
+            contactType: 'customer support',
+            availableLanguage: 'Portuguese',
+            email: SITE_CONFIG.supportEmail,
+            url: SITE_CONFIG.supportWhatsapp.url,
+          },
+          sameAs: [
+            SITE_CONFIG.socialLinks.instagram,
+            SITE_CONFIG.socialLinks.tiktok,
+            SITE_CONFIG.socialLinks.youtube,
+          ].filter(Boolean),
         },
         {
           '@context': 'https://schema.org',
@@ -431,12 +477,12 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                   </p>
                 )}
 
-                <div className="flex flex-col gap-3 pt-1 sm:flex-row">
+                <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap">
                   <Link
                     to="/criar"
                     className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-rose-600 px-6 py-4 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:-translate-y-0.5 hover:bg-rose-700"
                   >
-                    Começar 15 dias grátis
+                    Criar minha vitrine grátis
                     <ArrowRight className="h-4 w-4" />
                   </Link>
 
@@ -446,13 +492,29 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                     className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-zinc-300 bg-white px-5 py-4 text-sm font-bold text-zinc-800 transition hover:-translate-y-0.5 hover:bg-zinc-50"
                   >
                     <Eye className="h-4 w-4 text-rose-600" />
-                    Ver exemplo
+                    Ver vitrine de demonstração
                   </button>
                 </div>
 
-                <p className="text-xs text-zinc-500">
-                  Teste na prática por 15 dias sem cartão de crédito. Sem cobrança automática e cancele quando quiser.
-                </p>
+                {/* Faixa discreta de confiança */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1 text-[11px] font-semibold text-zinc-600">
+                  <span className="inline-flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                    Integração Oficial Mercado Pago
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Lock className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                    Conexão Segura (SSL)
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-rose-600" />
+                    0% de comissão sobre vendas
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-rose-600" />
+                    15 dias grátis sem cartão
+                  </span>
+                </div>
               </div>
 
               {/* Composição Visual Animada (100% CSS) */}
@@ -590,6 +652,258 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* B2. Posicionamento dos 4 Pilares + Seção "Veja na prática" */}
+        <section className="border-b border-zinc-200 bg-white py-12 sm:py-16">
+          <div className="mx-auto max-w-6xl px-4">
+            {/* 4 Pilares */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {FOUR_PILLARS.map((pillar) => {
+                const Icon = pillar.icon;
+                return (
+                  <div
+                    key={pillar.title}
+                    className="min-w-0 rounded-2xl border border-zinc-200 bg-zinc-50/60 p-5 transition hover:border-rose-200 hover:bg-white hover:shadow-sm"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h2 className="mt-3 text-sm font-extrabold text-zinc-900">
+                      {pillar.title}
+                    </h2>
+                    <p className="mt-1 text-xs leading-relaxed text-zinc-600">
+                      {pillar.description}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Prova Visual Real — "Veja na prática" */}
+            <div className="mt-12 rounded-3xl border border-zinc-200 bg-zinc-50/70 p-5 sm:p-8">
+              <div className="mx-auto max-w-2xl text-center">
+                <span className="text-xs font-extrabold uppercase tracking-wider text-rose-600">
+                  Veja na prática
+                </span>
+                <h2 className="mt-1.5 text-2xl font-extrabold tracking-tight text-zinc-900 sm:text-3xl">
+                  Como o cliente pede e como você recebe no painel
+                </h2>
+                <p className="mt-2 text-sm text-zinc-600">
+                  Alterne entre a tela do seu cliente no celular e o seu painel de pedidos.
+                </p>
+
+                {/* Abas clicáveis */}
+                <div
+                  role="tablist"
+                  aria-label="Visualização da vitrine e do painel"
+                  className="mt-5 inline-flex flex-wrap justify-center gap-2 rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-2xs"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={practiceTab === 'client'}
+                    onClick={() => setPracticeTab('client')}
+                    className={`inline-flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition sm:text-sm ${
+                      practiceTab === 'client'
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'bg-white text-zinc-700 hover:bg-zinc-100'
+                    }`}
+                  >
+                    <Smartphone className="h-4 w-4" />
+                    Visão do Cliente
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={practiceTab === 'merchant'}
+                    onClick={() => setPracticeTab('merchant')}
+                    className={`inline-flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition sm:text-sm ${
+                      practiceTab === 'merchant'
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'bg-white text-zinc-700 hover:bg-zinc-100'
+                    }`}
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                    Painel do Lojista
+                  </button>
+                </div>
+              </div>
+
+              {/* Conteúdo das Abas */}
+              <div className="mt-7">
+                {practiceTab === 'client' ? (
+                  <div className="mx-auto max-w-sm overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-lg">
+                    <div className="bg-gradient-to-r from-rose-600 to-pink-600 px-4 py-3.5 text-white">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-black">
+                            DC
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-extrabold">
+                              Doces da Clara
+                            </p>
+                            <p className="text-[11px] text-white/90">
+                              Sinal de 50% no Pix • Encomendas
+                            </p>
+                          </div>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-bold">
+                          Aberto
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 p-4">
+                      {/* Produtos */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 p-2.5">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-bold text-zinc-900">
+                              Bolo Natalino Frutas
+                            </p>
+                            <p className="text-[11px] text-zinc-500">R$ 135,00</p>
+                          </div>
+                          <span className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700">
+                            1x no carrinho
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 p-2.5">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-bold text-zinc-900">
+                              Chocotone Trufado 900g
+                            </p>
+                            <p className="text-[11px] text-zinc-500">R$ 89,90</p>
+                          </div>
+                          <span className="shrink-0 rounded-lg bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700">
+                            1x no carrinho
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Seletor de Data e Turno */}
+                      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                        <p className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-700">
+                          <Calendar className="h-3.5 w-3.5 text-rose-600" />
+                          Data e Turno de entrega/retirada
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <span className="rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-bold text-white">
+                            24/12 • Manhã (09h–12h)
+                          </span>
+                          <span className="rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-600">
+                            Retirada no local
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Cálculo automático de 50% de sinal no Pix */}
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs">
+                        <div className="flex items-center justify-between text-zinc-600">
+                          <span>Total do pedido</span>
+                          <strong className="text-zinc-900">R$ 224,90</strong>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-emerald-900">
+                          <span className="font-bold">Sinal automático (50% no Pix)</span>
+                          <strong className="text-sm font-black">R$ 112,45</strong>
+                        </div>
+                        <p className="mt-1 text-[10px] text-emerald-700">
+                          Restante de R$ 112,45 na retirada
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setDemoOpen(true)}
+                        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3 text-xs font-bold text-white shadow-xs transition hover:bg-rose-700"
+                      >
+                        Finalizar pedido rápido
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mx-auto max-w-2xl overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-lg">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 bg-zinc-50 px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-600 text-white">
+                          <LayoutDashboard className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="text-xs font-extrabold text-zinc-900">
+                            Painel do Lojista — Pedido #1048
+                          </p>
+                          <p className="text-[11px] text-zinc-500">
+                            Cliente: Mariana Silva • (75) 99999-0000
+                          </p>
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-800">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        Baixa automática via Mercado Pago
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+                      <div className="space-y-3">
+                        <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-3">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                            Turno agendado
+                          </p>
+                          <p className="mt-1 text-xs font-extrabold text-zinc-900">
+                            24/12 (Qui) • Manhã (09h–12h)
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-zinc-600">
+                            Modalidade: Retirada no local
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
+                            Status do pagamento
+                          </p>
+                          <p className="mt-1 text-xs font-extrabold text-emerald-950">
+                            Sinal pago: R$ 112,45 (50% via Pix)
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-emerald-800">
+                            Restante a receber na retirada: R$ 112,45
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-3.5">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                            Resumo pronto para produção
+                          </p>
+                          <ul className="mt-2 space-y-1.5 text-xs text-zinc-700">
+                            <li className="flex justify-between">
+                              <span>1x Bolo Natalino Frutas</span>
+                              <strong className="text-zinc-900">R$ 135,00</strong>
+                            </li>
+                            <li className="flex justify-between">
+                              <span>1x Chocotone Trufado 900g</span>
+                              <strong className="text-zinc-900">R$ 89,90</strong>
+                            </li>
+                          </ul>
+                          <p className="mt-2.5 rounded-lg bg-zinc-50 px-2.5 py-1.5 text-[11px] text-zinc-600">
+                            <strong className="text-zinc-800">Obs.:</strong> Sem nozes na cobertura
+                          </p>
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between border-t border-zinc-100 pt-2.5 text-[11px] font-bold text-rose-600">
+                          <span>Status: Em preparo</span>
+                          <span>0% de comissão</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
