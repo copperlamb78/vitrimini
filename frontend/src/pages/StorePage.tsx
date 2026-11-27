@@ -151,7 +151,7 @@ export function StorePage() {
         const ogImage =
           resolveImageUrl(data.logoUrl) ||
           resolveImageUrl(firstProductImg) ||
-          'https://vitrimini.com.br/og-cover.png';
+          'https://vitrimini.com.br/og-cover.png?v=20261127';
 
         applyPageSeo({
           title: `${data.storeName} — Vitrine de Encomendas | VitriMini`,
