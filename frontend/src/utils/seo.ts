@@ -9,7 +9,7 @@ export interface PageSeoOptions {
 }
 
 const SITE_URL = 'https://vitrimini.com.br';
-const DEFAULT_OG_IMAGE = `${SITE_URL}/og-cover.png`;
+const DEFAULT_OG_IMAGE = `${SITE_URL}/og-cover.png?v=20261126`;
 const JSON_LD_SCRIPT_ID = 'vitrimini-jsonld';
 
 function upsertMeta(attr: 'name' | 'property', key: string, content: string): void {
@@ -79,6 +79,9 @@ export function applyPageSeo({
   upsertMeta('property', 'og:description', description);
   upsertMeta('property', 'og:url', canonicalUrl);
   upsertMeta('property', 'og:image', resolvedImage);
+  upsertMeta('property', 'og:image:secure_url', resolvedImage);
+  upsertMeta('property', 'og:image:width', '1200');
+  upsertMeta('property', 'og:image:height', '630');
 
   upsertMeta('name', 'twitter:title', title);
   upsertMeta('name', 'twitter:description', description);
