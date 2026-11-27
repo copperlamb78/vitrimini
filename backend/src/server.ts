@@ -176,7 +176,7 @@ app.use('/api', mpRoutes);
 app.use('/api', catalogRoutes);
 
 app.use('/api/*', (_req: Request, res: Response) => {
-  res.status(404).json({ error: FRIENDLY_ERRORS.NOT_FOUND });
+  res.status(404).json({ error: 'Endpoint não encontrado.' });
 });
 
 app.use(errorHandler);
