@@ -522,6 +522,7 @@ export function CreatorPage() {
         }
 
         formData.append('products', JSON.stringify(serializedProducts));
+        formData.append('deferPayment', 'true');
 
         const response = await createCatalog(formData, tokenOverride);
         localStorage.removeItem(DRAFT_STORAGE_KEY);
