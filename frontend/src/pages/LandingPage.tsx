@@ -526,7 +526,7 @@ export function LandingPage({ nicheConfig }: LandingPageProps = {}) {
           '@type': 'Organization',
           name: SITE_CONFIG.brandName,
           url: 'https://vitrimini.com.br/',
-          logo: 'https://vitrimini.com.br/og-cover.png?v=20261126',
+          logo: 'https://vitrimini.com.br/og-cover.png?v=20261127',
           contactPoint: {
             '@type': 'ContactPoint',
             telephone: '+55-75-99219-7406',
