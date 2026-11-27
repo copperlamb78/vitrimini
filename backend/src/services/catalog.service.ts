@@ -252,11 +252,20 @@ export interface CreateCatalogServiceInput {
   meta: z.infer<typeof catalogMetadataSchema>;
   validatedProducts: Array<z.infer<typeof productInputSchema>>;
   planCode?: unknown;
+  deferPayment?: boolean;
   files: Express.Multer.File[];
 }
 
 export async function createCatalog(input: CreateCatalogServiceInput) {
-  const { userId, userEmail, meta, validatedProducts, planCode, files } = input;
+  const {
+    userId,
+    userEmail,
+    meta,
+    validatedProducts,
+    planCode,
+    deferPayment,
+    files,
+  } = input;
 
   const fileByField = new Map<string, Express.Multer.File>();
   for (const file of files) {
@@ -357,6 +366,16 @@ export async function createCatalog(input: CreateCatalogServiceInput) {
     });
 
     markMerchantCache(userId);
+
+    // Quando o criador adia o pagamento para o PlanSelectorModal, não gera Pix órfão antes da escolha do plano
+    if (deferPayment) {
+      return {
+        catalogId: catalog.id,
+        slug: catalog.slug,
+        editToken: catalog.editToken,
+        activatedByTrial: false as const,
+      };
+    }
 
     const payment = await createPixPayment({
       catalogId: catalog.id,
