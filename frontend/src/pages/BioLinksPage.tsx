@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { Catalog } from '../types/catalog';
 import { getPublicStore } from '../services/api';
 import { applyPageSeo } from '../utils/seo';
+import { resolveImageUrl } from '../utils/format';
 import { normalizeBioLinksConfig } from '../utils/bioLinks';
 import { BioLinksView } from '../components/BioLinksView';
 import { StorePageSkeleton } from '../components/Skeletons';
@@ -41,9 +42,8 @@ export function BioLinksPage() {
           description,
           canonicalPath: `/${slug}/links`,
           ogImage:
-            data.logoUrl && data.logoUrl.startsWith('https://')
-              ? data.logoUrl
-              : undefined,
+            resolveImageUrl(data.logoUrl) ||
+            'https://vitrimini.com.br/og-cover.png?v=20261127',
         });
       })
       .catch(() => {
