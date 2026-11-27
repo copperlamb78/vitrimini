@@ -2,16 +2,20 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ShieldCheck,
+  Lock,
   ArrowUp,
   Store,
   LogIn,
   FileText,
   Mail,
+  MessageCircle,
+  MapPin,
   X,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { LEGAL_DOCS } from '../data/legalDocs';
 import { NICHE_LINKS_LIST } from '../data/nichePages';
+import { SITE_CONFIG } from '../data/siteConfig';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
 type LegalDocType = 'terms' | 'privacy' | null;
@@ -43,7 +47,7 @@ export function Footer() {
               <div className="flex items-center gap-2.5">
                 <img
                   src={logoVitriMini}
-                  alt="Logo da VitriMini"
+                  alt={`Logo da ${SITE_CONFIG.brandName}`}
                   className="h-9 w-auto object-contain"
                 />
               </div>
@@ -52,11 +56,28 @@ export function Footer() {
                 Sua vitrine digital de encomendas pronta em 2 minutos. 0% de comissão, sem app e com pedidos direto no WhatsApp.
               </p>
 
-              <div className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-1.5 text-[11px] font-semibold text-rose-700">
-                <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[#E11D48]" />
-                <span>
-                  Teste grátis por 15 dias • Liberação imediata • Produtos ilimitados
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-1.5 text-[11px] font-semibold text-rose-700">
+                  <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[#E11D48]" />
+                  <span>15 dias grátis • 0% de comissão</span>
+                </div>
+
+                <div className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-1.5 text-[11px] font-semibold text-emerald-800">
+                  <Lock className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
+                  <span>Plataforma Segura (SSL • Mercado Pago)</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-zinc-500">
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+                  {SITE_CONFIG.cityState}
                 </span>
+                {SITE_CONFIG.documentNumber.trim() && (
+                  <span>
+                    {SITE_CONFIG.documentLabel}: {SITE_CONFIG.documentNumber}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -70,7 +91,7 @@ export function Footer() {
                   <button
                     type="button"
                     onClick={handleGoToCreate}
-                    className="inline-flex items-center gap-1.5 transition hover:text-[#E11D48]"
+                    className="inline-flex cursor-pointer items-center gap-1.5 transition hover:text-[#E11D48]"
                   >
                     <ArrowUp className="h-3.5 w-3.5 text-zinc-400" />
                     Criar vitrine
@@ -80,7 +101,7 @@ export function Footer() {
                   {user ? (
                     <Link
                       to="/minhas-vitrines"
-                      className="inline-flex items-center gap-1.5 transition hover:text-[#E11D48]"
+                      className="inline-flex cursor-pointer items-center gap-1.5 transition hover:text-[#E11D48]"
                     >
                       <Store className="h-3.5 w-3.5 text-zinc-400" />
                       Minhas Vitrines
@@ -88,7 +109,7 @@ export function Footer() {
                   ) : (
                     <Link
                       to="/entrar"
-                      className="inline-flex items-center gap-1.5 transition hover:text-[#E11D48]"
+                      className="inline-flex cursor-pointer items-center gap-1.5 transition hover:text-[#E11D48]"
                     >
                       <LogIn className="h-3.5 w-3.5 text-zinc-400" />
                       Entrar
@@ -99,7 +120,7 @@ export function Footer() {
                   <button
                     type="button"
                     onClick={() => setLegalDoc('terms')}
-                    className="inline-flex items-center gap-1.5 transition hover:text-[#E11D48]"
+                    className="inline-flex cursor-pointer items-center gap-1.5 transition hover:text-[#E11D48]"
                   >
                     <FileText className="h-3.5 w-3.5 text-zinc-400" />
                     Termos de Uso
@@ -109,7 +130,7 @@ export function Footer() {
                   <button
                     type="button"
                     onClick={() => setLegalDoc('privacy')}
-                    className="inline-flex items-center gap-1.5 transition hover:text-[#E11D48]"
+                    className="inline-flex cursor-pointer items-center gap-1.5 transition hover:text-[#E11D48]"
                   >
                     <FileText className="h-3.5 w-3.5 text-zinc-400" />
                     Política de Privacidade
@@ -123,16 +144,55 @@ export function Footer() {
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-900">
                 Precisa de ajuda?
               </h3>
-              <p className="text-xs text-zinc-500">Suporte e dúvidas</p>
-              <a
-                href="mailto:suporte@vitrimini.com.br"
-                className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-xs font-semibold text-zinc-800 transition hover:border-rose-300 hover:bg-rose-50/50 hover:text-[#E11D48]"
-              >
-                <Mail className="h-4 w-4 shrink-0 text-[#E11D48]" />
-                <span className="truncate">
-                  suporte@vitrimini.com.br
-                </span>
-              </a>
+              <p className="text-xs text-zinc-500">
+                Atendimento direto para lojistas
+              </p>
+
+              <div className="flex flex-col items-start gap-2">
+                <a
+                  href={SITE_CONFIG.supportWhatsapp.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex w-full max-w-xs cursor-pointer items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2.5 text-xs font-semibold text-emerald-900 transition hover:border-emerald-300 hover:bg-emerald-100/70 sm:w-auto"
+                >
+                  <MessageCircle className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <span className="truncate">
+                    Suporte no WhatsApp: {SITE_CONFIG.supportWhatsapp.display}
+                  </span>
+                </a>
+
+                <a
+                  href={`mailto:${SITE_CONFIG.supportEmail}`}
+                  className="inline-flex w-full max-w-xs cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 text-xs font-semibold text-zinc-800 transition hover:border-rose-300 hover:bg-rose-50/50 hover:text-[#E11D48] sm:w-auto"
+                >
+                  <Mail className="h-4 w-4 shrink-0 text-[#E11D48]" />
+                  <span className="truncate">{SITE_CONFIG.supportEmail}</span>
+                </a>
+
+                <a
+                  href={SITE_CONFIG.socialLinks.instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Instagram oficial da VitriMini (@vitriminibr)"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 transition hover:border-rose-300 hover:bg-rose-50/40 hover:text-[#E11D48]"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 text-[#E11D48]"
+                  >
+                    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+                  </svg>
+                  <span>@vitriminibr</span>
+                </a>
+              </div>
             </div>
           </div>
 
@@ -141,28 +201,28 @@ export function Footer() {
             <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-zinc-500">
               <Link
                 to="/"
-                className="transition hover:text-[#E11D48] hover:underline"
+                className="cursor-pointer transition hover:text-[#E11D48] hover:underline"
               >
-                VitriMini — Catálogo Online
+                {SITE_CONFIG.brandName} — Catálogo Online
               </Link>
               {NICHE_LINKS_LIST.map((niche) => (
                 <Link
                   key={niche.slug}
                   to={niche.path}
-                  className="transition hover:text-[#E11D48] hover:underline"
+                  className="cursor-pointer transition hover:text-[#E11D48] hover:underline"
                 >
                   {niche.navLabel}
                 </Link>
               ))}
               <Link
                 to="/termos"
-                className="transition hover:text-[#E11D48] hover:underline"
+                className="cursor-pointer transition hover:text-[#E11D48] hover:underline"
               >
                 Termos de Uso
               </Link>
               <Link
                 to="/privacidade"
-                className="transition hover:text-[#E11D48] hover:underline"
+                className="cursor-pointer transition hover:text-[#E11D48] hover:underline"
               >
                 Política de Privacidade
               </Link>
@@ -171,7 +231,10 @@ export function Footer() {
 
           {/* Barra Inferior — Copyright e Autoria */}
           <div className="mt-6 flex flex-col items-center justify-between gap-3 border-t border-zinc-200 pt-6 text-xs text-zinc-500 sm:flex-row">
-            <p>© 2026 VitriMini. Todos os direitos reservados.</p>
+            <p>
+              © 2026 {SITE_CONFIG.legalName}. Todos os direitos reservados •{' '}
+              {SITE_CONFIG.cityState}
+            </p>
             <p className="flex items-center gap-1">
               <span>Desenvolvido por</span>
               <strong className="font-bold text-zinc-800">NeoDevZone</strong>
@@ -208,7 +271,7 @@ export function Footer() {
                 type="button"
                 onClick={() => setLegalDoc(null)}
                 aria-label="Fechar"
-                className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-200/70 hover:text-zinc-700"
+                className="cursor-pointer rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-200/70 hover:text-zinc-700"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -251,16 +314,16 @@ export function Footer() {
               <span className="text-xs text-zinc-500">
                 Dúvidas:{' '}
                 <a
-                  href="mailto:suporte@vitrimini.com.br"
-                  className="font-semibold text-[#E11D48] hover:underline"
+                  href={`mailto:${SITE_CONFIG.supportEmail}`}
+                  className="cursor-pointer font-semibold text-[#E11D48] hover:underline"
                 >
-                  suporte@vitrimini.com.br
+                  {SITE_CONFIG.supportEmail}
                 </a>
               </span>
               <button
                 type="button"
                 onClick={() => setLegalDoc(null)}
-                className="rounded-xl bg-zinc-900 px-5 py-2 text-xs font-bold text-white transition hover:bg-zinc-800"
+                className="cursor-pointer rounded-xl bg-rose-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-rose-700"
               >
                 Fechar
               </button>
