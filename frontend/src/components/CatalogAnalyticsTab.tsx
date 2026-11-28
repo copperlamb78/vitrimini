@@ -13,10 +13,21 @@ import type { ThemePalette } from '../constants/themes';
 import { getCatalogAnalytics, getSafeErrorMessage } from '../services/api';
 import { formatCurrency, formatPhoneMask } from '../utils/format';
 import { AnalyticsSkeleton } from './Skeletons';
+import {
+  MercadoPagoIntegrationCard,
+  type MpCatalogMeta,
+} from './MercadoPagoIntegrationCard';
 
 interface CatalogAnalyticsTabProps {
   catalogId: string;
   theme: ThemePalette;
+  mpIntegration?: {
+    catalogMeta: MpCatalogMeta;
+    mpLoading: boolean;
+    onConnect: () => void;
+    onRequestUpgrade: () => void;
+    onMetaChange: (updater: (prev: MpCatalogMeta) => MpCatalogMeta) => void;
+  };
 }
 
 const PERIODS = [
@@ -29,6 +40,7 @@ const PERIODS = [
 export function CatalogAnalyticsTab({
   catalogId,
   theme,
+  mpIntegration,
 }: CatalogAnalyticsTabProps) {
   const [period, setPeriod] = useState('30d');
   const [data, setData] = useState<CatalogAnalytics | null>(null);
@@ -54,6 +66,16 @@ export function CatalogAnalyticsTab({
 
   return (
     <div className="space-y-5">
+      {mpIntegration && (
+        <MercadoPagoIntegrationCard
+          catalogMeta={mpIntegration.catalogMeta}
+          mpLoading={mpIntegration.mpLoading}
+          onConnect={mpIntegration.onConnect}
+          onRequestUpgrade={mpIntegration.onRequestUpgrade}
+          onMetaChange={mpIntegration.onMetaChange}
+        />
+      )}
+
       {/* Seletor de período */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-2xs">
         <div>
