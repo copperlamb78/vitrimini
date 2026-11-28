@@ -6,9 +6,14 @@ import {
   disconnectMerchantMp,
   handleMpOrdersWebhook,
   toggleMerchantMpOnlinePayment,
+  updateMerchantMpPaymentMethods,
 } from '../services/mpIntegration.service.js';
 
 const uuidParamSchema = z.string().uuid('Código inválido.');
+const mpPaymentMethodsSchema = z.object({
+  mpAcceptPix: z.boolean(),
+  mpAcceptCard: z.boolean(),
+});
 const MP_OAUTH_NONCE_COOKIE = 'mp_oauth_nonce';
 
 function getMpOAuthNonceCookieOptions(maxAge?: number) {
@@ -104,6 +109,28 @@ export async function toggleMpHandler(
       catalogId,
       userId: req.user!.id,
       enabled,
+    });
+
+    res.json(updated);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateMpPaymentMethodsHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const catalogId = uuidParamSchema.parse(req.params.id);
+    const body = mpPaymentMethodsSchema.parse(req.body);
+
+    const updated = await updateMerchantMpPaymentMethods({
+      catalogId,
+      userId: req.user!.id,
+      mpAcceptPix: body.mpAcceptPix,
+      mpAcceptCard: body.mpAcceptCard,
     });
 
     res.json(updated);
