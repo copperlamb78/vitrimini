@@ -246,8 +246,13 @@ export function AdminFinanceTab({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-extrabold text-zinc-900">
-                    {p.catalog.storeName}
+                    {p.catalog?.storeName || p.catalogNameSnapshot || 'Vitrine excluída'}
                   </span>
+                  {!p.catalog && (
+                    <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold text-zinc-600">
+                      (excluída)
+                    </span>
+                  )}
                   <span
                     className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
                       p.status === 'PAID'
@@ -267,7 +272,8 @@ export function AdminFinanceTab({
                   </span>
                 </div>
                 <p className="mt-0.5 text-xs text-zinc-500">
-                  {formatCurrency(p.amountCents)} • {p.user.email} •{' '}
+                  {formatCurrency(p.amountCents)} •{' '}
+                  {p.user.email || p.ownerEmailSnapshot || '—'} •{' '}
                   {new Date(p.createdAt).toLocaleString('pt-BR')}
                 </p>
                 {p.gatewayId && (
