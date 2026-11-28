@@ -429,7 +429,10 @@ export interface AdminOverviewResponse {
     gatewayId: string | null;
     paidAt: string | null;
     createdAt: string;
+    catalogNameSnapshot?: string | null;
+    catalogSlugSnapshot?: string | null;
+    ownerEmailSnapshot?: string | null;
     user: { name: string; email: string };
-    catalog: { storeName: string; slug: string };
+    catalog: { storeName: string; slug: string } | null;
   }>;
 }
