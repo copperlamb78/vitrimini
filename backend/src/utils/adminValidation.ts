@@ -126,7 +126,10 @@ export const createAnnouncementSchema = z.object({
     .trim()
     .max(300)
     .refine(
-      (val) => !val || val.startsWith('/') || val.startsWith('https://'),
+      (val) =>
+        !val ||
+        (val.startsWith('/') && !val.startsWith('//')) ||
+        val.startsWith('https://'),
       'URL do CTA deve começar com / ou https://'
     )
     .nullable()
