@@ -11,6 +11,7 @@ import {
   clearLegacyAuthStorage,
   clearStoredAuthSession,
   getAccessToken,
+  getImpersonationToken,
   getMe,
   hasStoredSessionHint,
   isJwtTokenExpired,
@@ -20,6 +21,7 @@ import {
   refreshAuthSession,
   registerUser,
   setAccessToken,
+  setImpersonationToken,
 } from '../services/api';
 
 const DRAFT_STORAGE_KEY = 'vitrimini_draft_v1';
@@ -44,6 +46,8 @@ interface AuthContextValue {
   login: (input: LoginInput) => Promise<AuthResponse>;
   register: (input: RegisterInput) => Promise<AuthResponse>;
   logout: () => void;
+  startImpersonation: (token: string, user: AuthUser) => void;
+  stopImpersonation: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -63,6 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    setImpersonationToken(null);
     void logoutUser();
     clearStoredAuthSession();
     try {
@@ -80,6 +85,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function bootstrapSession() {
       clearLegacyAuthStorage();
+
+      const impToken = getImpersonationToken();
+      if (impToken && !isJwtTokenExpired(impToken)) {
+        try {
+          setAccessToken(impToken);
+          const res = await getMe(impToken);
+          if (!cancelled) {
+            setToken(impToken);
+            setUser(res.user);
+            setLoading(false);
+          }
+          return;
+        } catch {
+          setImpersonationToken(null);
+        }
+      }
 
       if (!hasStoredSessionHint()) {
         if (!cancelled) {
@@ -191,6 +212,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [persistSession]
   );
 
+  const startImpersonation = useCallback((impToken: string, impUser: AuthUser) => {
+    setImpersonationToken(impToken);
+    setAccessToken(impToken);
+    setToken(impToken);
+    setUser(impUser);
+    setLoading(false);
+  }, []);
+
+  const stopImpersonation = useCallback(async () => {
+    setImpersonationToken(null);
+    const refreshed = await refreshAuthSession();
+    if (refreshed) {
+      setAccessToken(refreshed.token);
+      setToken(refreshed.token);
+      setUser(refreshed.user);
+    } else {
+      clearStoredAuthSession();
+      setToken(null);
+      setUser(null);
+    }
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -200,6 +243,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         register,
         logout,
+        startImpersonation,
+        stopImpersonation,
       }}
     >
       {children}
