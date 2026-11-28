@@ -94,6 +94,9 @@ export async function fetchOverviewRawData({
         gatewayId: true,
         paidAt: true,
         createdAt: true,
+        catalogNameSnapshot: true,
+        catalogSlugSnapshot: true,
+        ownerEmailSnapshot: true,
         user: {
           select: { name: true, email: true },
         },
