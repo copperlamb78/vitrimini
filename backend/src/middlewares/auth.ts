@@ -8,6 +8,8 @@ export interface AuthUserPayload {
   email: string;
   name: string;
   phone: string;
+  isImpersonation?: boolean;
+  impersonatedBy?: string;
 }
 
 declare global {
@@ -82,6 +84,24 @@ export function signAuthToken(user: AuthUserPayload): string {
   );
 }
 
+export function signImpersonationToken(
+  user: AuthUserPayload,
+  adminEmail: string
+): string {
+  return jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      phone: user.phone,
+      isImpersonation: true,
+      impersonatedBy: adminEmail,
+    },
+    getJwtSecret(),
+    { expiresIn: '30m', algorithm: 'HS256' }
+  );
+}
+
 function parseVerifiedAuthPayload(token: string): AuthUserPayload | null {
   const decoded = jwt.verify(token, getJwtSecret(), {
     algorithms: ['HS256'],
@@ -102,6 +122,15 @@ function parseVerifiedAuthPayload(token: string): AuthUserPayload | null {
     email: decoded.email,
     name: typeof decoded.name === 'string' ? decoded.name : '',
     phone: typeof decoded.phone === 'string' ? decoded.phone : '',
+    ...(decoded.isImpersonation === true
+      ? {
+          isImpersonation: true,
+          impersonatedBy:
+            typeof decoded.impersonatedBy === 'string'
+              ? decoded.impersonatedBy
+              : undefined,
+        }
+      : {}),
   };
 }
 
@@ -172,6 +201,16 @@ export function requireAdmin(
     }
 
     try {
+      if (req.user?.isImpersonation) {
+        next(
+          new AppError(
+            403,
+            'Sessão de suporte não pode acessar o painel administrativo.'
+          )
+        );
+        return;
+      }
+
       const email = req.user?.email?.trim().toLowerCase();
       const allowedAdmins = getAllowedAdminEmails();
 
@@ -266,4 +305,21 @@ export function requireMerchant(
       next(dbErr);
     }
   });
+}
+
+export function blockImpersonationOnSensitiveAction(
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): void {
+  if (req.user?.isImpersonation) {
+    next(
+      new AppError(
+        403,
+        'Esta ação sensível de conta é bloqueada no modo suporte.'
+      )
+    );
+    return;
+  }
+  next();
 }
