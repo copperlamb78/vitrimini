@@ -87,6 +87,8 @@ export async function findStoreAndUserForOrderCreation(
         expiresAt: true,
         minOrderCents: true,
         onlinePaymentEnabled: true,
+        mpAcceptPix: true,
+        mpAcceptCard: true,
         mpAccessToken: true,
         mpRefreshToken: true,
         mpTokenExpiresAt: true,
