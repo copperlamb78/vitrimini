@@ -170,7 +170,10 @@ export async function me(
   next: NextFunction
 ): Promise<void> {
   try {
-    const result = await authService.getMe(req.user!.id);
+    const result = await authService.getMe(req.user!.id, {
+      isImpersonation: req.user?.isImpersonation,
+      impersonatedBy: req.user?.impersonatedBy,
+    });
     res.json(result);
   } catch (error) {
     next(error);
