@@ -1,4 +1,4 @@
-import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Save,
@@ -16,7 +16,6 @@ import {
   QrCode,
   CreditCard,
   Sparkles,
-  Unlink,
   X,
   Link2,
   Store,
@@ -43,13 +42,11 @@ import { AppearanceControls } from '../components/AppearanceControls';
 import {
   cancelCatalogSubscription,
   createCardSubscription,
-  disconnectMercadoPago,
   getCatalogById,
   getMercadoPagoConnectUrl,
   getSafeErrorMessage,
   renewCatalog,
   syncCardSubscription,
-  toggleMercadoPagoOnlinePayment,
   updateCatalogById,
 } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -152,6 +149,7 @@ export function ManagePage() {
     useState<CreateCatalogResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
 
@@ -482,6 +480,8 @@ export function ManagePage() {
       return;
     }
 
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     setError(null);
     setSavedNotice(false);
@@ -558,6 +558,7 @@ export function ManagePage() {
         )
       );
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -817,7 +818,24 @@ export function ManagePage() {
         )}
 
         {activeTab === 'analytics' && catalogId && (
-          <CatalogAnalyticsTab catalogId={catalogId} theme={activeTheme} />
+          <CatalogAnalyticsTab
+            catalogId={catalogId}
+            theme={activeTheme}
+            mpIntegration={
+              catalogMeta
+                ? {
+                    catalogMeta,
+                    mpLoading,
+                    onConnect: () => void handleConnectMercadoPago(),
+                    onRequestUpgrade: () => setPlanModalOpen(true),
+                    onMetaChange: (updater) =>
+                      setCatalogMeta((prev) =>
+                        prev ? { ...prev, ...updater(prev) } : prev
+                      ),
+                  }
+                : undefined
+            }
+          />
         )}
 
         {activeTab === 'biolink' && catalogId && catalogMeta && (
@@ -1395,151 +1413,6 @@ export function ManagePage() {
                 </p>
               </div>
 
-              {/* Card Pagamento Online Automático (Plano Pro) */}
-              {catalogMeta && (
-                <div className="sm:col-span-2 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="h-4 w-4 text-rose-600" />
-                      <h3 className="text-sm font-extrabold text-zinc-900">
-                        Pagamento Online Automático (Pix e Cartão)
-                      </h3>
-                    </div>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold uppercase text-rose-700">
-                      <Sparkles className="h-3 w-3" />
-                      Plano Pro
-                    </span>
-                  </div>
-
-                  {!catalogMeta.hasProAccess ? (
-                    <div className="mt-3 space-y-2.5">
-                      <p className="text-xs leading-relaxed text-zinc-600">
-                        Receba pagamentos automáticos no Pix e Cartão direto na
-                        sua conta Mercado Pago, com baixa automática dos pedidos
-                        pagos. Disponível no <strong>Plano Pro</strong> (R$
-                        14,90/mês ou R$ 149,00/ano).
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setPlanModalOpen(true)}
-                        className="inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-rose-700"
-                      >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        Fazer upgrade para o Plano Pro
-                      </button>
-                    </div>
-                  ) : !catalogMeta.mpConnected ? (
-                    <div className="mt-3 space-y-2.5">
-                      <p className="text-xs leading-relaxed text-zinc-600">
-                        Conecte sua conta Mercado Pago para que seus clientes
-                        paguem na hora por Pix ou Cartão, com o dinheiro caindo
-                        direto para você.
-                      </p>
-                      <p className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-[11px] leading-relaxed text-zinc-600">
-                        <strong>Importante:</strong> a VitriMini cobra 0% de
-                        comissão. Sobre as vendas pagas online, aplicam-se apenas
-                        as taxas padrão da sua própria conta do Mercado Pago
-                        (Pix ou Cartão).
-                      </p>
-                      <button
-                        type="button"
-                        disabled={mpLoading}
-                        onClick={() => void handleConnectMercadoPago()}
-                        className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {mpLoading ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <CreditCard className="h-3.5 w-3.5" />
-                        )}
-                        Conectar minha conta Mercado Pago
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="mt-3 space-y-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs">
-                        <span className="font-bold text-emerald-800">
-                          Conta Mercado Pago conectada
-                        </span>
-                        <button
-                          type="button"
-                          disabled={mpLoading}
-                          onClick={async () => {
-                            setMpLoading(true);
-                            try {
-                              await disconnectMercadoPago(catalogMeta.id);
-                              setCatalogMeta((prev) =>
-                                prev
-                                  ? {
-                                      ...prev,
-                                      mpConnected: false,
-                                      onlinePaymentEnabled: false,
-                                    }
-                                  : prev
-                              );
-                            } catch (err) {
-                              setMpFeedback({
-                                type: 'error',
-                                text: getSafeErrorMessage(
-                                  err,
-                                  'Erro ao desconectar conta.'
-                                ),
-                              });
-                            } finally {
-                              setMpLoading(false);
-                            }
-                          }}
-                          className="inline-flex cursor-pointer items-center gap-1 text-[11px] font-semibold text-red-600 hover:underline disabled:opacity-60"
-                        >
-                          <Unlink className="h-3 w-3" />
-                          Desconectar
-                        </button>
-                      </div>
-
-                      <label className="flex min-h-[44px] cursor-pointer items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-zinc-800">
-                        <span>Ativar pagamento online na vitrine</span>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(catalogMeta.onlinePaymentEnabled)}
-                          disabled={mpLoading}
-                          onChange={async (e) => {
-                            const nextVal = e.target.checked;
-                            setMpLoading(true);
-                            try {
-                              const res = await toggleMercadoPagoOnlinePayment(
-                                catalogMeta.id,
-                                nextVal
-                              );
-                              setCatalogMeta((prev) =>
-                                prev
-                                  ? {
-                                      ...prev,
-                                      onlinePaymentEnabled:
-                                        res.onlinePaymentEnabled,
-                                    }
-                                  : prev
-                              );
-                            } catch (err) {
-                              setMpFeedback({
-                                type: 'error',
-                                text: getSafeErrorMessage(
-                                  err,
-                                  'Não foi possível alterar essa opção.'
-                                ),
-                              });
-                            } finally {
-                              setMpLoading(false);
-                            }
-                          }}
-                          style={{ accentColor: resolvedStoreTheme.primaryColor }}
-                          className="h-4 w-4 cursor-pointer"
-                        />
-                      </label>
-                    </div>
-                  )}
-                </div>
-              )}
-
               <div className="sm:col-span-2">
                 <label className="flex min-h-[44px] cursor-pointer items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
                   <div>
@@ -1658,16 +1531,22 @@ export function ManagePage() {
           <button
             type="submit"
             disabled={saving}
+            aria-busy={saving}
             style={{
               backgroundColor: resolvedStoreTheme.primaryColor,
               color: resolvedStoreTheme.textOnPrimary,
             }}
-            className="flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-base font-bold shadow-lg transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-base font-bold shadow-lg transition-all hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
                 Salvando alterações...
+              </>
+            ) : savedNotice ? (
+              <>
+                <CheckCircle2 className="h-5 w-5" />
+                Alterações salvas!
               </>
             ) : (
               <>
