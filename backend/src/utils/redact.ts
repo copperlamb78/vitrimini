@@ -6,6 +6,8 @@ const SENSITIVE_KEY_PATTERN =
 const JWT_LIKE_PATTERN = /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g;
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi;
 const CARD_DIGITS_PATTERN = /\b(?:\d[ -]*?){13,19}\b/g;
+const CPF_PATTERN = /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g;
+const CNPJ_PATTERN = /\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/g;
 
 function isValidLuhn(digits: string): boolean {
   let sum = 0;
@@ -27,6 +29,8 @@ export function redactText(raw: string, maxLen = 2000): string {
   const sanitized = raw
     .replace(BEARER_PATTERN, 'Bearer [REDACTED]')
     .replace(JWT_LIKE_PATTERN, '[REDACTED_JWT]')
+    .replace(CPF_PATTERN, '[REDACTED_CPF]')
+    .replace(CNPJ_PATTERN, '[REDACTED_CNPJ]')
     .replace(CARD_DIGITS_PATTERN, (match) => {
       const digits = match.replace(/\D/g, '');
       return digits.length >= 13 && digits.length <= 19 && isValidLuhn(digits)
