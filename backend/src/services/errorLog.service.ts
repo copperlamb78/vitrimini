@@ -81,6 +81,15 @@ async function persistSystemError(
   });
 
   if (!existing) {
+    if (input.source === 'FRONTEND') {
+      const openFrontendCount = await prisma.systemErrorLog.count({
+        where: { source: 'FRONTEND', status: 'OPEN' },
+      });
+      if (openFrontendCount >= 500) {
+        return;
+      }
+    }
+
     await prisma.systemErrorLog.create({
       data: {
         fingerprint,
@@ -130,6 +139,7 @@ export async function purgeOldObservabilityLogs(): Promise<{
 }> {
   const now = Date.now();
   const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+  const sixtyDaysAgo = new Date(now - 60 * 24 * 60 * 60 * 1000);
   const ninetyDaysAgo = new Date(now - 90 * 24 * 60 * 60 * 1000);
 
   const [webhookRes, errorRes, auditRes] = await Promise.all([
@@ -138,8 +148,17 @@ export async function purgeOldObservabilityLogs(): Promise<{
     }),
     prisma.systemErrorLog.deleteMany({
       where: {
-        status: { in: ['RESOLVED', 'IGNORED'] },
-        lastSeenAt: { lt: thirtyDaysAgo },
+        OR: [
+          {
+            status: { in: ['RESOLVED', 'IGNORED'] },
+            lastSeenAt: { lt: thirtyDaysAgo },
+          },
+          {
+            source: 'FRONTEND',
+            status: 'OPEN',
+            lastSeenAt: { lt: sixtyDaysAgo },
+          },
+        ],
       },
     }),
     prisma.adminAuditLog.deleteMany({
