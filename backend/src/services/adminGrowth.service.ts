@@ -181,14 +181,13 @@ export async function validateCouponCode(params: {
     where: { code: normalizedCode },
   });
 
-  if (!coupon || !coupon.isActive) {
-    throw new AppError(404, 'Código promocional inválido ou desativado.');
-  }
-  if (coupon.expiresAt && coupon.expiresAt.getTime() <= Date.now()) {
-    throw new AppError(400, 'Este código promocional já expirou.');
-  }
-  if (coupon.maxUses !== null && coupon.usedCount >= coupon.maxUses) {
-    throw new AppError(400, 'Este código promocional atingiu o limite de usos.');
+  if (
+    !coupon ||
+    !coupon.isActive ||
+    (coupon.expiresAt && coupon.expiresAt.getTime() <= Date.now()) ||
+    (coupon.maxUses !== null && coupon.usedCount >= coupon.maxUses)
+  ) {
+    throw new AppError(400, 'Código promocional inválido ou expirado.');
   }
 
   if (params.userId) {
