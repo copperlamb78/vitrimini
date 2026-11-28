@@ -29,6 +29,7 @@ import {
   findPaidOrderReplay,
   promoteOrderToPaid,
   saveCatalogMpCredentials,
+  updateCatalogMpPaymentMethods,
   updateCatalogOnlinePaymentEnabled,
 } from '../repositories/mp.repository.js';
 
@@ -159,6 +160,43 @@ export async function toggleMerchantMpOnlinePayment(params: {
     catalogId: catalog.id,
     userId: params.userId,
     enabled: params.enabled,
+  });
+}
+
+export async function updateMerchantMpPaymentMethods(params: {
+  catalogId: string;
+  userId: string;
+  mpAcceptPix: boolean;
+  mpAcceptCard: boolean;
+}) {
+  const catalog = await findOwnedCatalogForMpToggle(
+    params.catalogId,
+    params.userId
+  );
+
+  if (!catalog) {
+    throw new AppError(404, FRIENDLY_ERRORS.NOT_FOUND);
+  }
+
+  if (!hasProFeatures(catalog)) {
+    throw new AppError(
+      403,
+      'O pagamento online automático faz parte do Plano Pro.'
+    );
+  }
+
+  if (catalog.mpAccessToken && !params.mpAcceptPix && !params.mpAcceptCard) {
+    throw new AppError(
+      400,
+      'Mantenha pelo menos Pix ou Cartão ativo enquanto o Mercado Pago estiver conectado (ou desconecte a conta para aceitar apenas pedidos no WhatsApp).'
+    );
+  }
+
+  return updateCatalogMpPaymentMethods({
+    catalogId: catalog.id,
+    userId: params.userId,
+    mpAcceptPix: params.mpAcceptPix,
+    mpAcceptCard: params.mpAcceptCard,
   });
 }
 
