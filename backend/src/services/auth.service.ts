@@ -13,6 +13,7 @@ import {
   sendWelcomeEmail,
 } from './email.service.js';
 import * as authRepository from '../repositories/auth.repository.js';
+import { prisma } from '../lib/prisma.js';
 
 const CURRENT_TERMS_VERSION = '1.1-2026-11';
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutos
@@ -212,6 +213,13 @@ export async function login(input: LoginInput) {
 
   clearLoginLockout(normalizedEmail);
 
+  void prisma.user
+    .update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    })
+    .catch(() => undefined);
+
   const publicUser = {
     id: user.id,
     name: user.name,
@@ -376,6 +384,13 @@ export async function refreshSession(rawRefresh: string | null) {
 
   const accessToken = signAuthToken(stored.user);
 
+  void prisma.user
+    .update({
+      where: { id: stored.userId },
+      data: { lastLoginAt: new Date() },
+    })
+    .catch(() => undefined);
+
   return {
     token: accessToken,
     rawRefreshToken: nextRawRefresh,
@@ -394,7 +409,10 @@ export async function logout(rawRefresh: string | null): Promise<void> {
   );
 }
 
-export async function getMe(userId: string) {
+export async function getMe(
+  userId: string,
+  impersonation?: { isImpersonation?: boolean; impersonatedBy?: string }
+) {
   const user = await authRepository.findUserProfileById(userId);
   if (!user) {
     throw new AppError(401, 'Conta não encontrada. Entre novamente.');
@@ -404,6 +422,12 @@ export async function getMe(userId: string) {
     user: {
       ...user,
       canUseTrial: !user.hasUsedTrial,
+      ...(impersonation?.isImpersonation
+        ? {
+            isImpersonation: true,
+            impersonatedBy: impersonation.impersonatedBy,
+          }
+        : {}),
     },
   };
 }
