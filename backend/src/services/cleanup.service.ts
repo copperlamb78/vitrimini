@@ -4,6 +4,8 @@ import {
   sendCatalogExpiringSoonEmail,
 } from './email.service.js';
 import { deleteImagesFromR2 } from './r2.service.js';
+import { purgeOldObservabilityLogs } from './errorLog.service.js';
+import { runExpirationEmailRules } from './adminRadar.service.js';
 
 export const GRACE_PERIOD_DAYS = 30;
 export const GRACE_PERIOD_MS = GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
@@ -130,30 +132,50 @@ export async function cleanupExpiredCatalogs(): Promise<number> {
       },
     });
 
-    if (expiredBeyondGrace.length === 0) {
-      return 0;
-    }
-
-    // Coleta todas as URLs de imagens e apaga em um único lote no R2 (1 operação Class A)
-    const allImageUrls: Array<string | null> = [];
-    for (const catalog of expiredBeyondGrace) {
-      allImageUrls.push(catalog.logoUrl);
-      for (const product of catalog.products) {
-        allImageUrls.push(product.imageUrl);
+    if (expiredBeyondGrace.length > 0) {
+      // Coleta todas as URLs de imagens e apaga em um único lote no R2 (1 operação Class A)
+      const allImageUrls: Array<string | null> = [];
+      for (const catalog of expiredBeyondGrace) {
+        allImageUrls.push(catalog.logoUrl);
+        for (const product of catalog.products) {
+          allImageUrls.push(product.imageUrl);
+        }
       }
+
+      await deleteImagesFromR2(allImageUrls);
+
+      await prisma.catalog.deleteMany({
+        where: {
+          id: { in: expiredBeyondGrace.map((c) => c.id) },
+        },
+      });
+
+      console.log(
+        `🧹 [Cleanup]: ${expiredBeyondGrace.length} vitrine(s) vencida(s) há mais de 30 dias removida(s) permanentemente (banco + R2).`
+      );
     }
 
-    await deleteImagesFromR2(allImageUrls);
-
-    await prisma.catalog.deleteMany({
-      where: {
-        id: { in: expiredBeyondGrace.map((c) => c.id) },
-      },
+    const ruleResult = await runExpirationEmailRules({
+      dryRun: false,
+      respectBusinessHours: true,
     });
+    if (!ruleResult.skipped && ruleResult.processed > 0) {
+      console.log(
+        `📧 [Expiration Rules]: ${ruleResult.processed} lembrete(s) enviado(s).`
+      );
+    }
 
-    console.log(
-      `🧹 [Cleanup]: ${expiredBeyondGrace.length} vitrine(s) vencida(s) há mais de 30 dias removida(s) permanentemente (banco + R2).`
-    );
+    const purged = await purgeOldObservabilityLogs();
+    if (
+      purged.webhookDeleted > 0 ||
+      purged.errorDeleted > 0 ||
+      purged.auditDeleted > 0
+    ) {
+      console.log(
+        `🧹 [Cleanup Logs]: webhooks=${purged.webhookDeleted}, errors=${purged.errorDeleted}, audits=${purged.auditDeleted}`
+      );
+    }
+
     return expiredBeyondGrace.length;
   } catch (err) {
     console.error('[Cleanup Error]: Falha ao executar limpeza automática:', err);
