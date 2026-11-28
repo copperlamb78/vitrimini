@@ -1,4 +1,5 @@
 import * as adminRepository from '../repositories/admin.repository.js';
+import { prisma } from '../lib/prisma.js';
 
 const BREVO_DAILY_LIMIT = 300;
 
@@ -77,7 +78,29 @@ export async function getOverview() {
     catalogsByStatus[grp.status] = grp._count._all;
   }
 
+  const sevenDaysAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const [openErrorsCount, criticalErrors24hCount, expiringRadarCount] =
+    await Promise.all([
+      prisma.systemErrorLog.count({ where: { status: 'OPEN' } }),
+      prisma.systemErrorLog.count({
+        where: { severity: 'CRITICAL', lastSeenAt: { gte: oneDayAgo } },
+      }),
+      prisma.catalog.count({
+        where: {
+          status: 'ACTIVE',
+          expiresAt: { gt: now, lte: sevenDaysAhead },
+        },
+      }),
+    ]);
+
   return {
+    alerts: {
+      openErrorsCount,
+      criticalErrors24hCount,
+      expiringRadarCount,
+    },
     brevo: {
       dailyLimit: BREVO_DAILY_LIMIT,
       sentToday,
