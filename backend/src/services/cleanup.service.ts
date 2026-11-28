@@ -123,7 +123,13 @@ export async function cleanupExpiredCatalogs(): Promise<number> {
       select: {
         id: true,
         slug: true,
+        storeName: true,
         logoUrl: true,
+        user: {
+          select: {
+            email: true,
+          },
+        },
         products: {
           select: {
             imageUrl: true,
@@ -143,6 +149,26 @@ export async function cleanupExpiredCatalogs(): Promise<number> {
       }
 
       await deleteImagesFromR2(allImageUrls);
+
+      await Promise.all(
+        expiredBeyondGrace.map((catalog) =>
+          prisma.catalogPayment.updateMany({
+            where: {
+              catalogId: catalog.id,
+              OR: [
+                { catalogNameSnapshot: null },
+                { catalogSlugSnapshot: null },
+                { ownerEmailSnapshot: null },
+              ],
+            },
+            data: {
+              catalogNameSnapshot: catalog.storeName,
+              catalogSlugSnapshot: catalog.slug,
+              ownerEmailSnapshot: catalog.user.email,
+            },
+          })
+        )
+      );
 
       await prisma.catalog.deleteMany({
         where: {
