@@ -82,7 +82,11 @@ export function GlobalAnnouncementBanner() {
         <div>
           <p className="font-bold">{announcement.title}</p>
           <p className="mt-0.5 text-xs opacity-90">{announcement.message}</p>
-          {announcement.ctaLabel && announcement.ctaUrl && (
+          {announcement.ctaLabel &&
+            announcement.ctaUrl &&
+            ((announcement.ctaUrl.startsWith('/') &&
+              !announcement.ctaUrl.startsWith('//')) ||
+              announcement.ctaUrl.startsWith('https://')) && (
             <div className="mt-2">
               {announcement.ctaUrl.startsWith('/') ? (
                 <Link
