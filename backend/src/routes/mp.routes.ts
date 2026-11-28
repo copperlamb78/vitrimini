@@ -8,6 +8,7 @@ import {
   mpCallbackHandler,
   mpOrdersWebhookHandler,
   toggleMpHandler,
+  updateMpPaymentMethodsHandler,
 } from '../controllers/mp.controller.js';
 
 const router = Router();
@@ -64,6 +65,14 @@ router.patch(
   mpOAuthRateLimiter,
   requireMerchant,
   toggleMpHandler
+);
+
+// 3b. PATCH /api/catalogs/:id/mp-payment-methods
+router.patch(
+  '/catalogs/:id/mp-payment-methods',
+  mpOAuthRateLimiter,
+  requireMerchant,
+  updateMpPaymentMethodsHandler
 );
 
 // 4. DELETE /api/catalogs/:id/integrations/mercadopago
