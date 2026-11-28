@@ -1,7 +1,12 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { PageSuspenseSkeleton } from './components/Skeletons';
+import {
+  GlobalErrorBoundary,
+  registerGlobalErrorListeners,
+} from './components/GlobalErrorBoundary';
+import { ImpersonationBanner } from './components/ImpersonationBanner';
 
 const LandingPage = lazy(() =>
   import('./pages/LandingPage').then((m) => ({ default: m.LandingPage }))
@@ -63,10 +68,16 @@ const isAdminSubdomain =
   window.location.hostname.toLowerCase() === 'painel.vitrimini.com.br';
 
 export function App() {
+  useEffect(() => {
+    return registerGlobalErrorListeners();
+  }, []);
+
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Suspense fallback={<PageSuspenseSkeleton />}>
+    <GlobalErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <ImpersonationBanner />
+          <Suspense fallback={<PageSuspenseSkeleton />}>
           {isAdminSubdomain ? (
             <Routes>
               <Route path="*" element={<AdminDashboardPage />} />
@@ -120,9 +131,10 @@ export function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           )}
-        </Suspense>
-      </BrowserRouter>
-    </AuthProvider>
+          </Suspense>
+        </BrowserRouter>
+      </AuthProvider>
+    </GlobalErrorBoundary>
   );
 }
 
