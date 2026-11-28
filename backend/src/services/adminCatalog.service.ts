@@ -476,6 +476,22 @@ export async function deleteCatalogSafely(params: {
   await deleteImagesFromR2(imageUrls);
 
   await prisma.$transaction(async (tx) => {
+    await tx.catalogPayment.updateMany({
+      where: {
+        catalogId: catalog.id,
+        OR: [
+          { catalogNameSnapshot: null },
+          { catalogSlugSnapshot: null },
+          { ownerEmailSnapshot: null },
+        ],
+      },
+      data: {
+        catalogNameSnapshot: catalog.storeName,
+        catalogSlugSnapshot: catalog.slug,
+        ownerEmailSnapshot: catalog.user.email,
+      },
+    });
+
     await tx.catalog.delete({
       where: { id: catalog.id },
     });
