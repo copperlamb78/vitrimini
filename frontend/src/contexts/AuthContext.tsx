@@ -66,7 +66,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
+  const stopImpersonation = useCallback(async () => {
+    setImpersonationToken(null);
+    const refreshed = await refreshAuthSession();
+    if (refreshed) {
+      setAccessToken(refreshed.token);
+      setToken(refreshed.token);
+      setUser(refreshed.user);
+    } else {
+      clearStoredAuthSession();
+      setToken(null);
+      setUser(null);
+    }
+  }, []);
+
   const logout = useCallback(() => {
+    if (user?.isImpersonation) {
+      void stopImpersonation();
+      return;
+    }
     setImpersonationToken(null);
     void logoutUser();
     clearStoredAuthSession();
@@ -78,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
     setLoading(false);
-  }, []);
+  }, [user?.isImpersonation, stopImpersonation]);
 
   useEffect(() => {
     let cancelled = false;
@@ -218,20 +236,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(impToken);
     setUser(impUser);
     setLoading(false);
-  }, []);
-
-  const stopImpersonation = useCallback(async () => {
-    setImpersonationToken(null);
-    const refreshed = await refreshAuthSession();
-    if (refreshed) {
-      setAccessToken(refreshed.token);
-      setToken(refreshed.token);
-      setUser(refreshed.user);
-    } else {
-      clearStoredAuthSession();
-      setToken(null);
-      setUser(null);
-    }
   }, []);
 
   return (
