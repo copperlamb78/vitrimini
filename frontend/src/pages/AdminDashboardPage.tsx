@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ShieldCheck,
   RefreshCw,
@@ -30,6 +31,7 @@ import logoVitriMini from '../assets/logo-vitrimini.png';
 
 export function AdminDashboardPage() {
   const { user, loading: authLoading, login, logout } = useAuth();
+  const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -84,9 +86,13 @@ export function AdminDashboardPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
+      if (user.isImpersonation) {
+        navigate('/minhas-vitrines', { replace: true });
+        return;
+      }
       void loadOverview();
     }
-  }, [authLoading, user, loadOverview]);
+  }, [authLoading, user, loadOverview, navigate]);
 
   async function handleAdminLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -107,6 +113,10 @@ export function AdminDashboardPage() {
         <Loader2 className="h-8 w-8 animate-spin text-rose-600" />
       </div>
     );
+  }
+
+  if (user?.isImpersonation) {
+    return null;
   }
 
   if (!user) {
