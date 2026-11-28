@@ -183,12 +183,15 @@ model Product {
 }
 
 model CatalogPayment {
-  id          String              @id @default(uuid())
-  userId      String
-  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  catalogId   String
-  catalog     Catalog             @relation(fields: [catalogId], references: [id], onDelete: Cascade)
-  type           PaymentType         @default(CREATION)
+  id                      String              @id @default(uuid())
+  userId                  String
+  user                    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  catalogId               String?
+  catalog                 Catalog?            @relation(fields: [catalogId], references: [id], onDelete: SetNull)
+  catalogNameSnapshot     String?
+  catalogSlugSnapshot     String?
+  ownerEmailSnapshot      String?
+  type                    PaymentType         @default(CREATION)
   planCode       String              @default("ESSENTIAL_90D")
   status         PaymentRecordStatus @default(PENDING)
   amountCents    Int                 // Ex: 2490
