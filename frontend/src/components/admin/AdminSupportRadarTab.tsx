@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { AdminToggleSwitch } from './AdminToggleSwitch';
 import { useDebouncedValue } from '../../utils/useDebouncedValue';
+import { getPublicStoreUrl } from '../../utils/url';
 import {
   getAdminRadar,
   runAdminRadarRules,
@@ -237,7 +238,15 @@ export function AdminSupportRadarTab({
                     )}
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">
-                    /c/{cat.slug} • {cat.user.name} ({cat.user.email})
+                    <a
+                      href={getPublicStoreUrl(cat.slug)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-rose-600 hover:underline"
+                    >
+                      /c/{cat.slug}
+                    </a>{' '}
+                    • {cat.user.name} ({cat.user.email})
                   </p>
                 </div>
 
