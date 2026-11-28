@@ -46,6 +46,7 @@ import {
 import { hasProFeatures } from './mpOAuth.service.js';
 import {
   addCalendarMonths,
+  calculateCardFeeFallback,
   calculatePixFeeFallback,
   cancelMercadoPagoPreapproval,
   createCardSubscription,
@@ -176,7 +177,7 @@ async function cancelPreviousPreapprovalIfActive(
   }
 }
 
-async function confirmCatalogPayment(
+export async function confirmCatalogPayment(
   paymentRecordId: string,
   feeOverride?: { feeCents?: number; netAmountCents?: number }
 ) {
@@ -252,6 +253,7 @@ export interface CreateCatalogServiceInput {
   meta: z.infer<typeof catalogMetadataSchema>;
   validatedProducts: Array<z.infer<typeof productInputSchema>>;
   planCode?: unknown;
+  couponCode?: string;
   deferPayment?: boolean;
   files: Express.Multer.File[];
 }
@@ -263,6 +265,7 @@ export async function createCatalog(input: CreateCatalogServiceInput) {
     meta,
     validatedProducts,
     planCode,
+    couponCode,
     deferPayment,
     files,
   } = input;
@@ -308,6 +311,71 @@ export async function createCatalog(input: CreateCatalogServiceInput) {
     const slug = await generateUniqueSlug(meta.storeName);
     const planDef = resolvePlanDefinition(planCode);
     const amountCents = planDef.amountCents;
+
+    if (couponCode && couponCode.trim()) {
+      const { redeemCouponTx } = await import('./adminGrowth.service.js');
+      const { prisma } = await import('../lib/prisma.js');
+      const couponResult = await prisma.$transaction(async (tx) => {
+        const provisionalExpiresAt = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+        const created = await tx.catalog.create({
+          data: {
+            slug,
+            status: 'ACTIVE',
+            isTrial: true,
+            planType: planDef.planType,
+            expiresAt: provisionalExpiresAt,
+            userId,
+            storeName: meta.storeName,
+            logoUrl,
+            themeColor: meta.themeColor,
+            whatsapp: meta.whatsapp,
+            pixKey: meta.pixKey,
+            depositPct: meta.depositPct,
+            minOrderCents: meta.minOrderCents,
+            paymentNotice: meta.paymentNotice,
+            deliveryDates: meta.deliveryDates.filter(Boolean),
+            notes: meta.notes,
+            products: { create: productsData },
+          },
+          select: { id: true, slug: true, editToken: true },
+        });
+
+        const coupon = await redeemCouponTx({
+          tx,
+          code: couponCode,
+          userId,
+          catalogId: created.id,
+        });
+
+        const targetPlan = coupon.targetPlanCode
+          ? resolvePlanDefinition(coupon.targetPlanCode)
+          : planDef;
+        const expiresAt = new Date(
+          Date.now() + coupon.bonusDays * 24 * 60 * 60 * 1000
+        );
+
+        const finalized = await tx.catalog.update({
+          where: { id: created.id },
+          data: {
+            planType: targetPlan.planType,
+            expiresAt,
+          },
+          select: { id: true, slug: true, editToken: true, expiresAt: true },
+        });
+
+        return { finalized, couponCode: coupon.code };
+      });
+
+      markMerchantCache(userId);
+      return {
+        catalogId: couponResult.finalized.id,
+        slug: couponResult.finalized.slug,
+        editToken: couponResult.finalized.editToken,
+        activatedByTrial: true as const,
+        activatedByCoupon: couponResult.couponCode,
+        expiresAt: couponResult.finalized.expiresAt,
+      };
+    }
 
     const { dbUser, existingTrialByWhatsapp } = await findTrialEligibilityData(
       userId,
@@ -674,10 +742,15 @@ export async function syncCatalogSubscriptionForOwner(
   };
 }
 
-export async function getMyCatalogs(userId: string) {
-  void cleanupExpiredCatalogs();
+const INLINE_CLEANUP_COOLDOWN_MS = 30 * 60 * 1000;
+let lastInlineCleanupAt = 0;
 
+export async function getMyCatalogs(userId: string) {
   const nowMs = Date.now();
+  if (nowMs - lastInlineCleanupAt >= INLINE_CLEANUP_COOLDOWN_MS) {
+    lastInlineCleanupAt = nowMs;
+    void cleanupExpiredCatalogs();
+  }
   const { catalogs, dbUser } = await findUserCatalogsAndTrialFlag(userId);
 
   const enriched = catalogs.map((cat) => {
@@ -992,8 +1065,9 @@ async function confirmSubscriptionCharge(params: {
     feeCents = Math.min(amountCents, params.feeCentsOverride);
     netAmountCents = Math.max(0, amountCents - feeCents);
   } else {
-    netAmountCents = amountCents;
-    feeCents = 0;
+    const fallback = calculateCardFeeFallback(amountCents);
+    feeCents = fallback.feeCents;
+    netAmountCents = fallback.netAmountCents;
   }
 
   const parsedNextBilling = params.preapproval?.next_payment_date
@@ -1410,7 +1484,10 @@ export async function getPublicStoreBySlug(params: {
     onlinePaymentAvailable:
       hasProFeatures(catalog) &&
       catalog.onlinePaymentEnabled &&
-      Boolean(catalog.mpAccessToken),
+      Boolean(catalog.mpAccessToken) &&
+      (catalog.mpAcceptPix || catalog.mpAcceptCard),
+    mpAcceptPix: catalog.mpAcceptPix,
+    mpAcceptCard: catalog.mpAcceptCard,
     bioLinksConfig:
       hasProFeatures(catalog) &&
       (catalog.bioLinksConfig as { enabled?: boolean } | null)?.enabled === true
