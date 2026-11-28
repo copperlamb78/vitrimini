@@ -77,6 +77,7 @@ export function StorePage() {
   const [paymentMethod, setPaymentMethod] = useState<OrderPaymentMethod>('PIX');
   const [paymentChannel, setPaymentChannel] =
     useState<OrderPaymentChannel>('WHATSAPP');
+  const [onlineMethod, setOnlineMethod] = useState<'PIX' | 'CARD'>('PIX');
   const [onlinePaid, setOnlinePaid] = useState(false);
   const [copiedOnlinePix, setCopiedOnlinePix] = useState(false);
   const [address, setAddress] = useState('');
@@ -140,9 +141,15 @@ export function StorePage() {
     getPublicStore(slug, isPreview)
       .then((data) => {
         setCatalog(data);
-        setPaymentChannel(
-          data.onlinePaymentAvailable ? 'MERCADO_PAGO' : 'WHATSAPP'
-        );
+        const acceptPix = data.mpAcceptPix !== false;
+        const acceptCard = data.mpAcceptCard !== false;
+        const hasAnyOnline = Boolean(data.onlinePaymentAvailable) && (acceptPix || acceptCard);
+        setPaymentChannel(hasAnyOnline ? 'MERCADO_PAGO' : 'WHATSAPP');
+        if (acceptPix) {
+          setOnlineMethod('PIX');
+        } else if (acceptCard) {
+          setOnlineMethod('CARD');
+        }
 
         const storeDescription =
           data.notes?.trim().slice(0, 155) ||
@@ -339,7 +346,7 @@ export function StorePage() {
       const effectivePaymentMethod: OrderPaymentMethod =
         catalog.onlinePaymentAvailable
           ? effectivePaymentChannel === 'MERCADO_PAGO'
-            ? 'CARD'
+            ? onlineMethod
             : 'OTHER'
           : paymentMethod;
 
@@ -1107,35 +1114,73 @@ export function StorePage() {
                 />
               </div>
 
-              {catalog.onlinePaymentAvailable ? (
+              {catalog.onlinePaymentAvailable &&
+              (catalog.mpAcceptPix !== false || catalog.mpAcceptCard !== false) ? (
                 <div>
                   <label className="block text-xs font-semibold text-stone-700">
                     Como deseja pagar?
                   </label>
-                  <div className="mt-1.5 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      disabled={belowMpMin}
-                      onClick={() => setPaymentChannel('MERCADO_PAGO')}
-                      style={
-                        !belowMpMin && paymentChannel === 'MERCADO_PAGO'
-                          ? {
-                              borderColor: resolvedTheme.primaryColor,
-                              backgroundColor: hexToRgba(resolvedTheme.primaryColor, 0.08),
-                              color: '#18181B',
-                            }
-                          : undefined
-                      }
-                      className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
-                        belowMpMin
-                          ? 'cursor-not-allowed border-stone-200 bg-stone-50 text-stone-400'
-                          : paymentChannel === 'MERCADO_PAGO'
-                            ? 'cursor-pointer'
-                            : 'cursor-pointer border-stone-200 text-stone-600'
-                      }`}
-                    >
-                      Pagar agora (Pix ou Cartão)
-                    </button>
+                  <div className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {catalog.mpAcceptPix !== false && (
+                      <button
+                        type="button"
+                        disabled={belowMpMin}
+                        onClick={() => {
+                          setPaymentChannel('MERCADO_PAGO');
+                          setOnlineMethod('PIX');
+                        }}
+                        style={
+                          !belowMpMin &&
+                          paymentChannel === 'MERCADO_PAGO' &&
+                          onlineMethod === 'PIX'
+                            ? {
+                                borderColor: resolvedTheme.primaryColor,
+                                backgroundColor: hexToRgba(resolvedTheme.primaryColor, 0.08),
+                                color: '#18181B',
+                              }
+                            : undefined
+                        }
+                        className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
+                          belowMpMin
+                            ? 'cursor-not-allowed border-stone-200 bg-stone-50 text-stone-400'
+                            : paymentChannel === 'MERCADO_PAGO' && onlineMethod === 'PIX'
+                              ? 'cursor-pointer'
+                              : 'cursor-pointer border-stone-200 text-stone-600'
+                        }`}
+                      >
+                        Pagar com Pix
+                      </button>
+                    )}
+                    {catalog.mpAcceptCard !== false && (
+                      <button
+                        type="button"
+                        disabled={belowMpMin}
+                        onClick={() => {
+                          setPaymentChannel('MERCADO_PAGO');
+                          setOnlineMethod('CARD');
+                        }}
+                        style={
+                          !belowMpMin &&
+                          paymentChannel === 'MERCADO_PAGO' &&
+                          onlineMethod === 'CARD'
+                            ? {
+                                borderColor: resolvedTheme.primaryColor,
+                                backgroundColor: hexToRgba(resolvedTheme.primaryColor, 0.08),
+                                color: '#18181B',
+                              }
+                            : undefined
+                        }
+                        className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
+                          belowMpMin
+                            ? 'cursor-not-allowed border-stone-200 bg-stone-50 text-stone-400'
+                            : paymentChannel === 'MERCADO_PAGO' && onlineMethod === 'CARD'
+                              ? 'cursor-pointer'
+                              : 'cursor-pointer border-stone-200 text-stone-600'
+                        }`}
+                      >
+                        Pagar com Cartão
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setPaymentChannel('WHATSAPP')}
@@ -1152,6 +1197,10 @@ export function StorePage() {
                         belowMpMin || paymentChannel === 'WHATSAPP'
                           ? ''
                           : 'border-stone-200 text-stone-600'
+                      } ${
+                        catalog.mpAcceptPix !== false && catalog.mpAcceptCard !== false
+                          ? 'sm:col-span-2'
+                          : ''
                       }`}
                     >
                       Combinar no WhatsApp
