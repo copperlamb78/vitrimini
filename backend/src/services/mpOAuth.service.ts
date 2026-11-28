@@ -54,7 +54,7 @@ export function buildMpAuthorizationUrl(
     state,
     redirect_uri: redirectUri,
   });
-  return `https://auth.mercadopago.com/authorization?${params.toString()}`;
+  return `https://auth.mercadopago.com.br/authorization?${params.toString()}`;
 }
 
 export async function fetchMpUserId(accessToken: string): Promise<string | null> {
@@ -196,6 +196,8 @@ export async function createMerchantOnlinePayment(params: {
     mpAccessToken: string | null;
     mpRefreshToken: string | null;
     mpTokenExpiresAt: Date | null;
+    mpAcceptPix?: boolean;
+    mpAcceptCard?: boolean;
   };
   order: {
     id: string;
@@ -271,6 +273,18 @@ export async function createMerchantOnlinePayment(params: {
   }
 
   // Cartão / Checkout Pro do lojista
+  const excludedPaymentTypes: Array<{ id: string }> = [{ id: 'ticket' }];
+  if (params.catalog.mpAcceptPix === false) {
+    excludedPaymentTypes.push({ id: 'bank_transfer' });
+  }
+  if (params.catalog.mpAcceptCard === false) {
+    excludedPaymentTypes.push(
+      { id: 'credit_card' },
+      { id: 'debit_card' },
+      { id: 'prepaid_card' }
+    );
+  }
+
   const prefRes = await fetch('https://api.mercadopago.com/checkout/preferences', {
     method: 'POST',
     headers: {
@@ -286,6 +300,9 @@ export async function createMerchantOnlinePayment(params: {
           unit_price: amountFloat,
         },
       ],
+      payment_methods: {
+        excluded_payment_types: excludedPaymentTypes,
+      },
       external_reference: params.order.id,
       notification_url: notificationUrl,
       back_urls: {
