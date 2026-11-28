@@ -1,7 +1,7 @@
 import multer from 'multer';
 import { UploadValidationError } from '../middlewares/errorHandler.js';
 
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MB (imagens já comprimidas em WebP no front)
 
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
@@ -63,8 +63,8 @@ export const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: MAX_FILE_SIZE_BYTES,
-    files: 60,
-    fieldSize: 1024 * 1024,
+    files: 25,
+    fieldSize: 512 * 1024,
   },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
