@@ -135,6 +135,9 @@ export interface AdminPaymentItem {
   gatewayId: string | null;
   paidAt: string | null;
   createdAt: string;
+  catalogNameSnapshot?: string | null;
+  catalogSlugSnapshot?: string | null;
+  ownerEmailSnapshot?: string | null;
   user: { name: string; email: string };
   catalog: {
     id: string;
@@ -142,7 +145,7 @@ export interface AdminPaymentItem {
     slug: string;
     billingType: string;
     mpPreapprovalId: string | null;
-  };
+  } | null;
 }
 
 export interface WebhookLogItem {
