@@ -131,6 +131,7 @@ export function PlanSelectorModal({
     isCardActive && currentPlanType === selectedPlanTier;
 
   function handleConfirm() {
+    if (loading) return;
     if (paymentMethod === 'CARD') {
       if (!autoRenewConsent) return;
       if (onSelectCardSubscription) {
@@ -397,12 +398,13 @@ export function PlanSelectorModal({
         <button
           type="button"
           disabled={loading || isCardBlocked || isDuplicateActiveCardPlan}
+          aria-busy={loading}
           onClick={handleConfirm}
           style={{
             backgroundColor: accentColor,
             color: accentTextColor,
           }}
-          className="mt-5 flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-bold shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-5 flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-bold shadow-sm transition-all hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? (
             <>
