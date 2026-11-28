@@ -81,6 +81,8 @@ export interface AuthUser {
   phone: string;
   hasUsedTrial?: boolean;
   canUseTrial?: boolean;
+  isImpersonation?: boolean;
+  impersonatedBy?: string;
   createdAt?: string;
   _count?: {
     catalogs: number;
@@ -121,6 +123,8 @@ export interface Catalog {
   canceledAt?: string | null;
   nextBillingAt?: string | null;
   onlinePaymentEnabled?: boolean;
+  mpAcceptPix?: boolean;
+  mpAcceptCard?: boolean;
   mpConnected?: boolean;
   hasProAccess?: boolean;
   onlinePaymentAvailable?: boolean;
@@ -209,6 +213,8 @@ export interface MyCatalogItem {
   canceledAt?: string | null;
   nextBillingAt?: string | null;
   onlinePaymentEnabled?: boolean;
+  mpAcceptPix?: boolean;
+  mpAcceptCard?: boolean;
   mpConnected?: boolean;
   hasProAccess?: boolean;
   isExpired?: boolean;
@@ -363,6 +369,11 @@ export interface CatalogAnalytics {
 }
 
 export interface AdminOverviewResponse {
+  alerts?: {
+    openErrorsCount: number;
+    criticalErrors24hCount: number;
+    expiringRadarCount: number;
+  };
   brevo: {
     dailyLimit: number;
     sentToday: number;
