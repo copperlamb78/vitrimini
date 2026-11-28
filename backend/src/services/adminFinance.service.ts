@@ -126,7 +126,7 @@ export async function getFinanceSummary() {
       amountCents: number;
       feeCents: number | null;
       netAmountCents: number | null;
-      catalog: { billingType: string };
+      catalog: { billingType: string } | null;
     }>
   ) {
     const acc = {
@@ -142,7 +142,7 @@ export async function getFinanceSummary() {
       count: rows.length,
     };
     for (const p of rows) {
-      const isCard = p.catalog.billingType === 'CARD_RECURRING';
+      const isCard = p.catalog?.billingType === 'CARD_RECURRING';
       const fallback = isCard
         ? calculateCardFeeFallback(p.amountCents)
         : calculatePixFeeFallback(p.amountCents);
@@ -200,6 +200,9 @@ export async function listAdminPayments(params: {
           OR: [
             { gatewayId: { contains: q, mode: 'insensitive' as const } },
             { planCode: { contains: q, mode: 'insensitive' as const } },
+            { catalogNameSnapshot: { contains: q, mode: 'insensitive' as const } },
+            { catalogSlugSnapshot: { contains: q, mode: 'insensitive' as const } },
+            { ownerEmailSnapshot: { contains: q, mode: 'insensitive' as const } },
             { user: { email: { contains: q, mode: 'insensitive' as const } } },
             { catalog: { storeName: { contains: q, mode: 'insensitive' as const } } },
             { catalog: { slug: { contains: q, mode: 'insensitive' as const } } },
@@ -225,6 +228,9 @@ export async function listAdminPayments(params: {
         gatewayId: true,
         paidAt: true,
         createdAt: true,
+        catalogNameSnapshot: true,
+        catalogSlugSnapshot: true,
+        ownerEmailSnapshot: true,
         user: { select: { name: true, email: true } },
         catalog: {
           select: {
@@ -261,6 +267,7 @@ export async function reconcileAdminPayment(params: {
       amountCents: true,
       gatewayId: true,
       catalogId: true,
+      catalogSlugSnapshot: true,
       catalog: {
         select: {
           id: true,
@@ -301,7 +308,7 @@ export async function reconcileAdminPayment(params: {
     mpStatus = verification.approved ? 'approved' : 'pending';
     feeCents = verification.feeCents;
     netAmountCents = verification.netAmountCents;
-  } else if (payment.catalog.mpPreapprovalId) {
+  } else if (payment.catalog?.mpPreapprovalId) {
     const preapproval = await fetchMercadoPagoPreapproval(
       payment.catalog.mpPreapprovalId
     );
@@ -324,7 +331,7 @@ export async function reconcileAdminPayment(params: {
     action: 'RECONCILE_PAYMENT',
     targetType: 'PAYMENT',
     targetId: payment.id,
-    targetLabel: payment.catalog.slug,
+    targetLabel: payment.catalog?.slug || payment.catalogSlugSnapshot || payment.id,
     metadata: {
       gatewayId: payment.gatewayId,
       mpStatus,
