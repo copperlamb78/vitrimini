@@ -12,6 +12,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useDebouncedValue } from '../../utils/useDebouncedValue';
+import { getPublicStoreUrl } from '../../utils/url';
 import {
   changeAdminCatalogPlan,
   deleteAdminCatalog,
@@ -260,7 +261,7 @@ export function AdminCatalogsTab({
 
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
                       <a
-                        href={`/c/${cat.slug}`}
+                        href={getPublicStoreUrl(cat.slug)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 font-semibold text-rose-600 hover:underline"
