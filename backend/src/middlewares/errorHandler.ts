@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { ZodError } from 'zod';
+import { captureSystemError } from '../services/errorLog.service.js';
 
 export class AppError extends Error {
   public readonly statusCode: number;
@@ -127,5 +128,31 @@ export function errorHandler(
   }
 
   // 6. Qualquer erro do Prisma, banco de dados, gateway ou exceção inesperada -> 500 genérico
+  const errMessage =
+    err instanceof Error
+      ? err.message
+      : typeof err === 'object' && err !== null && 'message' in err
+        ? String((err as { message?: unknown }).message)
+        : String(err);
+  const errStack = err instanceof Error ? err.stack : undefined;
+  const errCode =
+    typeof err === 'object' && err !== null && 'code' in err
+      ? String((err as { code?: unknown }).code)
+      : undefined;
+
+  const isDatabaseErr = Boolean(errCode && /^P\d{4}$/.test(errCode));
+  captureSystemError({
+    source: 'BACKEND',
+    severity: isDatabaseErr ? 'CRITICAL' : 'ERROR',
+    category: isDatabaseErr ? 'DATABASE' : 'RUNTIME',
+    message: errMessage,
+    stack: errStack,
+    route: req.originalUrl || req.path,
+    method: req.method,
+    statusCode: 500,
+    userId: req.user?.id || null,
+    context: errCode ? { code: errCode } : undefined,
+  });
+
   res.status(500).json({ error: FRIENDLY_ERRORS.INTERNAL });
 }
