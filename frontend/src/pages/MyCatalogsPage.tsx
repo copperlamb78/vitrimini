@@ -36,6 +36,7 @@ import {
   isMpInviteDismissed,
 } from '../components/ConnectMercadoPagoModal';
 import { MyCatalogsSkeleton } from '../components/Skeletons';
+import { GlobalAnnouncementBanner } from '../components/GlobalAnnouncementBanner';
 import logoVitriMini from '../assets/logo-vitrimini.png';
 
 const ShareCatalogModal = lazy(() =>
@@ -227,6 +228,7 @@ export function MyCatalogsPage() {
       </header>
 
       <main className="mx-auto mt-8 max-w-5xl px-4">
+        <GlobalAnnouncementBanner />
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900">
@@ -290,6 +292,8 @@ export function MyCatalogsPage() {
                           <img
                             src={logoSrc}
                             alt={`Logo da vitrine ${cat.storeName}`}
+                            loading="lazy"
+                            decoding="async"
                             className="h-12 w-12 shrink-0 rounded-full border border-zinc-200 object-cover"
                           />
                         ) : (
