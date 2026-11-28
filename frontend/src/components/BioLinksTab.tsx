@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowDown,
@@ -145,6 +145,7 @@ export function BioLinksTab({
   >({});
 
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -326,6 +327,8 @@ export function BioLinksTab({
       }
     }
 
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       const payload: BioLinksConfig = {
@@ -387,6 +390,7 @@ export function BioLinksTab({
         )
       );
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -1068,16 +1072,22 @@ export function BioLinksTab({
               type="button"
               onClick={handleSave}
               disabled={saving}
+              aria-busy={saving}
               style={{
                 backgroundColor: accentColor,
                 color: accentTextColor,
               }}
-              className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold shadow-sm transition-all hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Salvando...
+                </>
+              ) : savedNotice ? (
+                <>
+                  <Check className="h-4 w-4" />
+                  Salvo!
                 </>
               ) : (
                 <>
