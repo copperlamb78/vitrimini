@@ -8,6 +8,17 @@ import {
 
 const router = Router();
 
+const couponValidateRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => `ip:${ipKeyGenerator(req.ip || '127.0.0.1')}`,
+  message: {
+    error: 'Muitas tentativas de validação. Aguarde alguns instantes.',
+  },
+});
+
 const publicGrowthRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 90,
@@ -22,7 +33,7 @@ const publicGrowthRateLimiter = rateLimit({
 // GET /api/coupons/validate?code=FEIRA30
 router.get(
   '/coupons/validate',
-  publicGrowthRateLimiter,
+  couponValidateRateLimiter,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const code = typeof req.query.code === 'string' ? req.query.code : '';
