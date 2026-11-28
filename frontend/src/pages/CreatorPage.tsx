@@ -55,6 +55,8 @@ import { AppearanceControls } from '../components/AppearanceControls';
 import { CatalogLivePreview } from '../components/CatalogLivePreview';
 import { PixPaymentModal } from '../components/PixPaymentModal';
 import { PlanSelectorModal, type PlanOption } from '../components/PlanSelectorModal';
+import { validatePromoCoupon } from '../services/adminApi';
+import type { CouponValidationResult } from '../types/admin';
 import { ConnectMercadoPagoModal } from '../components/ConnectMercadoPagoModal';
 import { AuthModal } from '../components/AuthModal';
 import { LogoUploader } from '../components/LogoUploader';
@@ -191,6 +193,37 @@ export function CreatorPage() {
   const [trialSuccessData, setTrialSuccessData] =
     useState<CreateCatalogResponse | null>(null);
   const [showMpInviteModal, setShowMpInviteModal] = useState(false);
+  const [couponCode, setCouponCode] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return (new URLSearchParams(window.location.search).get('cupom') || '').trim().toUpperCase();
+  });
+  const [validatedCoupon, setValidatedCoupon] = useState<CouponValidationResult | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!couponCode) {
+      setValidatedCoupon(null);
+      setCouponError(null);
+      return;
+    }
+    let cancelled = false;
+    validatePromoCoupon(couponCode)
+      .then((res) => {
+        if (!cancelled) {
+          setValidatedCoupon(res);
+          setCouponError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setValidatedCoupon(null);
+          setCouponError(err instanceof Error ? err.message : 'Código promocional inválido.');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [couponCode]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -523,6 +556,9 @@ export function CreatorPage() {
 
         formData.append('products', JSON.stringify(serializedProducts));
         formData.append('deferPayment', 'true');
+        if (validatedCoupon?.valid) {
+          formData.append('couponCode', validatedCoupon.code);
+        }
 
         const response = await createCatalog(formData, tokenOverride);
         localStorage.removeItem(DRAFT_STORAGE_KEY);
@@ -754,6 +790,31 @@ export function CreatorPage() {
 
       {/* Main Content */}
       <main className="mx-auto mt-6 w-full max-w-6xl flex-1 px-4 pb-12">
+        {(validatedCoupon || couponError) && (
+          <div
+            className={`mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border px-4 py-2.5 text-xs font-semibold ${
+              validatedCoupon
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                : 'border-amber-200 bg-amber-50 text-amber-900'
+            }`}
+          >
+            {validatedCoupon ? (
+              <span>
+                Código promocional <strong>{validatedCoupon.code}</strong> aplicado:{' '}
+                <strong>{validatedCoupon.bonusDays} dias grátis</strong> na ativação da sua vitrine!
+              </span>
+            ) : (
+              <span>{couponError}</span>
+            )}
+            <button
+              type="button"
+              onClick={() => setCouponCode('')}
+              className="cursor-pointer underline opacity-80 hover:opacity-100"
+            >
+              Remover
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
           {/* Left Column: Form */}
           <div className="lg:col-span-7">
