@@ -15,8 +15,11 @@ export function ImpersonationBanner() {
   async function handleBackToAdmin() {
     setExiting(true);
     try {
+      const isAdminSubdomain =
+        typeof window !== 'undefined' &&
+        window.location.hostname.toLowerCase() === 'painel.vitrimini.com.br';
       await stopImpersonation();
-      navigate('/super-admin');
+      navigate(isAdminSubdomain ? '/' : '/super-admin', { replace: true });
     } finally {
       setExiting(false);
     }
