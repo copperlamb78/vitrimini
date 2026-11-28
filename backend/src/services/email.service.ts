@@ -920,3 +920,87 @@ export async function sendNewOrderEmail({
     html,
   });
 }
+
+export async function sendExpirationRuleEmail({
+  to,
+  name,
+  storeName,
+  slug,
+  expiresAt,
+  stage,
+}: SendCatalogExpiringSoonEmailInput & {
+  stage: 'D-3' | 'D-0' | 'D+2';
+}): Promise<void> {
+  const firstName = name.trim().split(/\s+/)[0] || 'lojista';
+  const baseUrl = getFrontendBaseUrl();
+  const renewUrl = `${baseUrl}/minhas-vitrines`;
+  const formattedDate = formatDateBR(expiresAt);
+
+  const safeFirstName = escapeHtml(firstName);
+  const safeStoreName = escapeHtml(storeName);
+  const safeSlug = escapeHtml(slug);
+  const safeDate = escapeHtml(formattedDate);
+
+  if (!isEmailConfigured()) {
+    console.log(
+      `[Email Dev Fallback] Régua ${stage} para ${to} (vitrine ${slug})`
+    );
+    return;
+  }
+
+  const stageCopy =
+    stage === 'D-3'
+      ? {
+          subject: `Sua vitrine "${storeName}" vence em 3 dias (${formattedDate})`,
+          title: 'Sua vitrine vence em 3 dias',
+          lead: `A validade da vitrine <strong>${safeStoreName}</strong> (<code>/c/${safeSlug}</code>) vence em <strong>${safeDate}</strong>. Renove antes do prazo para não interromper seus pedidos no WhatsApp.`,
+        }
+      : stage === 'D-0'
+        ? {
+            subject: `Hoje é o último dia da vitrine "${storeName}" no ar`,
+            title: 'Sua vitrine vence hoje',
+            lead: `Hoje (<strong>${safeDate}</strong>) é o último dia do ciclo atual da vitrine <strong>${safeStoreName}</strong> (<code>/c/${safeSlug}</code>). Renove em segundos para mantê-la ativa.`,
+          }
+        : {
+            subject: `Última chamada: reative sua vitrine "${storeName}"`,
+            title: 'Sua vitrine está pausada — reative agora',
+            lead: `A vitrine <strong>${safeStoreName}</strong> (<code>/c/${safeSlug}</code>) expirou em <strong>${safeDate}</strong>. Seus produtos continuam salvos com segurança: basta renovar para voltar a receber pedidos imediatamente.`,
+          };
+
+  const bodyHtml = `
+    <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
+      Olá, <strong>${safeFirstName}</strong>!
+    </p>
+    <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
+      ${stageCopy.lead}
+    </p>
+  `;
+
+  const html = renderBaseEmailLayout({
+    title: stageCopy.title,
+    bodyHtml,
+    ctaLabel: 'Renovar Minha Vitrine',
+    ctaUrl: renewUrl,
+  });
+
+  const text = [
+    `Olá, ${firstName}!`,
+    '',
+    stage === 'D-3'
+      ? `Sua vitrine "${storeName}" vence em ${formattedDate}.`
+      : stage === 'D-0'
+        ? `Sua vitrine "${storeName}" vence hoje (${formattedDate}).`
+        : `Sua vitrine "${storeName}" expirou em ${formattedDate}, mas seus produtos continuam salvos.`,
+    '',
+    `Renove agora em: ${renewUrl}`,
+  ].join('\n');
+
+  await sendEmail({
+    type: 'EXPIRATION_REMINDER',
+    to,
+    toName: name,
+    subject: stageCopy.subject,
+    text,
+    html,
+  });
+}
