@@ -241,14 +241,40 @@ export async function createPixPayment({
   };
 }
 
+export function getPixFeeRate(): number {
+  const rawRate = Number(process.env.MP_PIX_FEE_RATE);
+  if (Number.isFinite(rawRate) && rawRate >= 0 && rawRate < 0.5) {
+    return rawRate;
+  }
+  const rawPct = Number(process.env.MP_PIX_FEE_PERCENT);
+  if (Number.isFinite(rawPct) && rawPct >= 0 && rawPct < 50) {
+    return rawPct / 100;
+  }
+  return 0.0099; // 0,99% padrão Pix MP
+}
+
+export function getCardFeeRate(): number {
+  const rawRate = Number(process.env.MP_CARD_FEE_RATE);
+  if (Number.isFinite(rawRate) && rawRate >= 0 && rawRate < 0.5) {
+    return rawRate;
+  }
+  return 0.0498; // 4,98% padrão Cartão MP (recebimento na hora)
+}
+
 export function calculatePixFeeFallback(amountCents: number): {
   feeCents: number;
   netAmountCents: number;
 } {
-  const rawPct = Number(process.env.MP_PIX_FEE_PERCENT);
-  const feePercent =
-    Number.isFinite(rawPct) && rawPct >= 0 && rawPct < 50 ? rawPct : 0.99;
-  const feeCents = Math.round((amountCents * feePercent) / 100);
+  const feeCents = Math.round(amountCents * getPixFeeRate());
+  const netAmountCents = Math.max(0, amountCents - feeCents);
+  return { feeCents, netAmountCents };
+}
+
+export function calculateCardFeeFallback(amountCents: number): {
+  feeCents: number;
+  netAmountCents: number;
+} {
+  const feeCents = Math.round(amountCents * getCardFeeRate());
   const netAmountCents = Math.max(0, amountCents - feeCents);
   return { feeCents, netAmountCents };
 }
