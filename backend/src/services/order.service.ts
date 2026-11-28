@@ -179,6 +179,18 @@ export async function createStoreOrder(params: {
     if (parsed.paymentMethod !== 'PIX' && parsed.paymentMethod !== 'CARD') {
       throw new AppError(400, 'Escolha Pix ou Cartão para pagar online.');
     }
+    if (parsed.paymentMethod === 'PIX' && !catalog.mpAcceptPix) {
+      throw new AppError(
+        400,
+        'Esta loja não aceita pagamento online via Pix no momento.'
+      );
+    }
+    if (parsed.paymentMethod === 'CARD' && !catalog.mpAcceptCard) {
+      throw new AppError(
+        400,
+        'Esta loja não aceita pagamento online via Cartão no momento.'
+      );
+    }
   }
 
   const createdOrder = await createOrderWithSequentialNumber({
