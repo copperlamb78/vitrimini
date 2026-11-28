@@ -174,11 +174,14 @@ export async function confirmCatalogPaymentTx(params: {
       },
     });
 
-    if (!paymentRecord) {
+    if (!paymentRecord || !paymentRecord.catalog || !paymentRecord.catalogId) {
       return null;
     }
 
-    const computed = params.resolveConfirmation(paymentRecord);
+    const computed = params.resolveConfirmation({
+      ...paymentRecord,
+      catalog: paymentRecord.catalog,
+    });
 
     // Trava atômica anti-race-condition: garante transição única PENDING -> PAID
     const claimed = await tx.catalogPayment.updateMany({
@@ -368,10 +371,22 @@ export async function createCatalogPaymentRecord(input: {
   autoRenewConsentAt?: Date;
   autoRenewConsentVersion?: string;
 }) {
+  const catalogSnapshot = await prisma.catalog.findUnique({
+    where: { id: input.catalogId },
+    select: {
+      storeName: true,
+      slug: true,
+      user: { select: { email: true } },
+    },
+  });
+
   return prisma.catalogPayment.create({
     data: {
       userId: input.userId,
       catalogId: input.catalogId,
+      catalogNameSnapshot: catalogSnapshot?.storeName ?? null,
+      catalogSlugSnapshot: catalogSnapshot?.slug ?? null,
+      ownerEmailSnapshot: catalogSnapshot?.user?.email ?? null,
       type: input.type,
       planCode: input.planCode,
       status: 'PENDING',
@@ -873,10 +888,17 @@ export async function confirmAuthorizedSubscriptionPaymentTx(params: {
         },
       });
     } else {
+      const owner = await tx.user.findUnique({
+        where: { id: catalog.userId },
+        select: { email: true },
+      });
       await tx.catalogPayment.create({
         data: {
           userId: catalog.userId,
           catalogId: catalog.id,
+          catalogNameSnapshot: catalog.storeName,
+          catalogSlugSnapshot: catalog.slug,
+          ownerEmailSnapshot: owner?.email ?? null,
           type: paymentType,
           planCode: params.planCode,
           status: 'PAID',
