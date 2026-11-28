@@ -9,6 +9,8 @@ import catalogRoutes from './routes/catalog.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import mpRoutes from './routes/mp.routes.js';
+import telemetryRoutes from './routes/telemetry.routes.js';
+import publicGrowthRoutes from './routes/publicGrowth.routes.js';
 import { errorHandler, FRIENDLY_ERRORS } from './middlewares/errorHandler.js';
 import {
   isAllowedOrigin,
@@ -171,6 +173,8 @@ ${urlNodes.join('\n')}
 app.use('/api', scanGuard);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/telemetry', telemetryRoutes);
+app.use('/api', publicGrowthRoutes);
 app.use('/api', orderRoutes);
 app.use('/api', mpRoutes);
 app.use('/api', catalogRoutes);
