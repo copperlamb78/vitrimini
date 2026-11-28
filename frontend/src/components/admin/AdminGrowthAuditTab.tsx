@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { AdminToggleSwitch } from './AdminToggleSwitch';
+import { getPublicAppOrigin } from '../../utils/url';
 import {
   createAdminAnnouncement,
   createAdminCoupon,
@@ -283,7 +284,7 @@ export function AdminGrowthAuditTab({
                     type="button"
                     onClick={() => {
                       void navigator.clipboard.writeText(
-                        `https://vitrimini.com.br/criar?cupom=${c.code}`
+                        `${getPublicAppOrigin()}/criar?cupom=${c.code}`
                       );
                       onToast('Link promocional copiado!');
                     }}
