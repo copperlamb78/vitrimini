@@ -81,6 +81,25 @@ export async function updateCatalogOnlinePaymentEnabled(params: {
   });
 }
 
+export async function updateCatalogMpPaymentMethods(params: {
+  catalogId: string;
+  userId: string;
+  mpAcceptPix: boolean;
+  mpAcceptCard: boolean;
+}) {
+  return prisma.catalog.update({
+    where: { id: params.catalogId, userId: params.userId },
+    data: {
+      mpAcceptPix: params.mpAcceptPix,
+      mpAcceptCard: params.mpAcceptCard,
+    },
+    select: {
+      mpAcceptPix: true,
+      mpAcceptCard: true,
+    },
+  });
+}
+
 export async function findOwnedCatalogForMpDisconnect(
   catalogId: string,
   userId: string
