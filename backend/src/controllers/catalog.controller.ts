@@ -240,6 +240,10 @@ export async function createCatalogHandler(
       meta,
       validatedProducts,
       planCode: req.body.planCode,
+      couponCode:
+        typeof req.body.couponCode === 'string'
+          ? req.body.couponCode
+          : undefined,
       deferPayment,
       files,
     });
@@ -395,15 +399,27 @@ export async function pixWebhookHandler(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  try {
-    const body =
-      req.body && typeof req.body === 'object'
-        ? (req.body as Record<string, unknown>)
-        : {};
-    const queryDataId = req.query['data.id']
-      ? String(req.query['data.id'])
+  const body =
+    req.body && typeof req.body === 'object'
+      ? (req.body as Record<string, unknown>)
+      : {};
+  const queryDataId = req.query['data.id']
+    ? String(req.query['data.id'])
+    : undefined;
+  const rawBodyData =
+    typeof body.data === 'object' && body.data !== null
+      ? (body.data as Record<string, unknown>)
       : undefined;
+  const externalResourceId =
+    queryDataId || (rawBodyData?.id ? String(rawBodyData.id) : undefined);
+  const eventType =
+    typeof body.type === 'string'
+      ? body.type
+      : typeof body.topic === 'string'
+        ? body.topic
+        : 'unknown';
 
+  try {
     const result = await processPixWebhook({
       body,
       queryDataId,
@@ -411,8 +427,48 @@ export async function pixWebhookHandler(
       xRequestId: req.headers['x-request-id'] as string | undefined,
     });
 
+    const { recordPaymentWebhookLog } = await import(
+      '../services/adminFinance.service.js'
+    );
+    void recordPaymentWebhookLog({
+      eventType,
+      externalResourceId,
+      status: 'PROCESSED',
+      httpStatus: 200,
+      payload: body,
+    });
+
     res.status(200).json(result);
   } catch (error) {
+    const { recordPaymentWebhookLog } = await import(
+      '../services/adminFinance.service.js'
+    );
+    const { captureSystemError } = await import(
+      '../services/errorLog.service.js'
+    );
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const httpStatus = error instanceof AppError ? error.statusCode : 500;
+    void recordPaymentWebhookLog({
+      eventType,
+      externalResourceId,
+      status: 'FAILED',
+      httpStatus,
+      errorMessage: errMsg,
+      payload: body,
+    });
+    if (httpStatus >= 500) {
+      captureSystemError({
+        source: 'WEBHOOK',
+        severity: 'CRITICAL',
+        category: 'WEBHOOK',
+        message: errMsg,
+        stack: error instanceof Error ? error.stack : undefined,
+        route: req.originalUrl || req.path,
+        method: req.method,
+        statusCode: httpStatus,
+        context: { eventType, externalResourceId },
+      });
+    }
     next(error);
   }
 }
