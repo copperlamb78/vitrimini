@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PageSuspenseSkeleton } from './components/Skeletons';
 import {
   GlobalErrorBoundary,
@@ -67,6 +67,81 @@ const isAdminSubdomain =
   typeof window !== 'undefined' &&
   window.location.hostname.toLowerCase() === 'painel.vitrimini.com.br';
 
+function AppRoutes() {
+  const { user } = useAuth();
+  const isImpersonating = Boolean(user?.isImpersonation);
+
+  if (isAdminSubdomain && !isImpersonating) {
+    return (
+      <Routes>
+        <Route path="*" element={<AdminDashboardPage />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={
+          isAdminSubdomain && isImpersonating ? (
+            <Navigate to="/minhas-vitrines" replace />
+          ) : (
+            <LandingPage />
+          )
+        }
+      />
+      <Route
+        path="/cardapio-digital-whatsapp"
+        element={<NicheLandingPage nicheKey="cardapio-digital-whatsapp" />}
+      />
+      <Route
+        path="/catalogo-online-roupas"
+        element={<NicheLandingPage nicheKey="catalogo-online-roupas" />}
+      />
+      <Route
+        path="/vitrine-digital-confeitaria"
+        element={<NicheLandingPage nicheKey="vitrine-digital-confeitaria" />}
+      />
+      <Route
+        path="/link-pedidos-instagram"
+        element={<NicheLandingPage nicheKey="link-pedidos-instagram" />}
+      />
+      <Route path="/criar" element={<CreatorPage />} />
+      <Route path="/entrar" element={<AuthPage />} />
+      <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
+      <Route path="/minhas-vitrines" element={<MyCatalogsPage />} />
+      <Route path="/meus-pedidos" element={<MyOrdersPage />} />
+      <Route path="/c/:slug" element={<StorePage />} />
+      <Route path="/:slug/links" element={<BioLinksPage />} />
+      <Route path="/pedido/:trackingCode" element={<OrderTrackingPage />} />
+      <Route path="/painel/:catalogId" element={<ManagePage />} />
+      <Route path="/editar/:editToken" element={<EditTokenRedirectPage />} />
+      <Route
+        path="/super-admin"
+        element={
+          isImpersonating ? (
+            <Navigate to="/minhas-vitrines" replace />
+          ) : (
+            <AdminDashboardPage />
+          )
+        }
+      />
+      <Route path="/termos" element={<LegalDocPage type="terms" />} />
+      <Route path="/privacidade" element={<LegalDocPage type="privacy" />} />
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to={isAdminSubdomain && isImpersonating ? '/minhas-vitrines' : '/'}
+            replace
+          />
+        }
+      />
+    </Routes>
+  );
+}
+
 export function App() {
   useEffect(() => {
     return registerGlobalErrorListeners();
@@ -78,59 +153,7 @@ export function App() {
         <BrowserRouter>
           <ImpersonationBanner />
           <Suspense fallback={<PageSuspenseSkeleton />}>
-          {isAdminSubdomain ? (
-            <Routes>
-              <Route path="*" element={<AdminDashboardPage />} />
-            </Routes>
-          ) : (
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route
-                path="/cardapio-digital-whatsapp"
-                element={
-                  <NicheLandingPage nicheKey="cardapio-digital-whatsapp" />
-                }
-              />
-              <Route
-                path="/catalogo-online-roupas"
-                element={
-                  <NicheLandingPage nicheKey="catalogo-online-roupas" />
-                }
-              />
-              <Route
-                path="/vitrine-digital-confeitaria"
-                element={
-                  <NicheLandingPage nicheKey="vitrine-digital-confeitaria" />
-                }
-              />
-              <Route
-                path="/link-pedidos-instagram"
-                element={
-                  <NicheLandingPage nicheKey="link-pedidos-instagram" />
-                }
-              />
-              <Route path="/criar" element={<CreatorPage />} />
-              <Route path="/entrar" element={<AuthPage />} />
-              <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
-              <Route path="/minhas-vitrines" element={<MyCatalogsPage />} />
-              <Route path="/meus-pedidos" element={<MyOrdersPage />} />
-              <Route path="/c/:slug" element={<StorePage />} />
-              <Route path="/:slug/links" element={<BioLinksPage />} />
-              <Route path="/pedido/:trackingCode" element={<OrderTrackingPage />} />
-              <Route path="/painel/:catalogId" element={<ManagePage />} />
-              <Route
-                path="/editar/:editToken"
-                element={<EditTokenRedirectPage />}
-              />
-              <Route path="/super-admin" element={<AdminDashboardPage />} />
-              <Route path="/termos" element={<LegalDocPage type="terms" />} />
-              <Route
-                path="/privacidade"
-                element={<LegalDocPage type="privacy" />}
-              />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          )}
+            <AppRoutes />
           </Suspense>
         </BrowserRouter>
       </AuthProvider>
