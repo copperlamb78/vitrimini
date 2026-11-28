@@ -27,6 +27,27 @@ export const AUTH_SESSION_HINT_KEY = 'vitrimini_has_session';
 const LEGACY_SAVED_CATALOGS_KEY = 'vitrimini_saved_catalogs';
 
 const GLOBAL_TOKEN_KEY = '__vitriminiAccessToken';
+const IMPERSONATION_TOKEN_KEY = 'vitrimini_impersonation_token';
+
+export function getImpersonationToken(): string | null {
+  try {
+    return sessionStorage.getItem(IMPERSONATION_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setImpersonationToken(token: string | null): void {
+  try {
+    if (token) {
+      sessionStorage.setItem(IMPERSONATION_TOKEN_KEY, token);
+    } else {
+      sessionStorage.removeItem(IMPERSONATION_TOKEN_KEY);
+    }
+  } catch {
+    // Ignora falhas de storage
+  }
+}
 
 export function getAccessToken(): string | null {
   const val = (globalThis as Record<string, unknown>)[GLOBAL_TOKEN_KEY];
@@ -469,6 +490,24 @@ export async function toggleMercadoPagoOnlinePayment(
       body: JSON.stringify({ enabled }),
     },
     'Não foi possível atualizar a configuração de pagamento online.'
+  );
+}
+
+export async function updateMercadoPagoPaymentMethods(
+  catalogId: string,
+  payload: { mpAcceptPix: boolean; mpAcceptCard: boolean }
+): Promise<{ mpAcceptPix: boolean; mpAcceptCard: boolean }> {
+  return safeRequest<{ mpAcceptPix: boolean; mpAcceptCard: boolean }>(
+    `${API_BASE_URL}/api/catalogs/${encodeURIComponent(catalogId)}/mp-payment-methods`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(payload),
+    },
+    'Não foi possível atualizar os meios de pagamento.'
   );
 }
 
